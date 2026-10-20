@@ -10,4 +10,4 @@ The portable demo uses a temporary database and only synthetic dialogue. Real in
 
 Before each publication: inspect the complete staged file list and diff, run `python tools/audit_source.py`, inspect any new assets for provenance, then run `python tools/audit_source.py --history`. These scans detect common credential formats and disallowed paths/file types; they supplement human review and do not claim arbitrary personal text can be recognized automatically.
 
-PR review must bind to the exact commit. UI changes need browser evidence. Inference-affecting work needs Codex local model evidence. CI or agent self-report alone is insufficient. Review/merge automation is pending separate explicit human authorization; no bot or developer receives merge authority from this document.
+PR review must bind to the exact commit. UI changes need browser evidence. Every merge in this project requires Codex local acceptance of the exact final HEAD. CI or agent self-report alone is insufficient. The independently authorized Mason workflow is described in `COLLABORATION.md`; this document does not grant or expand permissions.

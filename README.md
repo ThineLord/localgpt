@@ -21,6 +21,8 @@ Image inference requires the existing ComfyUI nodes and model files named in `ge
 
 Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation rename/trash/restore, gallery, explicit memory management, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
 
+The redesigned interface uses an observed ChatGPT guest layout as its reference: quiet neutral surfaces, a collapsible sidebar, a centered conversation column and a bottom composer. See [design measurements](docs/DESIGN.md), [local acceptance](docs/ACCEPTANCE.md) and [agent/review boundaries](docs/COLLABORATION.md).
+
 ## Validation
 
 ```sh
