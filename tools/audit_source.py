@@ -27,16 +27,25 @@ if args.history:
             mode, kind, oid = meta.decode().split()
             entries.append((path.decode(), oid, kind, mode))
 else:
-    paths = git('diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').decode().split('\0')
-    entries = [(name, ':' + name, 'blob', '100644') for name in paths if name]
+    for item in git('ls-files', '--stage', '-z').split(b'\0'):
+        if not item:
+            continue
+        meta, path = item.split(b'\t', 1)
+        mode, oid, stage = meta.decode().split()
+        kind = 'unmerged' if stage != '0' else 'commit' if mode == '160000' else 'blob'
+        entries.append((path.decode(), oid, kind, mode))
 
 failures = set()
 seen = set()
 for name, oid, kind, mode in entries:
-    if (name, oid) in seen:
+    identity = (name, oid, kind, mode)
+    if identity in seen:
         continue
-    seen.add((name, oid))
+    seen.add(identity)
     p = PurePosixPath(name)
+    if kind == 'unmerged':
+        failures.add((name, 'unmerged index entry'))
+        continue
     if kind != 'blob' or mode in ('120000', '160000'):
         failures.add((name, 'symlink/submodule is not approved source'))
         continue

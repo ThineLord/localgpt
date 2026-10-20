@@ -22,6 +22,8 @@ The image test harness initially failed while serializing nested image metadata 
 
 The remote private repository was independently cloned, its requirements installed in a fresh virtual environment, the frontend built and its demo opened in a browser. The 21 repository tests cover storage migration, persistence, drafts/conflicts, memory, origin checks, streaming, cancellation and routes. Build equality, JavaScript syntax and staged/reachable-history source audits supplement these checks.
 
+An additional five isolated Git regression tests exercise the publication guard: regular staged content, symlink rejection without reading the target, submodule rejection, unmerged-index rejection and redaction of detected synthetic secrets. This follows an actual PR review finding that the first staged scanner assigned a constant regular-file mode; it now reads the real modes and object IDs from the complete index. The history scanner already read real Git modes. No symlink/submodule was present in the published source.
+
 An initial system-Python test invocation failed to import aiohttp; the installed clone virtual environment was then used successfully. Cloud-side unit-test execution did not produce a valid final result, so acceptance relies on Codex's local tests. No CI success is claimed.
 
 The real image run proves text-to-image and output display, while real upload proves reference handling; a new model inference using that reference was not performed. ChatGPT comparison is to the observed guest interface, not every authenticated product state. Existing Markdown remains an escaped subset. Real model setup is machine-specific; the portable demo is the independent clone entrypoint.

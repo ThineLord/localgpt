@@ -21,6 +21,7 @@ For future launches, Codex chooses model, explicit supported effort/parameters a
 - Only the final integration PR can be merged for this delivery.
 - Mason must inspect the actual diff, task coverage, compatibility and privacy independently. A developer's completion report or green checks alone are insufficient.
 - All 21 repository tests must pass on the integrated candidate, with build/syntax checks, browser screenshots and Codex's real local chat/image evidence. No baseline test exception is allowed on the final PR.
+- The five publication-guard regression tests must also pass. An automated Codex connector review identified the staged-mode bug; Codex fixed it, and Mason reviews the fix independently before merge.
 - Codex must explicitly accept the exact final HEAD. Mason must recheck HEAD immediately before merging; any change invalidates acceptance.
 - Honor branch protection and required checks. No force push, branch/repository deletion, self-approval or protection bypass.
 - Expanded permissions, user-data changes, secret handling, extra fees or irreversible actions outside this authorization stop for human approval.

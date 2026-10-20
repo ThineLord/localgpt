@@ -30,10 +30,11 @@ python work/chat-sidebar/build.py --check
 node --check work/chat-sidebar/app.js
 node --check work/chat-sidebar/workspace.js
 python -m unittest discover -s work/chat-sidebar -p 'test_*.py' -v
+python -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
 ## Privacy
 
 This repository contains reviewed source only. Original workspaces, history, databases, generated images, references, logs, screenshots, recordings, backups, secrets and credentials are excluded. Never `git add` an application data directory. Do not copy local `.git` objects or checkpoints into this repository. Browser preferences may be in localStorage; chat drafts/messages/memories are in the discovered SQLite database, legacy imports in `qwen-studio-history.json`, uploads/output in ComfyUI's configured directories. Migration backups remain local. Existing runtime configuration is not uploaded or overwritten.
 
-Run `python tools/audit_source.py` after staging and before committing. It checks staged file names/content and prints no secret values. A passing pattern scan supplements human review; it cannot prove arbitrary text contains no private information.
+Run `python tools/audit_source.py` after staging and before committing. It checks the complete staged index using actual Git object modes/content, rejects symlinks, submodules and unresolved conflicts, and prints no secret values. Run `python tools/audit_source.py --history` before pushing. A passing pattern scan supplements human review; it cannot prove arbitrary text contains no private information.
