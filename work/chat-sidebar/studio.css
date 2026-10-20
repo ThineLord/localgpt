@@ -389,7 +389,7 @@ svg {
   font-size: 12px;
   line-height: 18px;
 }
-.markdown p { margin: 0 0 20px; }
+.markdown p { margin: 0 0 20px; white-space: pre-line; }
 .markdown ul, .markdown ol { padding-left: 26px; margin: 12px 0 24px; }
 .markdown li { padding-left: 2px; margin: 8px 0; }
 .markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 28px 0 14px; font-size: 20px; line-height: 1.4; font-weight: 600; }

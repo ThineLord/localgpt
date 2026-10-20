@@ -4,7 +4,10 @@
   const tr = (zh, en) => document.documentElement.lang === "en" ? en : zh;
   const glyph = path => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
   const focus = el => { if (el?.getClientRects().length && !el.disabled) el.focus({preventScroll:true}); };
-  const changed = el => el.dispatchEvent(new Event("change", {bubbles:true}));
+  const changed = el => {
+    el.dispatchEvent(new Event("input", {bubbles:true}));
+    el.dispatchEvent(new Event("change", {bubbles:true}));
+  };
   const controllers = [];
 
   class Menu {
@@ -31,6 +34,11 @@
       document.addEventListener("pointerdown",e=>{
         if(this.open&&!panel.contains(e.target)&&!trigger.contains(e.target))this.close(false);
       });
+      document.addEventListener("keydown",e=>{
+        if(e.key==="Escape"&&this.open&&!panel.contains(e.target)){
+          e.preventDefault();e.stopPropagation();this.close();
+        }
+      },{capture:true});
       addEventListener("resize",()=>{if(this.open)this.place();},{passive:true});
     }
     items(){return [...this.panel.querySelectorAll('button:not(:disabled):not([hidden])')].filter(e=>e.getClientRects().length);}

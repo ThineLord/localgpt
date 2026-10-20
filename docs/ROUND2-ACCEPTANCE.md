@@ -46,7 +46,7 @@ that contract. No backend route, model credential or storage schema changed.
 A separate preview proxy uses the current frontend with the existing real8190
 backend. It creates one explicitly synthetic acceptance conversation, observes
 real LM Studio streaming and tests the existing ComfyUI image path. The real chat completed with observed partial output. ComfyUI completed a new
-512×512 image at15 steps/seed42; the browser decoded it, downloaded it, reused it
+512×512 image at 15 steps/seed42; the browser decoded it, downloaded it, reused it
 as an edit reference, and separately uploaded/decoded a synthetic1×1 PNG before
 removing the reference. No additional reference-conditioned inference was run.
 Real-service receipts remain local; exact-HEAD acceptance is supplied separately
@@ -56,8 +56,8 @@ and SHA256 of Python tuple repr; only new test records may be added.
 The real image screenshot exposed delayed-decode scroll drift. The image stage
 now reserves its recorded dimensions/aspect ratio before loading. The focused
 `tools/round2_image_scroll.js` regression delays decoding: the pending image
-already reserves512×512, completion leaves0px bottom gap, and manually scrolling
-to the top stays at0px after decode. This test does not call a real model.
+already reserves 512×512, completion leaves 0px bottom gap, and manually scrolling
+to the top stays at 0px after decode. This test does not call a real model.
 
 ## Intentional differences and remaining reference gaps
 
@@ -80,3 +80,16 @@ to the top stays at0px after decode. This test does not call a real model.
 The first-round acceptance document is retained as historical evidence, not as
 this round's visual standard. Code review and successful automated checks do not
 replace inspecting the local comparison report and rendered states.
+
+## Independent-review corrections
+
+Mason's first review reproduced a real adapter defect that the first browser
+assertions missed: only `change` fired, while existing mode/model handlers
+listen for `input`. The adapter now dispatches both; regression checks cover
+dependent hints/visibility, saved options, saved drafts and reload persistence.
+The same correction preserves native business handlers rather than duplicating
+them. Other findings led to restoring open history-menu focus after refresh,
+retaining message line breaks, nesting message headings below the page heading,
+and handling Escape even when focus is outside a menu. Unknown legacy image
+dimensions fall back to intrinsic sizing rather than a zero-width stage.
+`tools/round2_review_regressions.js` exercises these cases in the synthetic demo.

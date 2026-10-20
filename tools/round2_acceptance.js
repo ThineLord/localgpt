@@ -18,6 +18,9 @@ async (page) => {
     await page.locator("#modelMenuTrigger").click();
     await page.locator(`#modelMenu [data-kind=mode][data-value="${value}"]`).click();
     check(await page.locator("#mode").inputValue() === value, "Mode bridge failed");
+    check(await page.locator("#chatModel").evaluate(e=>e.hidden)===(value==="image"), "Mode dependent visibility failed");
+    check(await page.evaluate(v=>JSON.parse(localStorage.getItem("hanzagent-options")||"{}").mode===v,value), "Mode options persistence failed");
+    if(value==="image")check((await page.locator("#modeHint").innerText()).includes("Qwen Image"),"Image model hint missing");
   };
   const settings = async section => {
     if (!await page.locator("#preferencesDialog").isVisible()) {
@@ -62,6 +65,11 @@ async (page) => {
   await page.keyboard.press("Escape");
   check(await page.locator("#modelMenuTrigger").evaluate(el=>el===document.activeElement),
     "Model menu focus return");
+  await mode("image");
+  await page.waitForFunction(()=>document.querySelector("#saveState").textContent.includes("草稿已保存"));
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector("#mode").value==="image");
+  check(await page.locator("#chatModel").evaluate(e=>e.hidden),"Mode persistence after reload failed");
   await mode("chat");
   await page.locator("#upload").click();
   await shot("attachment-1440");

@@ -658,6 +658,10 @@ function renderSidebar(force = false) {
   if (!force && signature === lastSidebarSignature) return;
   lastSidebarSignature = signature;
   const list = $("chatList");
+  const opened = list.querySelector(".chat-row-menu:popover-open");
+  const menuState = opened && opened.contains(document.activeElement)
+    ? { id: opened.id, index: [...opened.querySelectorAll("button")].indexOf(document.activeElement) }
+    : null;
   list.replaceChildren();
   $("galleryNav").setAttribute("aria-current", String(view === "gallery"));
   $("trashNav").setAttribute("aria-current", String(view === "trash"));
@@ -757,6 +761,14 @@ function renderSidebar(force = false) {
     });
     row.append(b, menuTrigger, menu);
     list.append(row);
+  }
+  if (menuState) {
+    const restored = document.getElementById(menuState.id);
+    if (restored) {
+      restored.parentElement.querySelector(".chat-menu-trigger").click();
+      const selected = restored.querySelectorAll("button")[menuState.index];
+      if (selected && !selected.disabled) selected.focus({ preventScroll: true });
+    }
   }
 }
 function icon(name) {
@@ -870,9 +882,11 @@ function render(force = false) {
       img.width = m.image.metadata?.width || m.width;
       img.height = m.image.metadata?.height || m.height;
       // Reserve the output dimensions before decoding so follow-scroll uses the final height.
-      stage.style.width = `${img.width}px`;
-      img.style.width = "100%";
-      img.style.aspectRatio = `${img.width} / ${img.height}`;
+      if (img.width > 0 && img.height > 0) {
+        stage.style.width = `${img.width}px`;
+        img.style.width = "100%";
+        img.style.aspectRatio = `${img.width} / ${img.height}`;
+      }
       img.loading = "lazy";
       full.append(img);
       stage.append(full);
@@ -1825,7 +1839,7 @@ function markdown(target, text) {
       if (heading) {
         flushParagraph();
         list = null;
-        const el = document.createElement("h" + heading[1].length);
+        const el = document.createElement("h" + Math.min(4, heading[1].length + 1));
         el.innerHTML = inlineMarkdown(heading[2]);
         target.append(el);
       } else if (item) {
