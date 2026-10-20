@@ -1,6 +1,8 @@
 import asyncio
+from contextlib import closing
 import importlib.util
 import json
+import sqlite3
 import pathlib
 import sys
 import tempfile
@@ -29,14 +31,29 @@ class StorageTests(unittest.TestCase):
     def test_old_schema_upgrade_delete_restore_gallery(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp)
-            prior=importlib.util.spec_from_file_location('old_storage_fixture',ROOT.parent/'hanzagent'/'storage.before.py')
-            module=importlib.util.module_from_spec(prior);prior.loader.exec_module(module)
-            old=module.Store(root/'db.sqlite3')
+            # Explicit v1 schema, independent of unpublished historical source files.
+            with closing(sqlite3.connect(root/'db.sqlite3')) as db:
+                db.executescript("""
+                    CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+                    CREATE TABLE chats(id TEXT PRIMARY KEY,title TEXT NOT NULL,created REAL NOT NULL,
+                        updated REAL NOT NULL,version INTEGER NOT NULL DEFAULT 0,
+                        draft_version INTEGER NOT NULL DEFAULT 0,draft TEXT NOT NULL DEFAULT '{}');
+                    CREATE TABLE messages(id TEXT PRIMARY KEY,chat_id TEXT NOT NULL REFERENCES chats(id),
+                        prompt TEXT NOT NULL,reference_json TEXT,image_json TEXT,status TEXT NOT NULL,
+                        prompt_id TEXT,client_id TEXT,phase TEXT NOT NULL DEFAULT '准备生成',step INTEGER,
+                        total INTEGER,created REAL NOT NULL,finished REAL,seconds REAL,width INTEGER NOT NULL DEFAULT 512,
+                        height INTEGER NOT NULL DEFAULT 512,steps INTEGER NOT NULL DEFAULT 25,error TEXT,
+                        request_key TEXT UNIQUE,source_key TEXT UNIQUE);
+                """)
             record={'prompt':'橘猫 landscape','image':{'filename':'cat.png','subfolder':'cats','type':'output'}}
-            old.import_record(record)
+            with closing(sqlite3.connect(root/'db.sqlite3')) as db:
+                db.execute("INSERT INTO chats(id,title,created,updated) VALUES('legacy','Synthetic legacy',1,1)")
+                db.execute("INSERT INTO messages(id,chat_id,prompt,image_json,status,created,source_key) VALUES('old-message','legacy',?,?,'completed',1,'cats/cat.png')",(record['prompt'],json.dumps(record['image'])))
+                db.commit()
             legacy=root/'old.json';legacy.write_text(json.dumps([record]))
             store=storemod.Store(root/'db.sqlite3',legacy)
             self.assertIsNone(store.chat('legacy')['deleted_at'])
+            self.assertEqual(store.chat('legacy')['messages'][0]['id'],'old-message')
             store.trash('legacy')
             self.assertEqual(store.chats(),[])
             self.assertEqual(store.chats(deleted=True)[0]['id'],'legacy')

@@ -1563,10 +1563,10 @@ async function loadModels() {
       )) {
         $("chatModel").add(
           new Option(
-            m.display_name +
-              " · " +
-              (m.size_bytes / 1024 ** 3).toFixed(1) +
-              " GB",
+            (m.display_name || m.key) +
+              (Number.isFinite(m.size_bytes)
+                ? " · " + (m.size_bytes / 1024 ** 3).toFixed(1) + " GB"
+                : ""),
             m.key,
           ),
         );
