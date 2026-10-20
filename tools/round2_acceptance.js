@@ -5,10 +5,11 @@ async (page) => {
   const health = await (await page.request.get(new URL("/qwen-cn/health", page.url()).href)).json();
   if (!health.demo) throw Error("Synthetic data guard failed");
   const errors = [];
+  page.setDefaultTimeout(10000);
   page.on("pageerror", error => errors.push(error.message));
   const check = (ok, message) => { if (!ok) throw Error(message); };
   const shot = name => page.screenshot({
-    path: `output/playwright/round2/after/${name}.png`, scale: "css",
+    path: `output/playwright/round2/after/${name}.png`, scale: "css", animations: "disabled", caret: "hide",
   });
   const idle = () => page.waitForFunction(() =>
     document.getElementById("cancel").hidden &&
@@ -24,6 +25,8 @@ async (page) => {
         await page.locator("#mobileMenu").click();
       await page.locator("#appSettings").click();
     }
+    if (!await page.locator(`[data-settings-section="${section}"]`).isVisible())
+      await page.locator("#settingsBack").click();
     await page.locator(`[data-settings-section="${section}"]`).click();
   };
   const metrics = async () => page.evaluate(() => {
@@ -45,6 +48,7 @@ async (page) => {
   });
   await page.reload();
   await page.locator("#newChat").click();
+    await page.locator("#intro").waitFor({state:"visible"});
   const empty = await metrics();
   check(!empty.overflow && Math.abs(empty.sidebar.width-52)<1, "Desktop rail geometry");
   check(Math.abs(empty.composer.width-768)<1 && Math.abs(empty.composer.height-52)<1,
@@ -75,6 +79,7 @@ async (page) => {
   await page.locator("#reference").waitFor({state:"visible"});
   await shot("reference-upload");
   await page.locator("#removeRef").click();
+  await mode("chat"); // Upload intentionally selects image mode in the existing app.
   await page.locator("#prompt").fill("第二轮合成验收：中英混排、列表与代码。Please explain clearly.");
   await page.locator("#prompt").press("Enter");
   await page.locator("#cancel").waitFor({state:"visible"});
@@ -165,6 +170,8 @@ async (page) => {
   check(!await page.locator("#mainContent").evaluate(e=>e.inert),"Drawer focus isolation release");
   await shot("chat-390");
   await settings("appearance"); await shot("appearance-390");
+  await page.locator("#settingsBack").click(); await shot("settings-nav-390");
+  await page.keyboard.press("Escape");
   await page.locator("#closePreferences").click();
   const widths=[];
   for(const [width,height] of [[390,844],[1280,800],[1440,900]]) {
@@ -173,6 +180,7 @@ async (page) => {
       await page.locator("#sidebarToggle").click();
     if(!await page.locator("#newChat").isVisible()) await page.locator("#mobileMenu").click();
     await page.locator("#newChat").click();
+    await page.locator("#intro").waitFor({state:"visible"});
     const value=await metrics(); widths.push(value);
     check(!value.overflow && value.composer.bottom<=height,"Responsive overflow");
     await shot(`empty-${width}`);

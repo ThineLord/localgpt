@@ -302,6 +302,12 @@ Object.assign(EN, {
   图片已从图库删除: "Image removed from gallery",
   已停止: "Stopped",
   记为全局记忆: "Save as personal memory",
+  回到最新消息: "Latest message",
+  通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
+  模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
+  返回对话: "Back to chat", 打开设置导航: "Open settings navigation", 关闭设置导航: "Close settings navigation",
+  打开生成与对话参数: "Open generation and chat settings", 打开回收站: "Open trash",
+  "温度、思考模式、图像尺寸等参数在输入框旁的生成面板中调整。": "Adjust temperature, thinking and image size in the generation panel.",
 });
 function t(text) {
   return language === "en" ? EN[text] || text : text;
@@ -2048,6 +2054,7 @@ matchMedia("(max-width:760px)").addEventListener("change", () => {
   settings.open = false;
 });
 window.addEventListener("resize", () => {
+  document.querySelectorAll(".chat-row-menu:popover-open").forEach(menu => menu.hidePopover());
   syncSidebar();
   resizePrompt();
 });

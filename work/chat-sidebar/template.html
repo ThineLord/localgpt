@@ -122,37 +122,17 @@
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <div class="chat-heading">
-          <span class="main-brand">HanzAgent</span
-          ><button
-            id="renameChat"
-            class="chat-title"
-            type="button"
-            aria-label="重命名对话"
-            title="重命名对话"
-          >
-            <span id="chatTitle">新对话</span
-            ><svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z" />
-            </svg></button
-          ><button
-            type="button"
-            id="deleteCurrent"
-            class="chrome-button"
-            aria-label="删除对话"
-            title="删除对话"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6" />
-            </svg>
-          </button>
+        <div class="chat-heading"><span class="main-brand">HanzAgent</span><span class="chat-title" id="chatTitle">新对话</span></div>
+        <button id="chatActions" class="chrome-button" type="button" aria-label="对话操作" title="对话操作" aria-controls="chatActionsMenu" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+        <div id="chatActionsMenu" class="compact-menu" role="menu" popover="manual" hidden>
+          <button id="renameChat" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/></svg><span>重命名对话</span></button>
+          <button id="deleteCurrent" class="danger-link" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg><span>删除对话</span></button>
         </div>
-        <div class="header-actions" aria-hidden="true"></div>
       </header>
       <div id="appStatus" class="app-status" role="status" hidden></div>
       <div class="workspace">
         <button id="jumpLatest" class="jump-latest action" type="button" hidden>
-          回到最新消息 ↓
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-5-5 5 5 5-5"/></svg><span class="sr-only">回到最新消息</span>
         </button>
         <section class="canvas" id="chatScroll">
           <span id="canvasCount" hidden></span>
@@ -165,13 +145,13 @@
                     <path d="M5 4h14v12H9l-4 4V4Z" />
                     <path d="M9 8h6m-6 4h4" /></svg
                   ><span>一起理清思路</span
-                  ><span aria-hidden="true">›</span></button
+                  ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button
                 ><button type="button" data-suggestion="image">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <rect x="3" y="4" width="18" height="16" rx="3" />
                     <circle cx="8" cy="9" r="1.5" />
                     <path d="m3 17 6-5 4 3 3-3 5 5" /></svg
-                  ><span>把灵感画出来</span><span aria-hidden="true">›</span>
+                  ><span>把灵感画出来</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
               </div>
             </div>
@@ -291,7 +271,7 @@
                 type="button"
                 id="modelMenuTrigger"
                 class="model-menu-trigger"
-                aria-haspopup="listbox"
+                aria-haspopup="menu"
                 aria-expanded="false"
                 aria-controls="modelMenu"
               >
@@ -303,7 +283,7 @@
               <div
                 id="modelMenu"
                 class="model-menu"
-                role="listbox"
+                role="menu"
                 hidden
                 popover="manual"
               ></div>
@@ -314,9 +294,7 @@
                     <path d="M12 19V5M7 10l5-5 5 5" />
                   </svg>
                 </button>
-                <button class="cancel" type="button" id="cancel" hidden>
-                  停止
-                </button>
+                <button class="cancel" type="button" id="cancel" hidden aria-label="停止" title="停止"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none"/></svg></button>
               </div>
             </div>
             <details class="settings">
@@ -337,7 +315,7 @@
                     type="button"
                     aria-label="关闭"
                   >
-                    ×
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg>
                   </button>
                 </div>
                 <div class="model-state" role="status">
@@ -349,7 +327,7 @@
                     title="刷新模型"
                     aria-label="刷新模型"
                   >
-                    ↻
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5 8a7 7 0 0 1 12-3l3 7M4 12l3 7a7 7 0 0 0 12-3"/></svg>
                   </button>
                   <button type="button" class="action" id="connectLM" hidden>
                     连接 LM Studio
@@ -496,16 +474,21 @@
       aria-labelledby="preferencesTitle"
     >
       <div class="settings-layout">
+        <nav class="settings-rail" aria-label="应用导航">
+          <button type="button" class="chrome-button" data-settings-route="close" aria-label="返回对话" title="返回对话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 10 8-7 8 7v11h-6v-7h-4v7H4Z"/></svg></button>
+          <button type="button" class="chrome-button" data-settings-route="newChat" aria-label="新对话" title="新对话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/></svg></button>
+          <button type="button" class="chrome-button" data-settings-route="galleryNav" aria-label="图库" title="图库"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/></svg></button>
+        </nav>
+        <button type="button" id="settingsNavShade" class="settings-nav-shade" aria-label="关闭设置导航" hidden></button>
         <div class="settings-layout-header">
           <button
             type="button"
             id="settingsBack"
             class="chrome-button settings-back"
-            aria-label="返回"
-            hidden
+            aria-label="打开设置导航" aria-expanded="false" aria-controls="settingsNav"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m14 6-6 6 6 6" />
+              <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <h2 id="preferencesTitle">设置</h2>
@@ -521,20 +504,21 @@
           </button>
         </div>
         <div class="settings-layout-body">
-          <nav class="settings-nav" aria-label="设置分区">
-            <select id="settingsSectionSelect" class="settings-section-select" aria-label="设置分区">
+          <nav class="settings-nav" id="settingsNav" aria-label="设置分区">
+            <div class="settings-nav-label">个人</div>
+            <select id="settingsSectionSelect" class="settings-section-select" aria-label="设置分区" hidden>
               <option value="general">通用</option>
               <option value="appearance">外观</option>
               <option value="models">模型与生成</option>
               <option value="memory">记忆</option>
               <option value="trash">回收站</option>
             </select>
-            <div class="settings-nav-list" role="tablist">
-              <button type="button" class="settings-nav-item" data-settings-section="general" role="tab" aria-selected="true">通用</button>
-              <button type="button" class="settings-nav-item" data-settings-section="appearance" role="tab">外观</button>
-              <button type="button" class="settings-nav-item" data-settings-section="models" role="tab">模型与生成</button>
-              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab">记忆</button>
-              <button type="button" class="settings-nav-item" data-settings-section="trash" role="tab">回收站</button>
+            <div class="settings-nav-list" role="tablist" aria-orientation="vertical">
+              <button type="button" class="settings-nav-item" data-settings-section="general" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="m9 3-1 3-3 1-2 4 2 2 1 4 3 1 2 3 4-1 1-3 3-1 2-4-2-2-1-4-3-1-2-3Z"/></svg><span>通用</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="appearance" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span>外观</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="models" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9Z"/></svg><span>模型与生成</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>记忆</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="trash" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg><span>回收站</span></button>
             </div>
           </nav>
           <div class="settings-panels">
@@ -557,29 +541,12 @@
               </div>
             </section>
             <section class="settings-panel" data-settings-panel="appearance" id="settingsPanelAppearance" hidden>
-              <h3 class="settings-panel-title">外观</h3>
+              <h3 class="settings-panel-title">外观</h3><h4 class="settings-subtitle">视觉样式</h4>
               <div class="settings-group">
                 <div class="settings-row">
                   <span class="settings-row-label">主题</span>
                   <div class="themes" role="group" aria-label="外观主题">
-                    <button id="themeLight" type="button" aria-label="白天模式" title="白天模式">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="4" />
-                        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
-                      </svg>
-                    </button>
-                    <button id="themeDark" type="button" aria-label="黑夜模式" title="黑夜模式">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M20.5 13.4A8.7 8.7 0 0 1 10.6 3.5a8.7 8.7 0 1 0 9.9 9.9Z" />
-                      </svg>
-                    </button>
-                    <button id="themeSystem" type="button" aria-label="跟随系统" title="跟随系统">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="3" y="4" width="18" height="13" rx="2" />
-                        <path d="M8 21h8m-4-4v4" />
-                      </svg>
-                    </button>
-                  </div>
+<button id="themeSystem" class="theme-preview theme-system" type="button" aria-label="跟随系统" title="跟随系统"><span class="preview-window" aria-hidden="true"><i></i><b></b><em></em></span><span class="sr-only">跟随系统</span></button><button id="themeLight" class="theme-preview theme-light" type="button" aria-label="白天模式" title="白天模式"><span class="preview-window" aria-hidden="true"><i></i><b></b><em></em></span><span class="sr-only">白天模式</span></button><button id="themeDark" class="theme-preview theme-dark" type="button" aria-label="黑夜模式" title="黑夜模式"><span class="preview-window" aria-hidden="true"><i></i><b></b><em></em></span><span class="sr-only">黑夜模式</span></button></div>
                 </div>
               </div>
             </section>
@@ -588,7 +555,7 @@
               <div class="settings-group">
                 <button type="button" id="openGenerationSettings" class="settings-row-button preference-link">
                   <span>打开生成与对话参数</span>
-                  <span aria-hidden="true">›</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
                 <p class="dialog-note">温度、思考模式、图像尺寸等参数在输入框旁的生成面板中调整。</p>
               </div>
@@ -601,7 +568,7 @@
                     <path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6" />
                   </svg>
                   <span>管理全局记忆</span>
-                  <span aria-hidden="true">›</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
               </div>
             </section>
@@ -613,7 +580,7 @@
                     <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6" />
                   </svg>
                   <span>打开回收站</span>
-                  <span aria-hidden="true">›</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
               </div>
             </section>

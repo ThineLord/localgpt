@@ -1,342 +1,164 @@
-/* Round 2 shell: custom popovers backed by native controls; no business logic duplication. */
+/* UI-only adapters. Native controls retain every business handler and value. */
 (() => {
-  const $ = (id) => document.getElementById(id);
+  const $ = id => document.getElementById(id);
+  const tr = (zh, en) => document.documentElement.lang === "en" ? en : zh;
+  const glyph = path => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+  const focus = el => { if (el?.getClientRects().length && !el.disabled) el.focus({preventScroll:true}); };
+  const changed = el => el.dispatchEvent(new Event("change", {bubbles:true}));
+  const controllers = [];
 
-  function focusVisible(el) {
-    el?.focus({ preventScroll: true });
-  }
-
-  function dispatchChange(select) {
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-    select.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
-  class PopoverController {
-    constructor({ trigger, panel, onOpen, onClose }) {
-      this.trigger = trigger;
-      this.panel = panel;
-      this.onOpen = onOpen;
-      this.onClose = onClose;
-      this.open = false;
-      this.usePopover =
-        typeof panel.showPopover === "function" &&
-        panel.hasAttribute("popover");
-      trigger.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.toggle();
+  class Menu {
+    constructor(trigger, panel, render, anchor = trigger, width = 254) {
+      Object.assign(this, {trigger,panel,render,anchor,width});
+      controllers.push(this);
+      trigger.addEventListener("click", e => { e.preventDefault(); this.open ? this.close() : this.show(); });
+      trigger.addEventListener("keydown", e => {
+        if (["ArrowDown","ArrowUp"].includes(e.key)) {
+          e.preventDefault(); this.show(); const items=this.items();
+          focus(e.key==="ArrowUp" ? items.at(-1) : items[0]);
+        }
       });
-      panel.addEventListener("click", (e) => e.stopPropagation());
-      document.addEventListener("pointerdown", (e) => {
-        if (!this.open) return;
-        if (this.panel.contains(e.target) || this.trigger.contains(e.target))
-          return;
-        this.close();
-      });
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && this.open) {
+      panel.addEventListener("keydown", e => {
+        const items=this.items(), index=items.indexOf(document.activeElement);
+        if (["ArrowDown","ArrowUp","Home","End"].includes(e.key)) {
           e.preventDefault();
-          e.stopPropagation();
-          this.close();
-        }
+          const next=e.key==="Home"?0:e.key==="End"?items.length-1:
+            (index+(e.key==="ArrowDown"?1:-1)+items.length)%items.length;
+          focus(items[next]);
+        } else if(e.key==="Escape") { e.preventDefault();e.stopPropagation();this.close(); }
+        else if(e.key==="Tab") this.close(false);
       });
+      document.addEventListener("pointerdown",e=>{
+        if(this.open&&!panel.contains(e.target)&&!trigger.contains(e.target))this.close(false);
+      });
+      addEventListener("resize",()=>{if(this.open)this.place();},{passive:true});
     }
-    toggle() {
-      if (this.open) this.close();
-      else this.openPanel();
+    items(){return [...this.panel.querySelectorAll('button:not(:disabled):not([hidden])')].filter(e=>e.getClientRects().length);}
+    show(){
+      if(this.trigger.disabled)return;
+      for(const menu of controllers)if(menu!==this)menu.close(false);
+      this.render?.();this.panel.hidden=false;
+      if(!this.panel.matches(':popover-open'))this.panel.showPopover();
+      this.open=true;this.trigger.setAttribute('aria-expanded','true');this.place();focus(this.items()[0]);
     }
-    openPanel() {
-      if (this.open) return;
-      PopoverController.closeAll(this);
-      this.open = true;
-      this.panel.hidden = false;
-      this.trigger.setAttribute("aria-expanded", "true");
-      if (this.usePopover && !this.panel.matches(":popover-open"))
-        this.panel.showPopover();
-      this.onOpen?.();
-      this.place?.();
+    close(restore=true){
+      if(!this.open)return;this.open=false;
+      if(this.panel.matches(':popover-open'))this.panel.hidePopover();
+      this.panel.hidden=true;this.trigger.setAttribute('aria-expanded','false');
+      if(restore)focus(this.trigger);
     }
-    close() {
-      if (!this.open) return;
-      this.open = false;
-      this.panel.hidden = true;
-      this.trigger.setAttribute("aria-expanded", "false");
-      if (this.usePopover && this.panel.matches(":popover-open"))
-        this.panel.hidePopover();
-      this.onClose?.();
-      focusVisible(this.trigger);
-    }
-    static stack = [];
-    static closeAll(except) {
-      for (const ctrl of [...PopoverController.stack]) {
-        if (ctrl !== except) ctrl.close();
-      }
-    }
-    register() {
-      PopoverController.stack.push(this);
+    place(){
+      const r=this.anchor.getBoundingClientRect(), p=this.panel;
+      p.style.inset='auto';p.style.width=Math.min(typeof this.width==='function'?this.width():this.width,innerWidth-24)+'px';
+      p.style.maxHeight=Math.max(100,innerHeight-24)+'px';
+      const b=p.getBoundingClientRect(), above=r.top-8, below=innerHeight-r.bottom-8;
+      const horizontal=this.trigger.getBoundingClientRect();
+      const left=this.trigger.id==='upload'?r.left:horizontal.right-b.width;
+      p.style.left=Math.max(12,Math.min(left,innerWidth-b.width-12))+'px';
+      // Use the whole composer edge so mobile menus never cover the text row.
+      p.style.top=Math.max(12,Math.min(below>=b.height?r.bottom+8:above-b.height,innerHeight-b.height-12))+'px';
     }
   }
-
-  function syncSelectOptionStates(native, mirrorRoot) {
-    const buttons = [...mirrorRoot.querySelectorAll("[data-value]")];
-    for (const btn of buttons) {
-      const opt = native.querySelector(`option[value="${CSS.escape(btn.dataset.value)}"]`);
-      const missing = !opt;
-      btn.hidden = missing || opt.hidden;
-      btn.disabled = missing || opt.disabled;
-      btn.setAttribute("aria-selected", native.value === btn.dataset.value ? "true" : "false");
-      if (opt) btn.textContent = opt.textContent;
+  const mode=$('mode'), model=$('chatModel'), modelTrigger=$('modelMenuTrigger');
+  const modelMenu=new Menu(modelTrigger,$('modelMenu'),()=>{
+    const root=$('modelMenu');root.replaceChildren();
+    for(const [kind,native] of [['mode',mode],['model',model]]) {
+      if(kind==='model'&&(mode.value==='image'||model.hidden))continue;
+      const group=document.createElement('div');group.className='model-menu-section';group.setAttribute('role','group');
+      group.setAttribute('aria-label',kind==='mode'?tr('交互模式','Mode'):tr('对话模型','Model'));
+      if(kind==='model'){const sep=document.createElement('div');sep.className='model-menu-divider';sep.setAttribute('role','separator');root.append(sep);}
+      for(const opt of native.options){
+        const b=document.createElement('button');b.type='button';b.className='model-menu-item';
+        b.dataset.kind=kind;b.dataset.value=opt.value;b.setAttribute('role','menuitemradio');
+        b.setAttribute('aria-checked',String(opt.value===native.value));b.textContent=opt.textContent;
+        b.hidden=opt.hidden;b.disabled=native.disabled||opt.disabled;
+        b.onclick=()=>{native.value=opt.value;changed(native);modelMenu.close();syncModel();};group.append(b);
+      }
+      root.append(group);
     }
+  },$('composerCard'));
+  function syncModel(){
+    $('modelMenuLabel').textContent=mode.options[mode.selectedIndex]?.textContent||mode.value;
+    modelTrigger.title=mode.value==='image'?$('modeHint').textContent:model.options[model.selectedIndex]?.textContent||'';
+    modelTrigger.disabled=mode.disabled;
+    if(modelTrigger.disabled)modelMenu.close(false);
   }
-
-  function buildModelMenu() {
-    const mode = $("mode");
-    const chatModel = $("chatModel");
-    const menu = $("modelMenu");
-    const trigger = $("modelMenuTrigger");
-    const label = $("modelMenuLabel");
-    if (!mode || !chatModel || !menu || !trigger) return;
-
-    const render = () => {
-      menu.replaceChildren();
-      const sectionMode = document.createElement("div");
-      sectionMode.className = "model-menu-section";
-      sectionMode.setAttribute("role", "presentation");
-      for (const opt of mode.options) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "model-menu-item";
-        btn.dataset.value = opt.value;
-        btn.dataset.kind = "mode";
-        btn.setAttribute("role", "option");
-        btn.textContent = opt.textContent;
-        btn.hidden = opt.hidden;
-        btn.disabled = opt.disabled;
-        btn.setAttribute("aria-selected", mode.value === opt.value ? "true" : "false");
-        btn.addEventListener("click", () => {
-          if (mode.value !== opt.value) {
-            mode.value = opt.value;
-            dispatchChange(mode);
-          }
-          modelPopover.close();
-          focusVisible(trigger);
-        });
-        sectionMode.append(btn);
-      }
-      menu.append(sectionMode);
-      if (mode.value !== "image" && !chatModel.hidden) {
-        const sep = document.createElement("div");
-        sep.className = "model-menu-divider";
-        sep.setAttribute("role", "separator");
-        menu.append(sep);
-        const sectionModel = document.createElement("div");
-        sectionModel.className = "model-menu-section";
-        for (const opt of chatModel.options) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "model-menu-item";
-          btn.dataset.value = opt.value;
-          btn.dataset.kind = "model";
-          btn.setAttribute("role", "option");
-          btn.textContent = opt.textContent;
-          btn.hidden = opt.hidden;
-          btn.disabled = opt.disabled;
-          btn.setAttribute("aria-selected", chatModel.value === opt.value ? "true" : "false");
-          btn.addEventListener("click", () => {
-            if (chatModel.value !== opt.value) {
-              chatModel.value = opt.value;
-              dispatchChange(chatModel);
-            }
-            modelPopover.close();
-            focusVisible(trigger);
-          });
-          sectionModel.append(btn);
-        }
-        menu.append(sectionModel);
-      }
-      updateModelTriggerLabel();
-    };
-
-    const updateModelTriggerLabel = () => {
-      const hint = $("modeHint");
-      label.textContent =
-        hint && !hint.classList.contains("image-model-hint") && hint.textContent
-          ? hint.textContent.trim()
-          : mode.options[mode.selectedIndex]?.textContent || mode.value;
-    };
-
-    const modelPopover = new PopoverController({
-      trigger,
-      panel: menu,
-      onOpen: () => {
-        render();
-        modelPopover.place = () => placeAnchored(menu, trigger, { width: 254 });
-        modelPopover.place();
-      },
-    });
-    modelPopover.register();
-
-    const observer = new MutationObserver(render);
-    observer.observe(mode, { childList: true, attributes: true, subtree: true });
-    observer.observe(chatModel, { childList: true, attributes: true, subtree: true });
-    mode.addEventListener("change", () => {
-      render();
-      updateModelTriggerLabel();
-    });
-    chatModel.addEventListener("change", updateModelTriggerLabel);
-    new MutationObserver(updateModelTriggerLabel).observe($("modeHint"), {
-      childList: true,
-      characterData: true,
-      subtree: true,
-      attributes: true,
-    });
-    updateModelTriggerLabel();
-    render();
+  for(const select of [mode,model]){
+    select.tabIndex=-1;select.addEventListener('change',syncModel);
+    new MutationObserver(syncModel).observe(select,{attributes:true,childList:true,subtree:true});
   }
+  new MutationObserver(syncModel).observe($('modeHint'),{childList:true,characterData:true,subtree:true});
+  syncModel();
 
-  function buildAttachmentMenu() {
-    const upload = $("upload");
-    const menu = $("attachmentMenu");
-    const file = $("file");
-    const mode = $("mode");
-    if (!upload || !menu) return;
-
-    const items = [
-      {
-        id: "attach-upload",
-        label: "上传参考图",
-        action: () => file?.click(),
-      },
-      {
-        id: "attach-image-mode",
-        label: "切换到生图模式",
-        action: () => {
-          if (mode.value !== "image") {
-            mode.value = "image";
-            dispatchChange(mode);
-          }
-        },
-      },
-      {
-        id: "attach-generation",
-        label: "生成与对话参数",
-        action: () => window.LiquidLayers?.openSettings(),
-      },
+  const attachment=new Menu($('upload'),$('attachmentMenu'),()=>{
+    const definitions=[
+      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M12 4v16M4 12h16"/>',()=>$('file').click()],
+      ['attach-image-mode',tr('创建图片','Create image'),'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/>',()=>{mode.value='image';changed(mode);focus($('prompt'));}],
+      ['attach-generation',tr('生成与对话参数','Generation and chat settings'),'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',()=>window.LiquidLayers.openSettings()],
     ];
-
-    menu.replaceChildren();
-    for (const item of items) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "attachment-menu-item";
-      btn.id = item.id;
-      btn.setAttribute("role", "menuitem");
-      btn.textContent = item.label;
-      btn.addEventListener("click", () => {
-        attachPopover.close();
-        item.action();
-      });
-      menu.append(btn);
+    $('attachmentMenu').replaceChildren();
+    for(const [id,label,path,action] of definitions){
+      const b=document.createElement('button');b.id=id;b.type='button';b.className='attachment-menu-item';b.setAttribute('role','menuitem');
+      b.innerHTML=glyph(path);const text=document.createElement('span');text.textContent=label;b.append(text);
+      b.onclick=()=>{attachment.close();action();};$('attachmentMenu').append(b);
     }
+  },$('composerCard'),()=>$('composerCard').getBoundingClientRect().width);
+  $('upload').onclick=null; // The original file input/change handler stays intact.
+  const chatMenu=new Menu($('chatActions'),$('chatActionsMenu'),null,$('chatActions'),196);
+  for(const id of ['renameChat','deleteCurrent'])$(id).addEventListener('click',()=>chatMenu.close(),{capture:true});
+  new MutationObserver(()=>{$('chatActions').hidden=$('deleteCurrent').hidden;}).observe($('deleteCurrent'),{attributes:true,attributeFilter:['hidden']});
+  addEventListener('liquidlayerchange',()=>{for(const menu of controllers)menu.close(false);});
 
-    const attachPopover = new PopoverController({
-      trigger: upload,
-      panel: menu,
-      onOpen: () => {
-        attachPopover.place = () =>
-          placeAnchored(menu, upload, {
-            width: Math.min(768, $("composerCard")?.getBoundingClientRect().width || 768),
-            gap: 8,
-            preferAbove: true,
-          });
-        attachPopover.place();
-      },
-    });
-    attachPopover.register();
-
-    const nativeUpload = upload.onclick;
-    upload.onclick = null;
+  const dialog=$('preferencesDialog'), nav=$('settingsNav'), toggle=$('settingsBack');
+  const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
+  const tabs=[...nav.querySelectorAll('[data-settings-section]')];
+  function title(){
+    $('preferencesTitle').textContent=innerWidth<=760&&!dialog.classList.contains('settings-nav-open')
+      ? panels.find(p=>!p.hidden)?.querySelector('.settings-panel-title').textContent||tr('设置','Settings')
+      :tr('设置','Settings');
   }
-
-  function placeAnchored(panel, anchor, { width, gap = 8, preferAbove = false }) {
-    const card = $("composerCard");
-    const cardBox = card?.getBoundingClientRect();
-    const origin = anchor.getBoundingClientRect();
-    panel.style.width = `${width}px`;
-    panel.style.inset = "auto";
-    const rect = panel.getBoundingClientRect();
-    const left = cardBox
-      ? Math.max(cardBox.left, Math.min(cardBox.right - width, origin.left))
-      : Math.max(12, Math.min(origin.left, innerWidth - width - 12));
-    const spaceAbove = origin.top - gap;
-    const spaceBelow = innerHeight - origin.bottom - gap;
-    const above = preferAbove ? spaceAbove >= rect.height : spaceAbove >= spaceBelow;
-    const top = above
-      ? Math.max(12, origin.top - rect.height - gap)
-      : Math.min(innerHeight - rect.height - 12, origin.bottom + gap);
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
-  }
-
-  function initSettingsSurface() {
-    const dialog = $("preferencesDialog");
-    if (!dialog) return;
-    const navButtons = [...dialog.querySelectorAll("[data-settings-section]")];
-    const panels = [...dialog.querySelectorAll("[data-settings-panel]")];
-    const select = $("settingsSectionSelect");
-    const back = $("settingsBack");
-
-    const showSection = (name, { mobileDetail = false } = {}) => {
-      for (const btn of navButtons) {
-        const active = btn.dataset.settingsSection === name;
-        btn.setAttribute("aria-selected", String(active));
-        btn.classList.toggle("is-active", active);
-      }
-      for (const panel of panels) {
-        panel.hidden = panel.dataset.settingsPanel !== name;
-      }
-      if (select && select.value !== name) select.value = name;
-      const mobile = innerWidth <= 760;
-      const detail = mobile && mobileDetail;
-      dialog.classList.toggle("settings-mobile-detail", detail);
-      if (back) back.hidden = !detail;
-    };
-
-    for (const btn of navButtons) {
-      btn.addEventListener("click", () =>
-        showSection(btn.dataset.settingsSection, { mobileDetail: true }),
-      );
+  function drawer(open){
+    dialog.classList.toggle('settings-nav-open',open);
+    toggle.setAttribute('aria-expanded',String(open));$('settingsNavShade').hidden=!open;
+    if(innerWidth<=760){
+      nav.inert=!open;dialog.querySelector('.settings-rail').inert=!open;
+      dialog.querySelector('.settings-panels').inert=open;
     }
-    select?.addEventListener("change", () =>
-      showSection(select.value, { mobileDetail: true }),
-    );
-    back?.addEventListener("click", () => {
-      dialog.classList.remove("settings-mobile-detail");
-      if (back) back.hidden = true;
-      for (const panel of panels) panel.hidden = true;
-    });
-
-    $("openGenerationSettings")?.addEventListener("click", () => {
-      if (dialog.open) window.LiquidLayers?.close(dialog);
-      window.LiquidLayers?.openSettings();
-    });
-
-    showSection("general");
-    addEventListener("resize", () => showSection(select?.value || "general"), {
-      passive: true,
-    });
+    title();
+    if(open)focus(tabs.find(b=>b.getAttribute('aria-selected')==='true'));else focus(toggle);
   }
-
-  function wireNativeSelectVisibility() {
-    const host = document.querySelector(".native-select-host");
-    if (!host) return;
-    for (const sel of host.querySelectorAll("select")) {
-      sel.classList.add("native-backed-select");
-    }
+  function section(name){
+    panels.forEach(p=>p.hidden=p.dataset.settingsPanel!==name);
+    tabs.forEach(b=>{const selected=b.dataset.settingsSection===name;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1;});
+    $('settingsSectionSelect').value=name;
+    if(innerWidth<=760)drawer(false);else title();
   }
-
-  buildAttachmentMenu();
-  buildModelMenu();
-  initSettingsSurface();
-  wireNativeSelectVisibility();
+  tabs.forEach((button,index)=>{
+    const name=button.dataset.settingsSection,panel=panels.find(p=>p.dataset.settingsPanel===name);
+    button.id='settings-tab-'+name;button.setAttribute('aria-controls',panel.id);
+    panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+    button.addEventListener('click',()=>section(name));
+    button.addEventListener('keydown',e=>{
+      if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();
+      const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowDown'?1:-1)+tabs.length)%tabs.length;
+      section(tabs[next].dataset.settingsSection);focus(tabs[next]);
+    });
+  });
+  toggle.onclick=()=>drawer(!dialog.classList.contains('settings-nav-open'));
+  $('settingsNavShade').onclick=()=>drawer(false);
+  dialog.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&dialog.classList.contains('settings-nav-open')){e.preventDefault();e.stopPropagation();drawer(false);}
+  });
+  for(const button of dialog.querySelectorAll('[data-settings-route]'))button.onclick=async()=>{
+    await window.LiquidLayers.close(dialog);if(button.dataset.settingsRoute!=='close')$(button.dataset.settingsRoute).click();
+  };
+  $('openGenerationSettings').onclick=async()=>{await window.LiquidLayers.close(dialog);window.LiquidLayers.openSettings();};
+  function responsive(){
+    const mobile=innerWidth<=760;title();
+    if(!mobile){nav.inert=false;dialog.querySelector('.settings-rail').inert=false;dialog.querySelector('.settings-panels').inert=false;}
+    else if(!dialog.classList.contains('settings-nav-open')){nav.inert=true;dialog.querySelector('.settings-rail').inert=true;}
+  }
+  addEventListener('hanzlanguage',title);
+  section('general');responsive();addEventListener('resize',responsive,{passive:true});
+  dialog.addEventListener('close',()=>{drawer(false);responsive();});
 })();

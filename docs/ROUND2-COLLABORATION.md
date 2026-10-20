@@ -32,3 +32,26 @@ and final deployment. No overlapping file edits during remote execution.
 Mason must receive Codex's actual exact-HEAD visual and local acceptance before
 independent review/merge. Cursor self-report and passing tests alone are not
 acceptance. Platform approval checks remain in force.
+
+## Actual handoff
+
+- Cloud implementation commit: `aa227b05ae2113bc9f2e37c53007cd6b9bdbd414`.
+- Source PR: https://github.com/ThineLord/hanzagent/pull/3
+  Draft targeting the integration branch; opened by **Axel**, not by a completed
+  Cursor turn. Cursor authored the four-file implementation and pushed it.
+- Cloud browser measurement repeatedly retried dependency setup/scripts without
+  producing a final report. At Codex's bounded-cost instruction, Axel used the
+  official CloudAgent cancel operation at 03:28 HKT. Platform state became
+  `finished`; this was cancellation, not successful natural completion.
+- The two followups were queued and never delivered into the first turn. The
+  platform exposed no separate queue-cancel action; queue disposal is UNKNOWN.
+  At 03:37 HKT Axel checked that no new run or push had occurred and confirmed
+  full UI ownership transferred to Codex. No additional run is authorized;
+  unexpected queued execution must be cancelled and its commits ignored.
+- Codex fetched and inspected the actual four-file diff, passed reachable-source
+  auditing and imported it into the isolated integration branch. Codex then
+  corrected measured geometry, mobile settings hierarchy, fonts, menu focus,
+  native control adapters, consistent icons and secondary surfaces locally.
+- The source PR preserves the cloud draft provenance. Release review must cover
+  the complete Codex integration PR against main; the draft alone is not an
+  accepted release. Mason still requires exact-HEAD local acceptance before merge.
