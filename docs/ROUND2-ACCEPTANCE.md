@@ -73,9 +73,10 @@ to the top stays at 0px after decode. This test does not call a real model.
   were excluded. HanzAgent's expanded history remains independently tested.
 - Native title tooltips and browser select option popups retain platform rendering;
   the surrounding controls and major menus use the shared component rules.
-- Safari locked again during collection. Its temporary Light appearance and
-  enabled web developer features require restoration after the user unlocks.
-  Do not claim those settings have already been restored.
+- Safari locked during collection. After the user unlocked it on 2026-10-21,
+  Codex verified through the actual UI that ChatGPT appearance was restored to
+  System, Responsive Design Mode exited, and web developer features turned off.
+  Masked restoration screenshots remain local.
 
 The first-round acceptance document is retained as historical evidence, not as
 this round's visual standard. Code review and successful automated checks do not

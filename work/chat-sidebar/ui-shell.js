@@ -28,7 +28,7 @@
           const next=e.key==="Home"?0:e.key==="End"?items.length-1:
             (index+(e.key==="ArrowDown"?1:-1)+items.length)%items.length;
           focus(items[next]);
-        } else if(e.key==="Escape") { e.preventDefault();e.stopPropagation();this.close(); }
+        } else if(e.key==="Escape"&&this.open) { e.preventDefault();e.stopPropagation();this.close(); }
         else if(e.key==="Tab") this.close(false);
       });
       document.addEventListener("pointerdown",e=>{

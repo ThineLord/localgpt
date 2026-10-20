@@ -93,10 +93,12 @@
   }
   function openSettings() {
     if (details.open) return;
+    signal();
     details.open = true;
     if (nativePopover && !panel.matches(":popover-open")) panel.showPopover();
     placeSettings();
     summary.setAttribute("aria-expanded", "true");
+    document.getElementById("closeSettings")?.focus({ preventScroll: true });
   }
   function closeSettings({ focus = true } = {}) {
     if (!details.open) return;

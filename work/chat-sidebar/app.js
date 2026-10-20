@@ -885,7 +885,7 @@ function render(force = false) {
       if (img.width > 0 && img.height > 0) {
         stage.style.width = `${img.width}px`;
         img.style.width = "100%";
-        img.style.aspectRatio = `${img.width} / ${img.height}`;
+        img.style.aspectRatio = `auto ${img.width} / ${img.height}`;
       }
       img.loading = "lazy";
       full.append(img);
