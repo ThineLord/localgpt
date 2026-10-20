@@ -16,10 +16,13 @@ Scheduled, Plugins, billing, account, or cloud controls.
 Reference viewport is approximately 1443×995 CSS pixels, 100% Safari zoom,
 native 2× capture, with browser chrome removed and profile avatar masked.
 1440×900, 1280×800 and 390×844 are required HanzAgent acceptance sizes.
-The native Safari connection has no DOM/computed-style API and its developer
-menu is unavailable. Font family and exact browser content boundary remain
-unverified; screenshot-derived measurements below have ±2px tolerance.
-Mobile signed-in reference and a clean expanded history reference remain gaps.
+The user subsequently approved temporarily enabling Safari's web developer
+features. Through its visible Console, Codex read DOM geometry and computed
+styles from the synthetic temporary conversation. Responsive Design Mode
+confirms 1440×900 CSS pixels. Its preview scales to 97% to fit the physical
+window; screenshot normalization must disclose that resampling. 1280×800
+and 390×844 preview at 100%. A clean expanded chat-history reference remains
+a gap; private chat titles must never appear in delivered captures.
 Never label guessed or interpolated values as observed measurements.
 
 ## Measured geometry and palette
@@ -39,10 +42,17 @@ Never label guessed or interpolated values as observed measurements.
 | Dark text | account Appearance reports #ededed | close but not coherent | #ededed; secondary #a3a3a3 |
 | Light base/text | account Appearance reports #fcfcfc / #0d0d0d | first round close | preserve these, neutral borders and hover |
 
-Font: do not claim verified proprietary font usage. Use a legal local stack:
-Arial, Helvetica, sans-serif with Chinese PingFang SC / Microsoft YaHei
-fallback, compare actual text widths and line wraps in acceptance. Body 16px/
-1.6; menu/nav 14px/20px; small text 12px/18px; headings 24px/32px regular.
+Font: signed-in computed style, independently corroborated by a guest page:
+`-apple-system-body, ui-sans-serif, -apple-system, system-ui, Segoe UI,
+Helvetica, Apple Color Emoji, Arial, sans-serif, Segoe UI Emoji, Segoe UI Symbol`.
+The guest heading "Where should we begin?" measures 255.047px at 24px/28px,
+weight400; this particular text measurement is not a signed-in measurement.
+Use this lawful installed-system approach, with PingFang SC / Microsoft YaHei
+Chinese fallback; compare actual text widths and line wraps in acceptance.
+Composer editable: verified 16px/26px with 5px vertical padding. Desktop outer
+composer: verified x362, y824.203, 768×52, radius26, rgb(33,33,33) at1440×900.
+Code: verified 12px/20px monospace. Body16px/1.6; menu/nav14px/20px;
+small text12px/18px; headings24px/28px regular.
 No downloaded proprietary font. One custom SVG system, no emoji or Unicode
 substitutes for icons.
 
@@ -57,9 +67,14 @@ substitutes for icons.
    explicit. Attachment menu contains upload reference and switch-to-image.
    Generation parameters belong in a dedicated compact panel/settings section.
    Input grows on wrapping; send and stop occupy the same right-hand circle.
+   Verified mobile reference at390×844: x16, width358, height~88, radius28,
+   two rows (textarea above, plus/send below), fixed bottom with~64px below.
+   The empty heading stays near y318; the composer does not follow it.
+   The attachment menu is also358px wide, anchored above the composer.
 4. Settings: full-page layered surface (existing dialog can remain semantic
    modal for focus/inert handling), left section navigation and right grouped
-   rows. Mobile uses section selector and back navigation, no compressed columns.
+   rows. Verified mobile: top bar, content padding20, sidebar toggle opens a
+   ~332px drawer (52px rail +280px section list), no compressed columns.
    Memory stays server-backed, accessible from Personalization/Memory.
    Trash remains soft-delete/restore with clear return path.
 5. Gallery: image-first responsive grid, search, consistent preview surface;

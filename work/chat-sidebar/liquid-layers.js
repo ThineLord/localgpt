@@ -38,12 +38,14 @@
     if (
       origin?.isConnected &&
       !origin.closest("dialog:not([open])") &&
+      origin.getClientRects().length > 0 &&
       !origin.disabled
     ) {
       origin.focus({ preventScroll: true });
     } else {
       const fallback = parent?.open
-        ? parent.querySelector("button:not(:disabled):not([hidden])")
+        ? [...parent.querySelectorAll("button:not(:disabled):not([hidden])")]
+            .find((button) => button.getClientRects().length)
         : document.getElementById("appSettings");
       fallback?.focus({ preventScroll: true });
     }

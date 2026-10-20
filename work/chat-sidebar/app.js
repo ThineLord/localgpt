@@ -718,9 +718,11 @@ function renderSidebar(force = false) {
     menuTrigger.onclick = () => {
       if (menu.matches(":popover-open")) {
         menu.hidePopover();
+        menuTrigger.setAttribute("aria-expanded", "false");
         return;
       }
       menu.showPopover();
+      menuTrigger.setAttribute("aria-expanded", "true");
       const origin = menuTrigger.getBoundingClientRect();
       const box = menu.getBoundingClientRect();
       menu.style.left = Math.max(8, Math.min(origin.right - box.width, innerWidth - box.width - 8)) + "px";
@@ -740,7 +742,9 @@ function renderSidebar(force = false) {
         items[next].focus();
       } else if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         menu.hidePopover();
+        menuTrigger.setAttribute("aria-expanded", "false");
         menuTrigger.focus();
       }
     });
@@ -2004,6 +2008,7 @@ document.addEventListener("pointerdown", (e) => {
     LiquidLayers.closeSettings({ focus: false });
 });
 document.addEventListener("keydown", (e) => {
+  if (e.defaultPrevented || e.target.closest?.("dialog[open]")) return;
   if (e.key === "Escape" && settings.open) {
     e.preventDefault();
     closeSettings();
