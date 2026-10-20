@@ -19,6 +19,11 @@ async page => {
   check((await page.locator('#modeHint').innerText()).includes('Review alternate'),'Model dependent hint stale');
   await page.locator('#modelMenuTrigger').click();await page.locator('#modelMenuTrigger').focus();await page.keyboard.press('Escape');
   check(!await page.locator('#modelMenu').isVisible(),'Escape from trigger did not close menu');
+  await page.locator('#modelMenuTrigger').click();
+  await page.evaluate(()=>window.LiquidLayers.openSettings());
+  check(!await page.locator('#modelMenu').isVisible(),'Parameter panel left a menu open behind it');
+  await page.keyboard.press('Escape');
+  check(!await page.locator('.settings').evaluate(e=>e.open),'First Escape did not close parameter panel');
   if(await page.locator('#sidebarToggle').getAttribute('aria-expanded')!=='true')await page.locator('#sidebarToggle').click();
   const id=new URLSearchParams(new URL(page.url()).hash.slice(1)).get('chat');
   await page.locator(`#chat-menu-${id}`).locator('..').locator('.chat-menu-trigger').click();
@@ -39,12 +44,21 @@ async page => {
   await page.route('**/qwen-cn/chats/'+id,async route=>{
     const response=await route.fetch(),data=await response.json();
     data.messages.push({id:'review-unknown-size',kind:'image',status:'completed',prompt:'Synthetic legacy image without dimensions',image:{filename:'fixture.svg',subfolder:'',type:'output'}});
+    data.messages.push({id:'review-stale-size',kind:'image',status:'completed',prompt:'Synthetic legacy image with stale square metadata',width:512,height:512,image:{filename:'review-wide.svg',subfolder:'',type:'output'}});
     await route.fulfill({response,json:data});
+  });
+  await page.route('**/view?*',async route=>{
+    if(new URL(route.request().url()).searchParams.get('filename')!=='review-wide.svg')return route.continue();
+    await route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320"><rect width="640" height="320" fill="#c4cec0"/></svg>'});
   });
   await page.reload();
   const legacy=page.locator('[data-message-id="review-unknown-size"] .result img');
   await legacy.waitFor();await legacy.evaluate(e=>e.decode());
   const legacySize=await legacy.boundingBox();check(legacySize.width>0&&legacySize.height>0,'Unknown image dimensions collapsed legacy output');
-  await page.unroute('**/qwen-cn/chats/'+id);await page.reload();
-  return {legacySize,modelPersistence:true,dependentHint:true,escapeOutsidePanel:true,menuFocusAfterRefresh:true,markdown};
+  const stale=page.locator('[data-message-id="review-stale-size"] .result img');
+  await stale.scrollIntoViewIfNeeded();await stale.evaluate(e=>e.decode());
+  const staleSize=await stale.boundingBox();check(Math.abs(staleSize.width/staleSize.height-2)<0.01,'Stored dimensions distorted the decoded image');
+  await page.screenshot({path:'output/playwright/round2/after/legacy-image-proportions.png',scale:'css',animations:'disabled'});
+  await page.unroute('**/view?*');await page.unroute('**/qwen-cn/chats/'+id);await page.reload();
+  return {legacySize,staleSize,parameterPanelClosesMenus:true,modelPersistence:true,dependentHint:true,escapeOutsidePanel:true,menuFocusAfterRefresh:true,markdown};
 }

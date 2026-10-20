@@ -26,6 +26,7 @@ The redesigned interface uses an observed ChatGPT guest layout as its reference:
 ## Validation
 
 ```sh
+python work/chat-sidebar/build.py
 python work/chat-sidebar/build.py --check
 node --check work/chat-sidebar/app.js
 node --check work/chat-sidebar/workspace.js

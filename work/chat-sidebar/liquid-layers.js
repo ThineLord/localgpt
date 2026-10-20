@@ -93,6 +93,7 @@
   }
   function openSettings() {
     if (details.open) return;
+    signal();
     details.open = true;
     if (nativePopover && !panel.matches(":popover-open")) panel.showPopover();
     placeSettings();
