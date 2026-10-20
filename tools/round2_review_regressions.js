@@ -20,7 +20,11 @@ async page => {
   await page.locator('#modelMenuTrigger').click();await page.locator('#modelMenuTrigger').focus();await page.keyboard.press('Escape');
   check(!await page.locator('#modelMenu').isVisible(),'Escape from trigger did not close menu');
   await page.locator('#modelMenuTrigger').click();
-  await page.evaluate(()=>window.LiquidLayers.openSettings());
+  const settingsFocused=await page.evaluate(()=>{
+    window.LiquidLayers.openSettings();
+    return document.activeElement.id==='closeSettings';
+  });
+  check(settingsFocused,'Parameter panel did not synchronously move focus out of the hidden menu');
   check(!await page.locator('#modelMenu').isVisible(),'Parameter panel left a menu open behind it');
   await page.keyboard.press('Escape');
   check(!await page.locator('.settings').evaluate(e=>e.open),'First Escape did not close parameter panel');
