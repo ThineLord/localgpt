@@ -869,6 +869,10 @@ function render(force = false) {
       img.alt = m.prompt;
       img.width = m.image.metadata?.width || m.width;
       img.height = m.image.metadata?.height || m.height;
+      // Reserve the output dimensions before decoding so follow-scroll uses the final height.
+      stage.style.width = `${img.width}px`;
+      img.style.width = "100%";
+      img.style.aspectRatio = `${img.width} / ${img.height}`;
       img.loading = "lazy";
       full.append(img);
       stage.append(full);

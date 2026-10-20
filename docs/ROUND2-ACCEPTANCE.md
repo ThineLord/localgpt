@@ -45,10 +45,19 @@ that contract. No backend route, model credential or storage schema changed.
 
 A separate preview proxy uses the current frontend with the existing real8190
 backend. It creates one explicitly synthetic acceptance conversation, observes
-real LM Studio streaming and tests the existing ComfyUI image path. Real-service
-receipts remain local and final exact-HEAD acceptance is supplied to Mason only
-when those checks finish. Original rows are checked by stable SQLite snapshot
+real LM Studio streaming and tests the existing ComfyUI image path. The real chat completed with observed partial output. ComfyUI completed a new
+512×512 image at15 steps/seed42; the browser decoded it, downloaded it, reused it
+as an edit reference, and separately uploaded/decoded a synthetic1×1 PNG before
+removing the reference. No additional reference-conditioned inference was run.
+Real-service receipts remain local; exact-HEAD acceptance is supplied separately
+to Mason. Original rows are checked by stable SQLite snapshot
 and SHA256 of Python tuple repr; only new test records may be added.
+
+The real image screenshot exposed delayed-decode scroll drift. The image stage
+now reserves its recorded dimensions/aspect ratio before loading. The focused
+`tools/round2_image_scroll.js` regression delays decoding: the pending image
+already reserves512×512, completion leaves0px bottom gap, and manually scrolling
+to the top stays at0px after decode. This test does not call a real model.
 
 ## Intentional differences and remaining reference gaps
 
