@@ -482,6 +482,7 @@ function setBusy(v) {
     "seed",
   ].forEach((id) => ($(id).disabled = v));
   $("cancel").hidden = !v || uploading;
+  $("generate").hidden = !$("cancel").hidden;
   $("cancel").disabled = !activeId;
   $("activity").hidden = !v;
   document.querySelectorAll(".edit-result").forEach((b) => (b.disabled = v));

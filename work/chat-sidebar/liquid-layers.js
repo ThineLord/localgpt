@@ -5,6 +5,8 @@
   const details = document.querySelector(".settings");
   const panel = document.getElementById("settingsPanel");
   const summary = details.querySelector("summary");
+  const settingsAnchor = () =>
+    summary.getClientRects().length ? summary : document.getElementById("upload");
   const nativePopover = typeof panel.showPopover === "function";
   if (nativePopover) panel.setAttribute("popover", "manual");
 
@@ -69,7 +71,7 @@
   }
   function placeSettings() {
     if (!details.open || !nativePopover) return;
-    const origin = summary.getBoundingClientRect();
+    const origin = settingsAnchor().getBoundingClientRect();
     const mobile = innerWidth <= 760;
     const above = Math.max(0, origin.top - 22);
     const below = Math.max(0, innerHeight - origin.bottom - 22);
@@ -101,7 +103,7 @@
     if (nativePopover && panel.matches(":popover-open")) panel.hidePopover();
     details.open = false;
     summary.setAttribute("aria-expanded", "false");
-    if (focus) summary.focus({ preventScroll: true });
+    if (focus) settingsAnchor().focus({ preventScroll: true });
   }
   details.addEventListener("toggle", () => {
     if (!nativePopover) return;
