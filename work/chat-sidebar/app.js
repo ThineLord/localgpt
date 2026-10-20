@@ -61,6 +61,7 @@ let dirty = false,
   refreshing = false,
   saveLabel = "";
 const EN = {
+  对话操作: "Chat actions",
   画室: "Studio",
   连接中: "Connecting",
   本地已连接: "Connected locally",
@@ -301,6 +302,12 @@ Object.assign(EN, {
   图片已从图库删除: "Image removed from gallery",
   已停止: "Stopped",
   记为全局记忆: "Save as personal memory",
+  回到最新消息: "Latest message",
+  通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
+  模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
+  返回对话: "Back to chat", 打开设置导航: "Open settings navigation", 关闭设置导航: "Close settings navigation",
+  打开生成与对话参数: "Open generation and chat settings", 打开回收站: "Open trash",
+  "温度、思考模式、图像尺寸等参数在输入框旁的生成面板中调整。": "Adjust temperature, thinking and image size in the generation panel.",
 });
 function t(text) {
   return language === "en" ? EN[text] || text : text;
@@ -481,6 +488,7 @@ function setBusy(v) {
     "seed",
   ].forEach((id) => ($(id).disabled = v));
   $("cancel").hidden = !v || uploading;
+  $("generate").hidden = !$("cancel").hidden;
   $("cancel").disabled = !activeId;
   $("activity").hidden = !v;
   document.querySelectorAll(".edit-result").forEach((b) => (b.disabled = v));
@@ -650,6 +658,10 @@ function renderSidebar(force = false) {
   if (!force && signature === lastSidebarSignature) return;
   lastSidebarSignature = signature;
   const list = $("chatList");
+  const opened = list.querySelector(".chat-row-menu:popover-open");
+  const menuState = opened && opened.contains(document.activeElement)
+    ? { id: opened.id, index: [...opened.querySelectorAll("button")].indexOf(document.activeElement) }
+    : null;
   list.replaceChildren();
   $("galleryNav").setAttribute("aria-current", String(view === "gallery"));
   $("trashNav").setAttribute("aria-current", String(view === "trash"));
@@ -675,17 +687,88 @@ function renderSidebar(force = false) {
     }
     b.onclick = () =>
       selectChat(chat.id).catch((e) => setStatus(e.message, true));
+    const menuTrigger = document.createElement("button");
+    menuTrigger.type = "button";
+    menuTrigger.className = "chat-menu-trigger chrome-button";
+    menuTrigger.innerHTML = icon("more");
+    menuTrigger.setAttribute("aria-label", t("对话操作") + " · " + t(chat.title));
+    menuTrigger.setAttribute("aria-haspopup", "menu");
+    menuTrigger.setAttribute("aria-expanded", "false");
+    const menu = document.createElement("div");
+    menu.id = "chat-menu-" + chat.id;
+    menu.className = "chat-row-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("popover", "auto");
+    menuTrigger.setAttribute("aria-controls", menu.id);
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.setAttribute("role", "menuitem");
+    rename.innerHTML = icon("edit") + "<span>" + t("重命名对话") + "</span>";
+    rename.onclick = async () => {
+      menu.hidePopover();
+      try {
+        await selectChat(chat.id);
+        $("renameChat").click();
+      } catch (e) {
+        setStatus(e.message, true);
+      }
+    };
     const del = document.createElement("button");
     del.type = "button";
-    del.className = "chat-delete chrome-button";
-    del.innerHTML = icon("trash");
+    del.className = "chat-delete danger-link";
+    del.setAttribute("role", "menuitem");
+    del.innerHTML = icon("trash") + "<span>" + t("删除对话") + "</span>";
     del.setAttribute("aria-label", t("删除对话") + " · " + t(chat.title));
     del.title = t("删除对话");
     del.disabled = !!chat.active;
-    del.onclick = () =>
+    del.onclick = () => {
+      menu.hidePopover();
       deleteChat(chat.id).catch((e) => setStatus(e.message, true));
-    row.append(b, del);
+    };
+    menu.append(rename, del);
+    menuTrigger.onclick = () => {
+      if (menu.matches(":popover-open")) {
+        menu.hidePopover();
+        menuTrigger.setAttribute("aria-expanded", "false");
+        return;
+      }
+      menu.showPopover();
+      menuTrigger.setAttribute("aria-expanded", "true");
+      const origin = menuTrigger.getBoundingClientRect();
+      const box = menu.getBoundingClientRect();
+      menu.style.left = Math.max(8, Math.min(origin.right - box.width, innerWidth - box.width - 8)) + "px";
+      menu.style.top = Math.max(8, Math.min(origin.bottom + 6, innerHeight - box.height - 8)) + "px";
+      rename.focus();
+    };
+    menu.addEventListener("toggle", () => {
+      menuTrigger.setAttribute("aria-expanded", String(menu.matches(":popover-open")));
+    });
+    menu.addEventListener("keydown", (e) => {
+      const items = [...menu.querySelectorAll("button:not(:disabled)")];
+      const index = items.indexOf(document.activeElement);
+      if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        const next = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 :
+          (index + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        items[next].focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        menu.hidePopover();
+        menuTrigger.setAttribute("aria-expanded", "false");
+        menuTrigger.focus();
+      }
+    });
+    row.append(b, menuTrigger, menu);
     list.append(row);
+  }
+  if (menuState) {
+    const restored = document.getElementById(menuState.id);
+    if (restored) {
+      restored.parentElement.querySelector(".chat-menu-trigger").click();
+      const selected = restored.querySelectorAll("button")[menuState.index];
+      if (selected && !selected.disabled) selected.focus({ preventScroll: true });
+    }
   }
 }
 function icon(name) {
@@ -693,8 +776,19 @@ function icon(name) {
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/>',
     edit: '<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/>',
     download: '<path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+    retry: '<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+}
+function messageAction(button, name, label) {
+  button.classList.add("message-action");
+  button.dataset.actionIcon = name;
+  button.innerHTML = icon(name) + '<span class="sr-only">' + escapeHTML(t(label)) + "</span>";
+  button.title = t(label);
+  button.setAttribute("aria-label", t(label));
 }
 function render(force = false) {
   if (view !== "chat") return;
@@ -787,6 +881,12 @@ function render(force = false) {
       img.alt = m.prompt;
       img.width = m.image.metadata?.width || m.width;
       img.height = m.image.metadata?.height || m.height;
+      // Reserve the output dimensions before decoding so follow-scroll uses the final height.
+      if (img.width > 0 && img.height > 0) {
+        stage.style.width = `${img.width}px`;
+        img.style.width = "100%";
+        img.style.aspectRatio = `${img.width} / ${img.height}`;
+      }
       img.loading = "lazy";
       full.append(img);
       stage.append(full);
@@ -1720,15 +1820,45 @@ function markdown(target, text) {
   const parts = text.split(/```([^\n`]*)\n([\s\S]*?)(?:```|$)/g);
   for (let i = 0; i < parts.length; i += 3) {
     const plain = parts[i];
+    let paragraph = [], list = null;
+    const flushParagraph = () => {
+      if (!paragraph.length) return;
+      const p = document.createElement("p");
+      p.innerHTML = inlineMarkdown(paragraph.join("\n"));
+      target.append(p);
+      paragraph = [];
+    };
     for (const line of plain.split("\n")) {
-      const el = document.createElement(
-        /^#{1,4} /.test(line) ? "h3" : /^[-*] /.test(line) ? "div" : "p",
-      );
-      el.innerHTML = inlineMarkdown(
-        line.replace(/^#{1,4} /, "").replace(/^[-*] /, "• "),
-      );
-      target.append(el);
+      if (!line.trim()) {
+        flushParagraph();
+        list = null;
+        continue;
+      }
+      const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+      const item = /^\s*(?:([-*])|(\d+)[.)])\s+(.+)$/.exec(line);
+      if (heading) {
+        flushParagraph();
+        list = null;
+        const el = document.createElement("h" + Math.min(4, heading[1].length + 1));
+        el.innerHTML = inlineMarkdown(heading[2]);
+        target.append(el);
+      } else if (item) {
+        flushParagraph();
+        const tag = item[2] ? "OL" : "UL";
+        if (!list || list.tagName !== tag) {
+          list = document.createElement(tag.toLowerCase());
+          if (item[2]) list.start = Number(item[2]);
+          target.append(list);
+        }
+        const li = document.createElement("li");
+        li.innerHTML = inlineMarkdown(item[3]);
+        list.append(li);
+      } else {
+        list = null;
+        paragraph.push(line);
+      }
     }
+    flushParagraph();
     if (i + 2 < parts.length) {
       const block = document.createElement("div");
       block.className = "code-block";
@@ -1751,8 +1881,13 @@ function markdown(target, text) {
 async function copyText(text, button) {
   try {
     await navigator.clipboard.writeText(text);
-    button.textContent = t("已复制");
-    setTimeout(() => (button.textContent = t("复制")), 1400);
+    if (button.classList.contains("message-action")) {
+      messageAction(button, "check", "已复制");
+      setTimeout(() => messageAction(button, "copy", "复制"), 1400);
+    } else {
+      button.textContent = t("已复制");
+      setTimeout(() => (button.textContent = t("复制")), 1400);
+    }
   } catch (e) {
     setStatus("复制失败，请选择文本后复制。", true);
   }
@@ -1808,14 +1943,14 @@ function renderAnswer(entry, m) {
       const copy = document.createElement("button");
       copy.className = "action";
       copy.type = "button";
-      copy.textContent = t("复制");
+      messageAction(copy, "copy", "复制");
       copy.onclick = () => copyText(m.answer, copy);
       actions.append(copy);
     }
     const retry = document.createElement("button");
     retry.className = "action edit-result";
     retry.type = "button";
-    retry.textContent = t("重新生成");
+    messageAction(retry, "retry", "重新生成");
     retry.disabled = busy;
     retry.onclick = () =>
       sendTurn({
@@ -1827,7 +1962,7 @@ function renderAnswer(entry, m) {
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "action edit-result";
-    edit.textContent = t("编辑后重发");
+    messageAction(edit, "edit", "编辑后重发");
     edit.disabled = busy;
     edit.onclick = () => {
       showDraft({ ...m.settings, prompt: m.prompt, reference: m.reference });
@@ -1898,6 +2033,7 @@ document.addEventListener("pointerdown", (e) => {
     LiquidLayers.closeSettings({ focus: false });
 });
 document.addEventListener("keydown", (e) => {
+  if (e.defaultPrevented || e.target.closest?.("dialog[open]")) return;
   if (e.key === "Escape" && settings.open) {
     e.preventDefault();
     closeSettings();
@@ -1936,6 +2072,7 @@ matchMedia("(max-width:760px)").addEventListener("change", () => {
   settings.open = false;
 });
 window.addEventListener("resize", () => {
+  document.querySelectorAll(".chat-row-menu:popover-open").forEach(menu => menu.hidePopover());
   syncSidebar();
   resizePrompt();
 });

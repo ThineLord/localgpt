@@ -1,0 +1,172 @@
+/* UI-only adapters. Native controls retain every business handler and value. */
+(() => {
+  const $ = id => document.getElementById(id);
+  const tr = (zh, en) => document.documentElement.lang === "en" ? en : zh;
+  const glyph = path => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+  const focus = el => { if (el?.getClientRects().length && !el.disabled) el.focus({preventScroll:true}); };
+  const changed = el => {
+    el.dispatchEvent(new Event("input", {bubbles:true}));
+    el.dispatchEvent(new Event("change", {bubbles:true}));
+  };
+  const controllers = [];
+
+  class Menu {
+    constructor(trigger, panel, render, anchor = trigger, width = 254) {
+      Object.assign(this, {trigger,panel,render,anchor,width});
+      controllers.push(this);
+      trigger.addEventListener("click", e => { e.preventDefault(); this.open ? this.close() : this.show(); });
+      trigger.addEventListener("keydown", e => {
+        if (["ArrowDown","ArrowUp"].includes(e.key)) {
+          e.preventDefault(); this.show(); const items=this.items();
+          focus(e.key==="ArrowUp" ? items.at(-1) : items[0]);
+        }
+      });
+      panel.addEventListener("keydown", e => {
+        const items=this.items(), index=items.indexOf(document.activeElement);
+        if (["ArrowDown","ArrowUp","Home","End"].includes(e.key)) {
+          e.preventDefault();
+          const next=e.key==="Home"?0:e.key==="End"?items.length-1:
+            (index+(e.key==="ArrowDown"?1:-1)+items.length)%items.length;
+          focus(items[next]);
+        } else if(e.key==="Escape") { e.preventDefault();e.stopPropagation();this.close(); }
+        else if(e.key==="Tab") this.close(false);
+      });
+      document.addEventListener("pointerdown",e=>{
+        if(this.open&&!panel.contains(e.target)&&!trigger.contains(e.target))this.close(false);
+      });
+      document.addEventListener("keydown",e=>{
+        if(e.key==="Escape"&&this.open&&!panel.contains(e.target)){
+          e.preventDefault();e.stopPropagation();this.close();
+        }
+      },{capture:true});
+      addEventListener("resize",()=>{if(this.open)this.place();},{passive:true});
+    }
+    items(){return [...this.panel.querySelectorAll('button:not(:disabled):not([hidden])')].filter(e=>e.getClientRects().length);}
+    show(){
+      if(this.trigger.disabled)return;
+      for(const menu of controllers)if(menu!==this)menu.close(false);
+      this.render?.();this.panel.hidden=false;
+      if(!this.panel.matches(':popover-open'))this.panel.showPopover();
+      this.open=true;this.trigger.setAttribute('aria-expanded','true');this.place();focus(this.items()[0]);
+    }
+    close(restore=true){
+      if(!this.open)return;this.open=false;
+      if(this.panel.matches(':popover-open'))this.panel.hidePopover();
+      this.panel.hidden=true;this.trigger.setAttribute('aria-expanded','false');
+      if(restore)focus(this.trigger);
+    }
+    place(){
+      const r=this.anchor.getBoundingClientRect(), p=this.panel;
+      p.style.inset='auto';p.style.width=Math.min(typeof this.width==='function'?this.width():this.width,innerWidth-24)+'px';
+      p.style.maxHeight=Math.max(100,innerHeight-24)+'px';
+      const b=p.getBoundingClientRect(), above=r.top-8, below=innerHeight-r.bottom-8;
+      const horizontal=this.trigger.getBoundingClientRect();
+      const left=this.trigger.id==='upload'?r.left:horizontal.right-b.width;
+      p.style.left=Math.max(12,Math.min(left,innerWidth-b.width-12))+'px';
+      // Use the whole composer edge so mobile menus never cover the text row.
+      p.style.top=Math.max(12,Math.min(below>=b.height?r.bottom+8:above-b.height,innerHeight-b.height-12))+'px';
+    }
+  }
+  const mode=$('mode'), model=$('chatModel'), modelTrigger=$('modelMenuTrigger');
+  const modelMenu=new Menu(modelTrigger,$('modelMenu'),()=>{
+    const root=$('modelMenu');root.replaceChildren();
+    for(const [kind,native] of [['mode',mode],['model',model]]) {
+      if(kind==='model'&&(mode.value==='image'||model.hidden))continue;
+      const group=document.createElement('div');group.className='model-menu-section';group.setAttribute('role','group');
+      group.setAttribute('aria-label',kind==='mode'?tr('交互模式','Mode'):tr('对话模型','Model'));
+      if(kind==='model'){const sep=document.createElement('div');sep.className='model-menu-divider';sep.setAttribute('role','separator');root.append(sep);}
+      for(const opt of native.options){
+        const b=document.createElement('button');b.type='button';b.className='model-menu-item';
+        b.dataset.kind=kind;b.dataset.value=opt.value;b.setAttribute('role','menuitemradio');
+        b.setAttribute('aria-checked',String(opt.value===native.value));b.textContent=opt.textContent;
+        b.hidden=opt.hidden;b.disabled=native.disabled||opt.disabled;
+        b.onclick=()=>{native.value=opt.value;changed(native);modelMenu.close();syncModel();};group.append(b);
+      }
+      root.append(group);
+    }
+  },$('composerCard'));
+  function syncModel(){
+    $('modelMenuLabel').textContent=mode.options[mode.selectedIndex]?.textContent||mode.value;
+    modelTrigger.title=mode.value==='image'?$('modeHint').textContent:model.options[model.selectedIndex]?.textContent||'';
+    modelTrigger.disabled=mode.disabled;
+    if(modelTrigger.disabled)modelMenu.close(false);
+  }
+  for(const select of [mode,model]){
+    select.tabIndex=-1;select.addEventListener('change',syncModel);
+    new MutationObserver(syncModel).observe(select,{attributes:true,childList:true,subtree:true});
+  }
+  new MutationObserver(syncModel).observe($('modeHint'),{childList:true,characterData:true,subtree:true});
+  syncModel();
+
+  const attachment=new Menu($('upload'),$('attachmentMenu'),()=>{
+    const definitions=[
+      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M12 4v16M4 12h16"/>',()=>$('file').click()],
+      ['attach-image-mode',tr('创建图片','Create image'),'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/>',()=>{mode.value='image';changed(mode);focus($('prompt'));}],
+      ['attach-generation',tr('生成与对话参数','Generation and chat settings'),'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',()=>window.LiquidLayers.openSettings()],
+    ];
+    $('attachmentMenu').replaceChildren();
+    for(const [id,label,path,action] of definitions){
+      const b=document.createElement('button');b.id=id;b.type='button';b.className='attachment-menu-item';b.setAttribute('role','menuitem');
+      b.innerHTML=glyph(path);const text=document.createElement('span');text.textContent=label;b.append(text);
+      b.onclick=()=>{attachment.close();action();};$('attachmentMenu').append(b);
+    }
+  },$('composerCard'),()=>$('composerCard').getBoundingClientRect().width);
+  $('upload').onclick=null; // The original file input/change handler stays intact.
+  const chatMenu=new Menu($('chatActions'),$('chatActionsMenu'),null,$('chatActions'),196);
+  for(const id of ['renameChat','deleteCurrent'])$(id).addEventListener('click',()=>chatMenu.close(),{capture:true});
+  new MutationObserver(()=>{$('chatActions').hidden=$('deleteCurrent').hidden;}).observe($('deleteCurrent'),{attributes:true,attributeFilter:['hidden']});
+  addEventListener('liquidlayerchange',()=>{for(const menu of controllers)menu.close(false);});
+
+  const dialog=$('preferencesDialog'), nav=$('settingsNav'), toggle=$('settingsBack');
+  const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
+  const tabs=[...nav.querySelectorAll('[data-settings-section]')];
+  function title(){
+    $('preferencesTitle').textContent=innerWidth<=760&&!dialog.classList.contains('settings-nav-open')
+      ? panels.find(p=>!p.hidden)?.querySelector('.settings-panel-title').textContent||tr('设置','Settings')
+      :tr('设置','Settings');
+  }
+  function drawer(open){
+    dialog.classList.toggle('settings-nav-open',open);
+    toggle.setAttribute('aria-expanded',String(open));$('settingsNavShade').hidden=!open;
+    if(innerWidth<=760){
+      nav.inert=!open;dialog.querySelector('.settings-rail').inert=!open;
+      dialog.querySelector('.settings-panels').inert=open;
+    }
+    title();
+    if(open)focus(tabs.find(b=>b.getAttribute('aria-selected')==='true'));else focus(toggle);
+  }
+  function section(name){
+    panels.forEach(p=>p.hidden=p.dataset.settingsPanel!==name);
+    tabs.forEach(b=>{const selected=b.dataset.settingsSection===name;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1;});
+    $('settingsSectionSelect').value=name;
+    if(innerWidth<=760)drawer(false);else title();
+  }
+  tabs.forEach((button,index)=>{
+    const name=button.dataset.settingsSection,panel=panels.find(p=>p.dataset.settingsPanel===name);
+    button.id='settings-tab-'+name;button.setAttribute('aria-controls',panel.id);
+    panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+    button.addEventListener('click',()=>section(name));
+    button.addEventListener('keydown',e=>{
+      if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;e.preventDefault();
+      const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(index+(e.key==='ArrowDown'?1:-1)+tabs.length)%tabs.length;
+      section(tabs[next].dataset.settingsSection);focus(tabs[next]);
+    });
+  });
+  toggle.onclick=()=>drawer(!dialog.classList.contains('settings-nav-open'));
+  $('settingsNavShade').onclick=()=>drawer(false);
+  dialog.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&dialog.classList.contains('settings-nav-open')){e.preventDefault();e.stopPropagation();drawer(false);}
+  });
+  for(const button of dialog.querySelectorAll('[data-settings-route]'))button.onclick=async()=>{
+    await window.LiquidLayers.close(dialog);if(button.dataset.settingsRoute!=='close')$(button.dataset.settingsRoute).click();
+  };
+  $('openGenerationSettings').onclick=async()=>{await window.LiquidLayers.close(dialog);window.LiquidLayers.openSettings();};
+  function responsive(){
+    const mobile=innerWidth<=760;title();
+    if(!mobile){nav.inert=false;dialog.querySelector('.settings-rail').inert=false;dialog.querySelector('.settings-panels').inert=false;}
+    else if(!dialog.classList.contains('settings-nav-open')){nav.inert=true;dialog.querySelector('.settings-rail').inert=true;}
+  }
+  addEventListener('hanzlanguage',title);
+  section('general');responsive();addEventListener('resize',responsive,{passive:true});
+  dialog.addEventListener('close',()=>{drawer(false);responsive();});
+})();
