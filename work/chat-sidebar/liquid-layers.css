@@ -1,0 +1,400 @@
+/* Clear, layered optical material. Independently authored; see research reference note. */
+:root {
+  --liquid-fill: rgb(238 248 242 / 16%);
+  --liquid-sheet: rgb(239 249 243 / 48%);
+  --liquid-input: rgb(246 253 249 / 28%);
+  --liquid-rim: rgb(255 255 255 / 70%);
+  --liquid-low: rgb(39 65 53 / 24%);
+  --liquid-reflection: rgb(255 255 255 / 52%);
+  --liquid-shadow:
+    0 16px 42px -18px rgb(16 37 28 / 38%), 0 3px 8px -3px rgb(16 37 28 / 18%);
+  --liquid-edge:
+    inset 0 1px 1px var(--liquid-rim), inset 1px 0 1px rgb(255 255 255 / 24%),
+    inset 0 -1px 1px var(--liquid-low), inset -1px 0 1px rgb(255 255 255 / 34%);
+}
+:root[data-theme="dark"] {
+  --liquid-fill: rgb(34 53 45 / 23%);
+  --liquid-sheet: rgb(24 44 35 / 62%);
+  --liquid-input: rgb(15 34 25 / 34%);
+  --liquid-rim: rgb(233 255 245 / 43%);
+  --liquid-low: rgb(0 14 7 / 50%);
+  --liquid-reflection: rgb(225 250 235 / 24%);
+  --liquid-shadow:
+    0 20px 50px -16px rgb(0 8 4 / 62%), 0 3px 8px rgb(0 8 4 / 20%);
+}
+.sidebar,
+.shell > header,
+.prompt-wrap,
+.gallery-card,
+.trash-row,
+.empty-collection,
+.delete-toast {
+  background: var(--liquid-fill);
+  border-color: var(--liquid-rim);
+  border-bottom-color: var(--liquid-low);
+  box-shadow: var(--liquid-edge), var(--liquid-shadow);
+}
+/* Raised layers keep the water visible without letting background text compete. */
+dialog,
+.preferences-dialog,
+.memory-dialog,
+.confirm-dialog,
+.settings .controls,
+.liquid-transfer {
+  background:
+    linear-gradient(
+      135deg,
+      rgb(255 255 255 / 12%),
+      transparent 32%,
+      transparent 72%,
+      rgb(255 255 255 / 7%)
+    ),
+    var(--liquid-sheet);
+  border: 1px solid var(--liquid-rim);
+  border-right-color: var(--liquid-low);
+  border-bottom-color: var(--liquid-low);
+  box-shadow:
+    var(--liquid-edge),
+    inset 0 0 0 3px rgb(255 255 255 / 7%),
+    var(--liquid-shadow);
+  backdrop-filter: blur(9px) saturate(108%);
+  -webkit-backdrop-filter: blur(9px) saturate(108%);
+  border-radius: 26px;
+  color: var(--ink);
+}
+dialog {
+  overscroll-behavior: contain;
+}
+dialog[open] {
+  animation: none;
+}
+dialog::backdrop {
+  background: rgb(15 29 22 / 11%);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+}
+dialog.liquid-underlay {
+  opacity: 0.16;
+  transform: translateY(10px) scale(0.97);
+  transition:
+    opacity 220ms ease,
+    transform 440ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+dialog.liquid-underlay::backdrop {
+  background: transparent;
+  backdrop-filter: none;
+}
+.liquid-transfer {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout paint style;
+}
+.liquid-transfer::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  background: linear-gradient(
+      135deg,
+      var(--liquid-reflection),
+      transparent 26%,
+      transparent 62%,
+      var(--liquid-reflection)
+    )
+    border-box;
+  mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.liquid-transfer::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+.chrome-button,
+#appSettings,
+#sidebarToggle,
+#mobileMenu,
+.upload,
+.settings summary,
+#newChat,
+.suggestions button,
+.action,
+.themes,
+.preference-controls .language {
+  background: var(--liquid-fill);
+  border: 1px solid var(--liquid-rim);
+  border-bottom-color: var(--liquid-low);
+  box-shadow:
+    var(--liquid-edge),
+    0 4px 8px -4px rgb(14 38 26 / 27%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.chrome-button svg {
+  flex: none;
+}
+.chrome-button,
+.action,
+.preference-link,
+.nav-button {
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.chrome-button:hover,
+.action:hover {
+  background: var(--liquid-input);
+}
+.chrome-button:active,
+.action:active {
+  transform: scale(0.96);
+}
+#preferencesDialog .themes {
+  padding: 3px;
+  gap: 3px;
+  border-radius: 24px;
+}
+#preferencesDialog .themes button {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+}
+#preferencesDialog .themes button[aria-pressed="true"] {
+  background: var(--liquid-input);
+  box-shadow:
+    var(--liquid-edge),
+    0 3px 6px -3px rgb(13 30 23 / 30%);
+  border-color: var(--liquid-rim);
+}
+#preferencesDialog #motionToggle,
+#preferencesDialog .language {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  min-height: 44px;
+}
+#preferencesDialog .preference-link,
+#preferencesDialog #trashNav {
+  margin-top: 8px;
+  background: var(--liquid-fill);
+  border: 1px solid var(--liquid-rim);
+  border-bottom-color: var(--liquid-low);
+  box-shadow:
+    var(--liquid-edge),
+    0 3px 8px -6px rgb(13 30 23 / 32%);
+  border-radius: 16px;
+  padding: 15px 16px;
+}
+#preferencesDialog .preference-link:hover,
+#preferencesDialog #trashNav:hover {
+  background: var(--liquid-input);
+}
+.preference-section + .preference-section {
+  border-top-color: rgb(57 91 70 / 17%);
+}
+.dialog-heading {
+  gap: 12px;
+}
+.dialog-heading h2 {
+  flex: 1;
+}
+.dialog-heading .chrome-button {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+}
+.dialog-heading .chrome-button svg {
+  width: 18px;
+  height: 18px;
+}
+.dialog-heading [hidden] {
+  display: none;
+}
+dialog
+  button:not(.chrome-button):not(.primary):not([type="submit"]):not(
+    .danger-link
+  ),
+dialog a.action {
+  background: var(--liquid-fill);
+  box-shadow:
+    var(--liquid-edge),
+    0 2px 6px -4px rgb(16 37 28 / 30%);
+  border-color: var(--liquid-rim);
+  border-radius: 12px;
+}
+dialog button[type="submit"],
+dialog .primary {
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 32%),
+    0 3px 6px rgb(16 37 28 / 14%);
+}
+dialog .primary.danger {
+  background: var(--error);
+  color: white;
+}
+.memory-item {
+  background: var(--liquid-fill);
+  border-color: var(--liquid-rim);
+  box-shadow: var(--liquid-edge);
+}
+.memory-form textarea,
+.memory-form-actions select,
+#chatName,
+.settings .controls select,
+.settings .controls input:not([type="checkbox"]),
+.settings .controls textarea {
+  background: var(--liquid-input);
+  border: 1px solid var(--liquid-low);
+  box-shadow:
+    inset 0 1px 3px rgb(20 42 28 / 9%),
+    0 1px 0 var(--liquid-rim);
+}
+.memory-form label {
+  margin-bottom: 0;
+}
+.memory-switches label {
+  font-size: 0.875rem;
+  font-weight: 450;
+  margin-bottom: 0;
+}
+.memory-switches input {
+  appearance: none;
+  width: 38px;
+  height: 24px;
+  border: 1px solid var(--liquid-low);
+  background: var(--liquid-input);
+  box-shadow: inset 0 1px 3px rgb(20 42 28 / 13%);
+  border-radius: 20px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 180ms ease;
+}
+.memory-switches input::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  background: #f2f9f4;
+  box-shadow:
+    inset 0 1px 1px #fff,
+    0 1px 3px #142a2840;
+  transition: transform 220ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+.memory-switches input:checked {
+  background: var(--button);
+}
+.memory-switches input:checked::after {
+  transform: translateX(14px);
+}
+.memory-switches input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 760px) {
+  .sidebar,
+  .sidebar-open .sidebar {
+    background: var(--liquid-sheet);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .preferences-dialog,
+  .memory-dialog,
+  .confirm-dialog {
+    border-radius: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.liquid-underlay,
+  .chrome-button,
+  .action,
+  .memory-switches input,
+  .memory-switches input::after {
+    transition: none;
+    transform: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --liquid-fill: #e6f1e9;
+    --liquid-sheet: #edf5ef;
+    --liquid-input: #f5faf6;
+    --liquid-rim: #6c8778;
+  }
+  :root[data-theme="dark"] {
+    --liquid-fill: #203b2e;
+    --liquid-sheet: #183224;
+    --liquid-input: #254333;
+    --liquid-rim: #8aa995;
+  }
+  dialog,
+  .preferences-dialog,
+  .memory-dialog,
+  .confirm-dialog,
+  .sidebar-open .sidebar,
+  .settings .controls,
+  .liquid-transfer,
+  .sidebar,
+  .chrome-button,
+  .action {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  dialog.liquid-underlay {
+    opacity: 0;
+  }
+}
+@media (forced-colors: active) {
+  .memory-switches input {
+    appearance: auto;
+    width: 20px;
+    height: 20px;
+  }
+  .memory-switches input::after {
+    display: none;
+  }
+}
+/* A native top-layer popover can sample the page below the composer. */
+.settings .controls[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: min(70dvh, 640px);
+}
+.settings .controls[popover]::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .settings .controls[popover] {
+    width: calc(100vw - 24px);
+    max-height: min(76dvh, 640px);
+  }
+}
+
+body:has(dialog[open]) .intro {
+  opacity: 0.16;
+}
+#confirmDialog::backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}

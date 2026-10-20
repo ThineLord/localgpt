@@ -1,0 +1,15 @@
+# Reference-led HanzAgent redesign
+
+Reference observed directly in a fresh logged-out browser at https://chatgpt.com/ on 2026-10-21 Asia/Hong_Kong (2026-10-20 UTC), at 1440x900. Screenshots remain local. This is an observed guest interface, not a claim of access to every authenticated state.
+
+Measured guest desktop: sidebar 260px full height, 1px vertical separator, #fcfcfc background, #0d0d0d foreground, system sans-serif stack. Header ~52px. Sidebar top control 44px at x208,y4 with 8px radius. Main center x850. Greeting is 24px/28px normal weight at y386. Input shell x466,y462, width768,height52, pill radius26, subtle border/shadow. Textarea 17px/24px. Send target44px with circular icon. Core page has extensive quiet whitespace. This reference uses no liquid effects.
+
+Implementation target: preserve these proportions and neutral visual system. Main conversation and composer max-width768px. Sidebar260px, desktop collapses to compact navigation with working reopen; at <=760px use modal drawer with overlay and escape dismissal. Chat content scrolls independently; populated chat composer sits at bottom; empty chat greeting+composer centered approximately y400-500 on900px desktop. HanzAgent needs mode/model/settings/reference controls: fit these in one compact toolbar or second row inside composer, not a tall dashboard. Input may be ~96-110px high to accommodate these real controls, documented deviation from52px reference. Desktop greeting24-28px, message16px/1.7, nav14px, muted metadata12px. Mobile16px input avoids zoom.
+
+Flat white/off-white light surfaces; charcoal dark surfaces (#212121 main/#171717 sidebar/#303030 input as adaptation), white/near-black send button, quiet neutral borders. No glass, water texture, floating ornaments, oversized artwork, gradients or animated backgrounds. Respect system theme and reduced motion. Existing HanzAgent identity only, no ChatGPT marks/fonts/assets.
+
+Use native controls and existing IDs/semantics. Keep all real features reachable: mode/model, reference upload, generation settings, settings dialog (language/theme/memory/trash), gallery, rename/delete, stop/retry/copy/download/edit. Do not add voice, login, plugins, pricing, workspace, deep research, search or any fake feature. Maintain DOM IDs referenced by app.js/workspace.js. Those scripts are owned by Codex.
+
+Flat accessible dialogs; escape/backdrop dismissal and focus return must remain. Existing LiquidLayers JS API is called by app.js/workspace.js: preserve open/close/closeSettings behavior, can replace animation internals. Remove optical effects and unused canvas rendering from the build. Empty/long/code/image states must not overflow at320/390/768/1440 widths. User bubble right, assistant plain text left, 24-32px vertical rhythm, max image512px responsive, in-message actions quiet but reachable.
+
+Cloud acceptance: build, existing unit tests, JS syntax, browser screenshots desktop empty + populated + mobile + dark + open settings. Use demo only. Report real evidence and any known limitations. Codex performs real model tests and screenshot feedback locally.
