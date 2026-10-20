@@ -1523,6 +1523,9 @@ function showOptions(o) {
 }
 function updateOptions() {
   const model = modelCatalog.find((m) => m.key === $("chatModel").value);
+  const imageMode = $("mode").value === "image";
+  $("chatModel").hidden = imageMode;
+  $("modeHint").classList.toggle("image-model-hint", imageMode);
   const supports = model?.architecture === "qwen3";
   $("thinking").disabled = busy || !supports;
   $("thinking").title = supports ? "" : t("模型不支持思考开关");

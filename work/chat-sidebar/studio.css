@@ -528,6 +528,16 @@ svg {
   border: 0;
   pointer-events: none;
 }
+#modeHint.image-model-hint {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  color: var(--muted);
+  font-size: 14px;
+}
 .upload, .settings summary {
   display: inline-flex;
   align-items: center;

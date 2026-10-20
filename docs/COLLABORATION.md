@@ -8,6 +8,8 @@ Cloud task: `bc-ea24cc35-60bd-5f16-ae3f-dc3e23b5e0e9`, branch `cursor/chatgpt-ui
 
 After the initial screenshot review, Codex sent measured corrections through Axel. The same agent pushed `d4e914ad1b1e42b8a2926b72af6529a07572b45d`, fixing heading alignment and redundant labels. Codex then corrected the textarea focus treatment and removed invisible shortcuts from keyboard navigation during integration.
 
+Mason independently found the hidden-focus and textarea-outline problems on PR 1, confirmed the allowed file scope and DOM/dialog contracts, and flagged a settings panel overlap. The integrated candidate fixes these, gives the settings panel at least 8px separation from its trigger on desktop, and shows the existing image model hint in image mode while retaining the selected chat model for auto/chat. Initial merge readiness was explicitly withdrawn during these final fixes and must be renewed for the new HEAD.
+
 ## Model and cost record
 
 For this already-running task, Axel's launch omitted `model` and `model_params`: requested configuration **DEFAULT**. The actual model ID and effective reasoning effort were not exposed by status/transcript: **UNKNOWN**. Cloud Max Mode is a platform mode, not evidence of a particular model or reasoning effort. Per-task tokens, account quota and charges were unavailable through Axel's tools. No task was restarted and no additional cloud agent was launched.

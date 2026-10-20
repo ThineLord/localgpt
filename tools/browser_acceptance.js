@@ -24,7 +24,19 @@ async (page) => {
   check(results.desktop.composer.width<=770,'Composer must respect reference content width');
   check(Math.abs(results.desktop.heading-386)<2 && Math.abs(results.desktop.composer.y-462)<2,'Empty layout must match observed reference');
   await screenshot('desktop-empty');
+  await page.locator('.settings summary').click();
+  results.settingsGap = await page.evaluate(() => {
+    const toggle = document.querySelector('.settings summary').getBoundingClientRect();
+    const panel = document.querySelector('#settingsPanel').getBoundingClientRect();
+    return panel.bottom <= toggle.top ? toggle.top - panel.bottom : panel.top - toggle.bottom;
+  });
+  check(results.settingsGap>=8,'Settings panel overlaps its trigger');
+  await screenshot('desktop-generation-settings');
+  await page.locator('#closeSettings').click();
+  await page.locator('#mode').selectOption('image');
+  check(await page.locator('#chatModel').isHidden() && await page.locator('#modeHint').isVisible(),'Image mode must show its own model');
   await page.locator('#mode').selectOption('chat');
+  check(await page.locator('#chatModel').isVisible(),'Chat model control must return');
   await page.locator('#prompt').fill('用清晰的结构介绍本地聊天与图像生成。This is a synthetic UI acceptance conversation.');
   await page.locator('#prompt').press('Enter');
   await page.locator('#cancel').waitFor({state:'visible'});

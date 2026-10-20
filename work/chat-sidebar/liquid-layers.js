@@ -68,14 +68,21 @@
   function placeSettings() {
     if (!details.open || !nativePopover) return;
     const origin = summary.getBoundingClientRect();
-    const r = panel.getBoundingClientRect();
     const mobile = innerWidth <= 760;
+    const above = Math.max(0, origin.top - 22);
+    const below = Math.max(0, innerHeight - origin.bottom - 22);
+    const placeAbove = above >= below;
+    if (mobile) panel.style.removeProperty("max-height");
+    else panel.style.maxHeight = `min(70dvh, 520px, ${placeAbove ? above : below}px)`;
+    const r = panel.getBoundingClientRect();
     const left = mobile
       ? 12
       : Math.max(12, Math.min(origin.left, innerWidth - r.width - 12));
     const top = mobile
       ? Math.max(12, innerHeight - r.height - 12)
-      : Math.max(12, origin.top - r.height - 10);
+      : placeAbove
+        ? Math.max(12, origin.top - r.height - 10)
+        : origin.bottom + 10;
     panel.style.inset = "auto";
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;
