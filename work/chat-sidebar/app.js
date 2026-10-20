@@ -1523,6 +1523,9 @@ function showOptions(o) {
 }
 function updateOptions() {
   const model = modelCatalog.find((m) => m.key === $("chatModel").value);
+  const imageMode = $("mode").value === "image";
+  $("chatModel").hidden = imageMode;
+  $("modeHint").classList.toggle("image-model-hint", imageMode);
   const supports = model?.architecture === "qwen3";
   $("thinking").disabled = busy || !supports;
   $("thinking").title = supports ? "" : t("模型不支持思考开关");
@@ -1563,10 +1566,10 @@ async function loadModels() {
       )) {
         $("chatModel").add(
           new Option(
-            m.display_name +
-              " · " +
-              (m.size_bytes / 1024 ** 3).toFixed(1) +
-              " GB",
+            (m.display_name || m.key) +
+              (Number.isFinite(m.size_bytes)
+                ? " · " + (m.size_bytes / 1024 ** 3).toFixed(1) + " GB"
+                : ""),
             m.key,
           ),
         );
