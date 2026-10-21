@@ -66,7 +66,7 @@ async (page) => {
     "Memory search missing",
   );
 
-  const seed = "Synthetic Round 4 memory acceptance entry";
+  const seed = "Synthetic Round 4 memory acceptance entry " + Date.now();
   await page.locator("#memoryAddButton").click();
   await page.waitForFunction(
     () => !document.getElementById("memoryEditorView")?.hidden,
@@ -88,7 +88,7 @@ async (page) => {
   await page.waitForFunction(
     () => !!document.querySelector(".empty-memory-search"),
   );
-  await page.locator("#memorySearch").fill("Round 4");
+  await page.locator("#memorySearch").fill(seed);
   await page.waitForFunction(
     () => document.querySelectorAll("#memoryList .memory-item").length === 1,
   );
