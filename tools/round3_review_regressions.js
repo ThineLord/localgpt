@@ -28,12 +28,15 @@ async page=>{
   const remote=await page.request.patch(base+'/qwen-cn/chats/'+id,{data:{version:original.draft_version,draft:remoteDraft}});check(remote.ok(),'Remote edit setup failed');
   await page.unroute('**/qwen-cn/chats/*');await page.reload();await page.locator('#draftConflict').waitFor({state:'visible'});
   check(await page.locator('#prompt').inputValue()==='Local recovery '+keep,'Local input was lost');
+  await page.locator('#prompt').fill('Local recovery edited '+keep);
+  await page.reload();await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='Local recovery edited '+keep,'Repeated recovery lost edits');
   const unchanged=await(await page.request.get(base+'/qwen-cn/chats/'+id)).json();
   check(unchanged.draft.prompt===remoteDraft.prompt,'Recovery silently overwrote newer remote content');
   await page.locator(keep?'#keepDraft':'#useRemoteDraft').click();
   await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
   const result=await(await page.request.get(base+'/qwen-cn/chats/'+id)).json();
-  check(result.draft.prompt===(keep?'Local recovery '+keep:remoteDraft.prompt),'Explicit resolution failed');
+  check(result.draft.prompt===(keep?'Local recovery edited '+keep:remoteDraft.prompt),'Explicit resolution failed');
   check(await page.evaluate(()=>sessionStorage.getItem('hanz-transient-draft')===null),'Resolved recovery copy remained');
   receipts.push({keepLocal:keep,remotePreservedUntilChoice:true});
  }

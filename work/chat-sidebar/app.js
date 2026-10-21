@@ -1643,6 +1643,7 @@ async function init() {
           if (existing && (!pendingDraft.baseDraft || !same(current.draft, pendingDraft.baseDraft))) {
             // Recovery must compare against the original base, not silently
             // adopt a newer server version and overwrite another tab's edits.
+            baseDraft = normalized(pendingDraft.baseDraft);
             dirty = true;
             conflict = current;
             $("draftConflict").hidden = false;
