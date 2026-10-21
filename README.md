@@ -15,13 +15,15 @@ Open http://127.0.0.1:8191/qwen-cn/ . Demo chat streaming and the labeled vector
 
 ## Real local services
 
-Start your existing ComfyUI instance with the HanzAgent extension on loopback port 8188 and LM Studio on 1234. Then run `.venv/bin/python work/chat-sidebar/serve.py` and open http://127.0.0.1:8190/qwen-cn/ . The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
+Start your existing ComfyUI instance with the HanzAgent extension on loopback port 8188 and LM Studio on 1234. Then build the frontend and run `.venv/bin/python work/chat-sidebar/launch.py` and open http://127.0.0.1:8190/qwen-cn/ . The launcher detaches the UI process from its terminal, verifies the occupied port and served build, and never kills another service. For foreground debugging use `serve.py`. The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
 
 Image inference requires the existing ComfyUI nodes and model files named in `generation.py`: Qwen Image 2.1 GGUF, its Qwen3-VL encoder and VAE, UnetLoaderGGUF, TextEncodeQwenImage21 and QwenImage21Cache. Models are not distributed. Chat uses locally installed LM Studio models (default qwen3-8b), `/v1/chat/completions` streaming, and its `lms` executable. The app only unloads LM Studio instances it owns. Do not change model names or settings to make UI tests pass.
 
+Before enabling Round 4 permanent deletion, back up the existing store, update the installed extension’s `storage.py`, `generation.py` and `backend.py` (as `__init__.py`), and restart ComfyUI with an idle queue. All writers must use the deletion journal guards. Upgraded databases reject legacy deletion routes on 8188; use 8190 for lifecycle controls. No model configuration changes are needed.
+
 Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation rename/trash/restore, gallery, explicit memory management, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
 
-The redesigned interface uses an observed ChatGPT guest layout as its reference: quiet neutral surfaces, a collapsible sidebar, a centered conversation column and a bottom composer. See [design measurements](docs/DESIGN.md), [local acceptance](docs/ACCEPTANCE.md) and [agent/review boundaries](docs/COLLABORATION.md).
+The current interface follows measured signed-in navigation: a 52px rail, independent 288px pinned/temporary history panel, avatar menu and full-page settings. See [Round 4 reference and lifecycle contract](docs/ROUND4-REFERENCE.md). Earlier [design measurements](docs/DESIGN.md) and [acceptance](docs/ACCEPTANCE.md) are historical; [agent/review boundaries](docs/COLLABORATION.md) still apply.
 
 ## Validation
 

@@ -53,7 +53,7 @@
       if(!this.open)return;this.open=false;
       if(this.panel.matches(':popover-open'))this.panel.hidePopover();
       this.panel.hidden=true;this.trigger.setAttribute('aria-expanded','false');
-      if(restore)focus(this.trigger);
+      if(restore)focus(this.trigger.getClientRects().length ? this.trigger : this.anchor);
     }
     place(){
       const r=this.anchor.getBoundingClientRect(), p=this.panel;
@@ -118,6 +118,27 @@
   new MutationObserver(()=>{$('chatActions').hidden=$('deleteCurrent').hidden;}).observe($('deleteCurrent'),{attributes:true,attributeFilter:['hidden']});
   addEventListener('liquidlayerchange',()=>{for(const menu of controllers)menu.close(false);});
 
+  const profile = new Menu($('profileButton'),$('profileMenu'),null,$('profileButton'),228,8);
+  const appearance = new Menu($('profileAppearance'),$('appearanceMenu'),()=>{
+    const root=$('appearanceMenu');root.replaceChildren();
+    const back=document.createElement('button');back.type='button';back.setAttribute('role','menuitem');back.textContent=tr('‹ 用户菜单','‹ User menu');
+    back.onclick=()=>{appearance.close(false);profile.show();focus($('profileAppearance'));};root.append(back);
+    for(const [value,zh,en] of [['system','跟随系统','System'],['light','浅色','Light'],['dark','深色','Dark']]) {
+      const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(themePreference===value));b.textContent=tr(zh,en);
+      b.onclick=()=>{applyTheme(value,true);appearance.close(false);focus($('profileButton'));};root.append(b);
+    }
+  },$('profileButton'),228,8);
+  for(const menu of [profile,appearance])menu.place=()=>{
+    const r=$('profileButton').getBoundingClientRect(),p=menu.panel;
+    p.style.inset='auto';p.style.width=Math.min(228,innerWidth-24)+'px';p.style.maxHeight=(innerHeight-24)+'px';
+    const b=p.getBoundingClientRect();p.style.left=Math.min(r.right+5,innerWidth-b.width-12)+'px';
+    p.style.top=Math.max(12,Math.min(r.bottom-b.height,innerHeight-b.height-8))+'px';
+  };
+  $('appearanceMenu').addEventListener('keydown',e=>{if(e.key==='ArrowLeft'){e.preventDefault();appearance.close(false);profile.show();focus($('profileAppearance'));}});
+  $('profileAppearance').addEventListener('keydown',e=>{if(e.key==='ArrowRight'){e.preventDefault();appearance.show();}});
+  $('appSettings').addEventListener('click',()=>profile.close(false),{capture:true});
+  $('profileMemory').onclick=()=>{profile.close(false);$('memoryNav').click();};
+  $('profileAbout').onclick=()=>{profile.close(false);$('appSettings').click();if(tabs.some(b=>b.dataset.settingsSection==='about'))section('about');};
   const dialog=$('preferencesDialog'), nav=$('settingsNav'), toggle=$('settingsBack');
   const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
   const tabs=[...nav.querySelectorAll('[data-settings-section]')];

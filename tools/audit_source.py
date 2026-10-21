@@ -49,12 +49,14 @@ for name, oid, kind, mode in entries:
     if kind != 'blob' or mode in ('120000', '160000'):
         failures.add((name, 'symlink/submodule is not approved source'))
         continue
-    if p.suffix not in ('.py', '.js', '.cjs', '.css', '.html', '.md', '.txt', '.yml', '.yaml', '.example') and name != '.gitignore':
+    if p.suffix not in ('.py', '.js', '.cjs', '.css', '.html', '.md', '.txt', '.yml', '.yaml', '.example', '.svg') and name != '.gitignore':
         failures.add((name, 'not approved source format'))
         continue
     if any(x in p.parts for x in ('output', 'outputs', 'data', 'backups', 'logs', '.playwright-cli')):
         failures.add((name, 'runtime directory'))
     data = git('show', oid)
+    if p.suffix == '.svg' and re.search(rb'(?i)<(?:script|foreignObject)|(?:href|src)\s*=\s*[\"\x27](?!#)', data):
+        failures.add((name, 'SVG active or external content'))
     for rule, pattern in rules.items():
         if re.search(pattern, data):
             failures.add((name, rule))

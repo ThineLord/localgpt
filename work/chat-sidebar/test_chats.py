@@ -166,6 +166,16 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len((await restored.json())['messages']),1)
         self.assertEqual(len(await (await self.client.get('/qwen-cn/chats')).json()),1)
 
+    async def test_legacy_restore_reports_pending_delete_as_conflict(self):
+        chat=await self.create();self.backend.STORE.trash(chat['id'])
+        with self.backend.STORE.connect() as db:
+            db.execute('CREATE TABLE media_deletions(id TEXT PRIMARY KEY,payload TEXT,state TEXT,error TEXT)')
+            db.execute('INSERT INTO media_deletions VALUES(?,?,?,NULL)',('chat:'+chat['id'],'{}','failed'))
+        response=await self.client.post('/qwen-cn/chats/'+chat['id']+'/restore',json={})
+        self.assertEqual(response.status,409)
+        self.assertIn('error',await response.json())
+        self.assertIsNotNone(self.backend.STORE.chat(chat['id'])['deleted_at'])
+
     async def test_validation_and_failures_preserve_prompt(self):
         chat=await self.create();url='/qwen-cn/chats/'+chat['id']+'/generate'
         payload={'prompt':'saved prompt','size':'512,512','quality':'15','request_key':'failed-request'}

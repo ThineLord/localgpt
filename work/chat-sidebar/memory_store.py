@@ -17,7 +17,7 @@ def token_cost(text):
 class MemoryStore:
     def __init__(self, path):
         self.path = Path(path)
-        with self.connect() as db:
+        with self.connect(create=True) as db:
             db.executescript('''
               CREATE TABLE IF NOT EXISTS user_memory(
                 id TEXT PRIMARY KEY, content TEXT NOT NULL, category TEXT NOT NULL,
@@ -29,8 +29,8 @@ class MemoryStore:
             ''')
 
     @contextmanager
-    def connect(self):
-        db=sqlite3.connect(self.path,timeout=10);db.row_factory=sqlite3.Row
+    def connect(self, *, create=False):
+        db=sqlite3.connect(self.path.resolve().as_uri() + ('?mode=rwc' if create else '?mode=rw'),uri=True,timeout=10);db.row_factory=sqlite3.Row
         try:
             with db: yield db
         finally: db.close()

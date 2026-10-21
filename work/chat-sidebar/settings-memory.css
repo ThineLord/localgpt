@@ -1,0 +1,316 @@
+/* Round 4 — Memory modal & settings hooks only. Requires studio.css tokens. */
+.memory-dialog.memory-dialog--round4 {
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(calc(100dvh - 40px), 800px);
+  border-radius:24px;
+  padding: 0;
+  overflow: hidden;
+  flex-direction: column;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.memory-dialog.memory-dialog--round4[open] { display: flex; }
+
+.memory-dialog.memory-dialog--round4 .dialog-heading {
+  flex: none;
+  margin: 0;
+  padding:20px;
+  border-bottom: 1px solid var(--line);
+  gap: 8px;
+}
+
+.memory-dialog.memory-dialog--round4 .dialog-heading h2 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.memory-dialog.memory-dialog--round4 #closeMemory {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.memory-dialog.memory-dialog--round4 #closeMemory svg {
+  width: 16px;
+  height: 16px;
+}
+
+.memory-dialog--body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding:0 20px 20px;
+}
+
+.memory-dialog--footer {
+  flex: none;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.memory-list-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 8px;
+}
+
+.memory-search-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.memory-search-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.memory-search-wrap svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--ink-secondary);
+  pointer-events: none;
+}
+
+.memory-list-scroll {
+  min-height: 120px;
+  max-height: min(42dvh, 320px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.memory-list-scroll .memory-list {
+  margin: 0;
+}
+
+.memory-list-state {
+  padding: 24px 16px;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+.memory-list-scroll.is-error .memory-list-state {
+  color: var(--error);
+}
+
+#memoryList[hidden] {
+  display: none !important;
+}
+
+.memory-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 4px 8px;
+  align-items: start;
+  padding: 12px 12px 12px 14px;
+  border-top: 1px solid var(--line);
+  cursor: default;
+}
+
+.memory-item:first-child {
+  border-top: 0;
+}
+
+.memory-item:focus-visible {
+  outline: 2px solid #5289ff;
+  outline-offset: -2px;
+}
+
+.memory-item[aria-selected="true"] {
+  background: var(--row-hover);
+}
+
+.memory-item p {
+  margin: 4px 0 0;
+  grid-column: 1;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.memory-item small {
+  grid-column: 1;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.memory-item-more {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-secondary);
+  align-self: center;
+}
+
+.memory-item-more:hover,
+.memory-item-more[aria-expanded="true"] {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+
+.memory-item-more svg {
+  width: 18px;
+  height: 18px;
+}
+
+.memory-row-menu {
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-elevated);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  z-index: 2;
+}
+
+.memory-row-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.memory-row-menu button:hover {
+  background: var(--row-hover);
+}
+
+.memory-row-menu button.danger-link {
+  color: var(--error);
+}
+
+.empty-memory,
+.empty-memory-search {
+  padding: 32px 16px;
+  color: var(--ink-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+#memoryEditorView[hidden] {
+  display: none !important;
+}
+
+#memoryListView[hidden] {
+  display: none !important;
+}
+
+.memory-editor-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.memory-editor-heading button {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+#memoryAddButton {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+
+#memoryAddButton:hover {
+  background: var(--row-hover);
+}
+
+.memory-dialog--round4 #clearMemory {
+  width: 100%;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.memory-dialog--round4 .memory-switches {
+  margin-top: 8px;
+}
+
+.memory-dialog--round4 .dialog-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+#memoryStatus.error {
+  color: var(--error);
+}
+
+.settings-panel[data-settings-panel="about"] .settings-about-copy {
+  margin: 0;
+  padding: 16px;
+  color: var(--ink-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.settings-diagnostics-value {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  text-align: right;
+}
+
+#settingsDiagnosticsRefresh {
+  margin-top: 0;
+}
+
+@media (max-width: 390px) {
+  .memory-dialog.memory-dialog--round4 {
+    width: calc(100vw - 16px);
+    max-height: 95dvh;
+  }
+
+  .memory-dialog--body {
+    padding: 0 12px 12px;
+  }
+
+  .memory-list-scroll {
+    max-height: min(50dvh, 280px);
+  }
+
+  .settings-diagnostics-value {
+    max-width: 48%;
+    font-size: 12px;
+  }
+}

@@ -2,6 +2,8 @@
 No installation files, model processes, or existing database are replaced.
 """
 import argparse
+import json
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
 import aiohttp
@@ -66,10 +68,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
     async def local_app():
         backend='http://127.0.0.1:8188'
-        async with aiohttp.ClientSession() as session:
-            async with session.get(backend+'/qwen-cn/health') as response:
-                response.raise_for_status();health=await response.json()
-        output=Path(health['output_directory']).resolve()
-        backup_before_migration(health['database'])
-        return create_app(backend,database=health['database'],output_root=output,input_root=output.parent/'input')
+        config = Path.home() / 'Library' / 'Application Support' / 'HanzAgent' / 'runtime.json'
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=8)) as session:
+                async with session.get(backend+'/qwen-cn/health') as response:
+                    response.raise_for_status(); health=await response.json()
+            output=Path(health['output_directory']).resolve()
+            settings={'database':health['database'],'output_root':str(output),'input_root':str(output.parent/'input')}
+            # A local path cache lets history work even while ComfyUI is offline.
+            if not Path(settings['database']).is_file():
+                raise RuntimeError('Existing database missing; refusing to create an empty replacement.')
+            config.parent.mkdir(parents=True,exist_ok=True)
+            temporary=config.with_suffix('.tmp')
+            temporary.write_text(json.dumps(settings));temporary.chmod(0o600);temporary.replace(config)
+        except (aiohttp.ClientError, TimeoutError):
+            if not config.exists():
+                raise RuntimeError('Start ComfyUI once to discover the existing database. No database was created.')
+            settings=json.loads(config.read_text())
+        if not Path(settings['database']).is_file():
+            raise RuntimeError('Existing database unavailable; refusing to create a replacement.')
+        backup_before_migration(settings['database'])
+        return create_app(backend,**settings)
     web.run_app(local_app(), host='127.0.0.1', port=args.port)

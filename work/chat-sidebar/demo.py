@@ -4,6 +4,8 @@ import asyncio
 import json
 import tempfile
 import time
+import uuid
+from generation import image_path
 from pathlib import Path
 from aiohttp import web
 import lm_chat
@@ -36,6 +38,8 @@ def create_demo():
             return web.json_response({'online':True,'default':'qwen3-8b','models':[{'key':'qwen3-8b','display_name':'Qwen3 8B · Demo','type':'llm','loaded_instances':[]}]})
         if request.path == '/qwen-cn/health':
             return web.json_response({'ready':True,'database':'Temporary demo database','demo':True})
+        if request.path == '/qwen-cn/uploads' and request.method == 'POST':
+            return await upload(request)
         if request.path == '/qwen-cn/lm/start':
             return web.json_response({'started':False,'demo':True})
         return await handler(request)
@@ -47,7 +51,8 @@ def create_demo():
             if image:
                 for i in range(15):
                     core.STORE.update(mid,step=i+1,total=15,phase='正在生成'); await asyncio.sleep(.25)
-                core.STORE.update(mid,image_json=json.dumps({'filename':'fixture.svg','subfolder':'','type':'output'}),status='completed',finished=time.time(),phase='已完成')
+                name='synthetic-'+mid+'.svg';(root/'output'/name).write_text(SVG)
+                core.STORE.update(mid,image_json=json.dumps({'filename':name,'subfolder':'','type':'output'}),status='completed',finished=time.time(),phase='已完成')
             else:
                 for end in range(1,len(ANSWER)+16,16):
                     core.STORE.update(mid,answer=ANSWER[:end]); await asyncio.sleep(.06)
@@ -61,12 +66,16 @@ def create_demo():
     core.STORE.update(msg['id'],answer=ANSWER,status='completed',finished=time.time())
     core.STORE.create('新对话')
     async def index(r):return web.FileResponse(Path(__file__).with_name('index.html'),headers={'Cache-Control':'no-store'})
-    async def image(r):return web.Response(text=SVG,content_type='image/svg+xml')
+    async def image(r):
+        try:path=image_path(dict(r.query),root/'input',root/'output')
+        except (ValueError,FileNotFoundError):raise web.HTTPNotFound()
+        return web.FileResponse(path)
     async def upload(r):
         reader=await r.multipart();part=await reader.next()
         while part and part.name!='image':part=await reader.next()
         if not part:return web.json_response({'error':'Missing image'},status=400)
-        content=await part.read();name='reference.png';(root/'input'/name).write_bytes(content)
+        content=await part.read();name='reference-'+uuid.uuid4().hex+'.png';(root/'input'/name).write_bytes(content)
+        core.MEDIA.register_upload({'filename':name,'type':'input','subfolder':''})
         return web.json_response({'name':name,'subfolder':'','type':'input'})
     app.router.add_get('/',index);app.router.add_get('/qwen-cn/',index)
     app.router.add_get('/view',image);app.router.add_get('/qwen-cn/download',image)
