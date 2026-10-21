@@ -694,11 +694,11 @@ dialog::backdrop { background: var(--backdrop); }
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: var(--sidebar);
   box-shadow:none;
 }
 .preferences-dialog.settings-surface::backdrop { background:transparent; }
-.settings-layout { display:grid; grid-template-columns:var(--main-inset) minmax(0,1fr); height:100%; }
+.settings-layout { display:grid; grid-template-columns:var(--rail) minmax(0,1fr); height:100%; }
 .settings-page { grid-column:2; min-width:0; display:grid; grid-template-columns:var(--settings-nav-width) minmax(0,1fr); grid-template-rows:52px minmax(0,1fr); background:var(--canvas); }
 .settings-rail { width:var(--rail); grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 6px; background: var(--sidebar); }
 .settings-rail .chrome-button { color: var(--ink-secondary); }

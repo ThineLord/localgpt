@@ -60,6 +60,9 @@ async (page) => {
   const copyBtn = page.locator(
     '.assistant-message .message-action[data-action-icon=copy]',
   ).first();
+  await copyBtn.scrollIntoViewIfNeeded();
+  await page.mouse.move(1300, 200);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await copyBtn.hover();
   await page.waitForTimeout(400);
   await page.waitForFunction(

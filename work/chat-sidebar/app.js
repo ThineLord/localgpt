@@ -917,7 +917,9 @@ function render(force = false) {
       remember.className = "remember-message action";
       messageAction(remember, "memory", "记为全局记忆");
       remember.onclick = () => window.HanzFeatures?.remember(m);
-      entry.append(remember);
+      let userActions = userShell.querySelector(".message-actions");
+      if (!userActions) { userActions = document.createElement("div"); userActions.className = "message-actions"; userShell.append(userActions); }
+      userActions.append(remember);
     }
     if (m.reference?.filename) {
       const ref = document.createElement("img");

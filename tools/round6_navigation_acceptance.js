@@ -25,7 +25,7 @@ async(page)=>{
    await page.screenshot({path:out+`after-${width}-${theme}-pinned.png`});
    await page.locator('#profileButton').click();await page.locator('#appSettings').click();
    const settings=await page.locator('.settings-page').evaluate(e=>({clip:getComputedStyle(e).clipPath,x:e.getBoundingClientRect().x}));
-   check(JSON.stringify(shell)===JSON.stringify(settings),'Settings surface differs');
+   check(shell.clip===settings.clip && settings.x===52,'Settings boundary differs; settings categories replace history');
    await page.screenshot({path:out+`after-${width}-${theme}-settings.png`});
    await page.locator('#closePreferences').click();
    await page.locator('#homeNav').click();check(await page.locator('#intro').isVisible(),'Home did not navigate blank');

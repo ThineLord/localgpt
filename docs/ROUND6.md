@@ -7,6 +7,7 @@
 - Empty chat hides the header New Chat button through message state, without an
   invisible hit area or empty SQLite row. Populated chat retains its entry.
 - Chat, Gallery, image detail and full-page Settings share the main surface clip.
+  Settings categories replace chat-history navigation instead of stacking two sidebars.
   Memory remains a nested modal; the underlying page retains that same boundary.
 - Message actions use one original SVG family, icon-only 32px controls, 20px glyphs,
   accessible labels and custom tooltips. User edit is below the user bubble;
@@ -59,3 +60,15 @@ Backend avatar tests cover valid formats, corrupt/spoofed/oversized inputs, orig
 checks, symlink rejection, stale versions and reset. Existing draft, Memory, lifecycle
 and publication tests remain applicable. Browser evidence and local data backups
 stay under ignored `output/`; they are not PR attachments.
+
+Independent reviewer: `bc-675b1b7c-fbad-44ae-a8e7-8e02cd639b09`, initial run
+`run-b5264722-6a44-456b-a4a4-1ee7acf490df`, same `composer-2.5` / `fast=false`.
+The reviewer inspected the actual diff and ran synthetic browser, build, security
+and backend tests. Its technical PASS is a normal comment, not GitHub APPROVED.
+The exact final head is rechecked after local visual refinements.
+
+Local acceptance includes a real LM Studio response streamed through the candidate
+server and reloaded from SQLite using a synthetic prompt. The existing synthetic
+ComfyUI output was downloaded and decoded as 512×512; previous real generation
+evidence is reused because the generation graph and protocol are unchanged.
+Original database rows are compared against a local safety snapshot before deployment.

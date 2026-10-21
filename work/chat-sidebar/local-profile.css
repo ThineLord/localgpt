@@ -3,6 +3,7 @@
 .profile-editor { display:flex; align-items:center; gap:24px; padding:24px 0; }
 .profile-editor h4 { margin:0 0 8px; font-size:16px; font-weight:500; }
 .profile-preview { width:88px; height:88px; font-size:32px; }
+.profile-preview svg { width:40px; height:40px; }
 .profile-editor-actions { display:flex; gap:8px; align-items:center; border-top:1px solid var(--line); padding-top:20px; }
 .profile-editor-actions #resetAvatar { margin-right:auto; }
 .settings-surface .profile-control { border:1px solid var(--line); border-radius:999px; min-height:36px; padding:6px 16px; font-size:14px; }
