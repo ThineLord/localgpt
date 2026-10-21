@@ -70,7 +70,7 @@
   addEventListener('hanz-diagnostics-refresh',diagnostics);
   document.querySelector('[data-settings-section=diagnostics]')?.addEventListener('click',diagnostics);
   const about=$('settingsPanelAbout');
-  if(about){const mark=document.createElement('span');mark.className='about-mark';mark.ariaLabel='HanzAgent';mark.style.maskImage=`url("${document.querySelector('link[rel="icon"]').href}")`;about.prepend(mark);}
+  if(about){const mark=document.createElement('span');mark.className='about-mark';mark.ariaLabel='LocalGPT';mark.style.maskImage=`url("${document.querySelector('link[rel="icon"]').href}")`;about.prepend(mark);}
   $('galleryDelete').textContent=tr('移至图片回收站','Move image to Trash');
   captureLanguage(diag);
   addEventListener('hanzlanguage',()=>{

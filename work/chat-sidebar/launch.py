@@ -40,7 +40,7 @@ def launch(port=8190, open_browser=True):
             health = probe(port)
             if health: break
             if process.poll() is not None:
-                raise RuntimeError(f'HanzAgent did not start. See {log_path}')
+                raise RuntimeError(f'LocalGPT did not start. See {log_path}')
             time.sleep(.5)
         if not health:
             raise RuntimeError(f'Service is still starting. See {log_path}; do not start another copy.')
@@ -59,4 +59,4 @@ if __name__ == '__main__':
     parser.add_argument('--no-open',action='store_true')
     args=parser.parse_args()
     launch(args.port,not args.no_open)
-    print('HanzAgent is running independently of this terminal.')
+    print('LocalGPT is running independently of this terminal.')

@@ -303,7 +303,8 @@ Object.assign(EN, {
   已停止: "Stopped",
   记为全局记忆: "Save as personal memory",
   回到最新消息: "Latest message",
-  "HanzAgent · 本机数据":"HanzAgent · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 HanzAgent":"About HanzAgent", "仅在此设备":"On this device",
+  个人资料:"Profile", 更换头像:"Change avatar", 头像预览:"Avatar preview", 上传图片:"Upload image", 恢复默认头像:"Reset avatar", "头像仅保存在本机，不会上传到外部服务。":"Your avatar stays on this device. It is never uploaded to external services.", "PNG、JPEG 或 WebP，最大 5 MB。":"PNG, JPEG or WebP, up to 5 MB.",
+  "LocalGPT · 本机数据":"LocalGPT · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 LocalGPT":"About LocalGPT", "仅在此设备":"On this device",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
   记忆: "Memory", 外观模式: "Mode",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
@@ -345,7 +346,7 @@ function captureLanguage(root = document.body) {
 function applyLanguage(next, persist = true) {
   language = next === "en" ? "en" : "zh";
   document.documentElement.lang = language === "en" ? "en" : "zh-CN";
-  document.title = "HanzAgent";
+  document.title = "LocalGPT";
   staticText.forEach(({ n, key }) => (n.nodeValue = t(key)));
   staticAttrs.forEach(({ el, a, key }) => el.setAttribute(a, t(key)));
   $("language").textContent = language === "en" ? "中" : "EN";
@@ -421,7 +422,7 @@ async function request(url, options = {}) {
     signal: AbortSignal.timeout(30000),
     ...options,
   }); } catch (cause) {
-    const e = Error("HanzAgent 本地服务未连接。请启动应用，然后重试；模型服务状态与数据库连接无关。");
+    const e = Error("LocalGPT 本地服务未连接。请启动应用，然后重试；模型服务状态与数据库连接无关。");
     e.code = "service_offline"; e.cause = cause; throw e;
   }
   const txt = await r.text();
@@ -691,8 +692,9 @@ function setChatTitle() {
         : current
           ? t(current.title)
           : t("新对话");
-  document.title = view === 'chat' && !current ? 'HanzAgent' : $('chatTitle').textContent + ' · HanzAgent';
+  document.title = view === 'chat' && !current ? 'LocalGPT' : $('chatTitle').textContent + ' · LocalGPT';
   $('chatTitle').hidden = view === 'chat' && !current;
+  $('headerNewChat').hidden = view !== 'chat' || !(current?.messages?.length);
   $("renameChat").disabled = view !== "chat" || !current;
   $("deleteCurrent").hidden = view !== "chat" || !current;
 }
@@ -828,11 +830,7 @@ function icon(name) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 }
 function messageAction(button, name, label) {
-  button.classList.add("message-action");
-  button.dataset.actionIcon = name;
-  button.innerHTML = icon(name) + '<span class="sr-only">' + escapeHTML(t(label)) + "</span>";
-  button.title = t(label);
-  button.setAttribute("aria-label", t(label));
+  LocalMessageActions.configureAction(button, name, t(label));
 }
 function render(force = false) {
   if (view !== "chat") return;
@@ -871,6 +869,7 @@ function render(force = false) {
   );
   let position = 0;
   $("intro").hidden = records.length > 0;
+  $('headerNewChat').hidden = records.length === 0;
   $("history").hidden = true;
   for (const m of records) {
     const key = JSON.stringify(m) + language;
@@ -886,20 +885,41 @@ function render(force = false) {
     entry.dataset.renderKey = key;
     entry.className = "entry";
     entry.dataset.messageId = m.id;
+    const userShell = document.createElement("div");
+    userShell.className = "user-message-shell";
     const prompt = document.createElement("p");
     prompt.className = "user-message";
     prompt.textContent = m.prompt;
-    entry.append(prompt);
+    userShell.append(prompt);
+    if (
+      (m.kind === "chat" || m.kind === "routing") &&
+      !["submitting", "running"].includes(m.status)
+    ) {
+      const userActions = document.createElement("div");
+      userActions.className = "message-actions";
+      const userEdit = document.createElement("button");
+      userEdit.type = "button";
+      userEdit.className = "action edit-result";
+      messageAction(userEdit, "edit", "编辑后重发");
+      userEdit.disabled = busy;
+      userEdit.onclick = () => {
+        showDraft({ ...m.settings, prompt: m.prompt, reference: m.reference });
+        scheduleSave();
+        $("prompt").focus();
+      };
+      userActions.append(userEdit);
+      userShell.append(userActions);
+    }
+    entry.append(userShell);
     if (m.status === "completed" || m.status === "stopped") {
       const remember = document.createElement("button");
       remember.type = "button";
       remember.className = "remember-message action";
-      remember.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>';
-      remember.title = t("记为全局记忆");
-      remember.setAttribute("aria-label", t("记为全局记忆"));
+      messageAction(remember, "memory", "记为全局记忆");
       remember.onclick = () => window.HanzFeatures?.remember(m);
-      entry.append(remember);
+      let userActions = userShell.querySelector(".message-actions");
+      if (!userActions) { userActions = document.createElement("div"); userActions.className = "message-actions"; userShell.append(userActions); }
+      userActions.append(remember);
     }
     if (m.reference?.filename) {
       const ref = document.createElement("img");
@@ -936,11 +956,11 @@ function render(force = false) {
       stage.append(full);
       result.append(stage);
       const actions = document.createElement("div");
-      actions.className = "actions";
+      actions.className = "message-actions";
       const edit = document.createElement("button");
       edit.type = "button";
       edit.className = "action edit-result";
-      edit.innerHTML = icon("edit") + t("继续修改");
+      messageAction(edit, "edit", "继续修改");
       edit.disabled = busy;
       edit.onclick = () => {
         if (busy) return;
@@ -957,8 +977,7 @@ function render(force = false) {
           subfolder: m.image.subfolder || "",
         });
       dl.download = m.image.filename;
-      dl.innerHTML = icon("download") + t("保存");
-      dl.setAttribute("aria-label", t("保存图片"));
+      messageAction(dl, "download", "保存图片");
       actions.append(dl);
       result.append(actions);
       entry.append(result);
@@ -1176,11 +1195,7 @@ function setSidebar(open) {
     else if (wasOpen) $('mobileMenu').focus();
   }
 }
-$('homeNav').onclick = () => {
-  if (innerWidth <= 760) setSidebar(false);
-  else if (document.body.classList.contains('sidebar-open')) setSidebar(false);
-  else temporarySidebar(true);
-};
+$('homeNav').onclick = () => newChat().catch(e => setStatus(e.message, true));
 $('homeNav').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse') temporarySidebar(true);
 });
@@ -1586,6 +1601,8 @@ function renderGallerySelection() {
       subfolder: item.image.subfolder || "",
     });
   $("galleryDownload").download = item.image.filename;
+  messageAction($("galleryDownload"), "download", "保存图片");
+  messageAction($("galleryEdit"), "edit", "继续修改");
   $("galleryOpenChat").hidden = !!item.chat_deleted;
   $("galleryRestore").hidden = !item.chat_deleted || !!item.chat_purged;
 }
@@ -1990,8 +2007,11 @@ async function copyText(text, button) {
   try {
     await navigator.clipboard.writeText(text);
     if (button.classList.contains("message-action")) {
-      messageAction(button, "check", "已复制");
-      setTimeout(() => messageAction(button, "copy", "复制"), 1400);
+      LocalMessageActions.refreshAction(button, "check", t("已复制"));
+      setTimeout(
+        () => LocalMessageActions.refreshAction(button, "copy", t("复制")),
+        1400,
+      );
     } else {
       button.textContent = t("已复制");
       setTimeout(() => (button.textContent = t("复制")), 1400);
@@ -2038,7 +2058,7 @@ function renderAnswer(entry, m) {
   }
   if (!["submitting", "running"].includes(m.status)) {
     const actions = document.createElement("div");
-    actions.className = "actions";
+    actions.className = "message-actions";
     if (m.answer) {
       const copy = document.createElement("button");
       copy.className = "action";
@@ -2059,17 +2079,7 @@ function renderAnswer(entry, m) {
         reference: m.reference,
         mode: m.kind === "chat" ? "chat" : m.settings.mode,
       });
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "action edit-result";
-    messageAction(edit, "edit", "编辑后重发");
-    edit.disabled = busy;
-    edit.onclick = () => {
-      showDraft({ ...m.settings, prompt: m.prompt, reference: m.reference });
-      scheduleSave();
-      $("prompt").focus();
-    };
-    actions.append(retry, edit);
+    actions.append(retry);
     answer.append(actions);
   }
   entry.append(answer);

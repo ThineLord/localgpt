@@ -1,4 +1,4 @@
-"""Serve workspace UI and forward its API to the existing local HanzAgent backend.
+"""Serve workspace UI and forward its API to the existing local LocalGPT backend.
 No installation files, model processes, or existing database are replaced.
 """
 import argparse
@@ -50,7 +50,7 @@ def create_app(backend='http://127.0.0.1:8188', *, database=None, input_root=Non
                     await response.write(chunk)
                 return response
         except (aiohttp.ClientError, TimeoutError):
-            return web.json_response({'error':'本地服务暂时不可用，请确认 HanzAgent 后端已启动。'}, status=502)
+            return web.json_response({'error':'本地服务暂时不可用，请确认 LocalGPT 后端已启动。'}, status=502)
 
     if database is not None:
         install(app, backend, database, input_root, output_root)

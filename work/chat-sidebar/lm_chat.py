@@ -157,7 +157,7 @@ async def run_turn(core,message,settings):
             core.STORE.update(mid,kind='chat',status='running',phase='正在思考' if settings['thinking']=='on' else '正在回答')
             if reference and not model.get('capabilities',{}).get('vision'):
                 raise ValueError('当前对话模型不支持看图。可选择「生图」编辑参考图，或移除参考图后继续聊天。')
-            system='你是 HanzAgent，本地运行的助手。跟随用户的语言回答，准确、清晰。可用 Markdown 和代码块。你不能联网，也不能读电脑文件。图片由独立的本地生图流程处理；你不要声称已经生成或看到了未提供的图片。'
+            system='你是 LocalGPT，本地运行的助手。跟随用户的语言回答，准确、清晰。可用 Markdown 和代码块。你不能联网，也不能读电脑文件。图片由独立的本地生图流程处理；你不要声称已经生成或看到了未提供的图片。'
             memory=getattr(core,'MEMORY',None)
             if memory:
                 recalled,ids=memory.context(message['prompt'])

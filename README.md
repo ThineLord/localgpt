@@ -1,4 +1,4 @@
-# HanzAgent
+# LocalGPT
 
 A local chat and image workspace. Vanilla JavaScript, HTML and CSS; Python/aiohttp serving and SQLite persistence. No frontend framework, npm build, cloud inference, or credentials are required.
 
@@ -15,7 +15,7 @@ Open http://127.0.0.1:8191/qwen-cn/ . Demo chat streaming and the labeled vector
 
 ## Real local services
 
-Start your existing ComfyUI instance with the HanzAgent extension on loopback port 8188 and LM Studio on 1234. Then build the frontend and run `.venv/bin/python work/chat-sidebar/launch.py` and open http://127.0.0.1:8190/qwen-cn/ . The launcher detaches the UI process from its terminal, verifies the occupied port and served build, and never kills another service. For foreground debugging use `serve.py`. The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
+Start your existing ComfyUI instance with the LocalGPT extension (legacy installation name: qwen-local-app) on loopback port 8188 and LM Studio on 1234. Then build the frontend and run `.venv/bin/python work/chat-sidebar/launch.py` and open http://127.0.0.1:8190/qwen-cn/ . The launcher detaches the UI process from its terminal, verifies the occupied port and served build, and never kills another service. For foreground debugging use `serve.py`. The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
 
 Image inference requires the existing ComfyUI nodes and model files named in `generation.py`: Qwen Image 2.1 GGUF, its Qwen3-VL encoder and VAE, UnetLoaderGGUF, TextEncodeQwenImage21 and QwenImage21Cache. Models are not distributed. Chat uses locally installed LM Studio models (default qwen3-8b), `/v1/chat/completions` streaming, and its `lms` executable. The app only unloads LM Studio instances it owns. Do not change model names or settings to make UI tests pass.
 
@@ -50,3 +50,22 @@ The signed-in reference contract, measured geometry and known differences are in
 [collaboration receipts](docs/ROUND2-COLLABORATION.md).
 Use the synthetic demo for the round-two browser scripts; real history and
 reference captures must remain outside version control.
+
+## LocalGPT (Round 6)
+
+Run `Start LocalGPT.command` after creating the project `.venv` and installing
+`requirements.txt`. The existing address remains `/qwen-cn/` on port 8190.
+The profile menu → **Change avatar**, or Settings → **Profile**, supports a local
+PNG/JPEG/WebP preview, Cancel, Save and Reset. Originals and metadata are discarded;
+only a normalized 256px PNG is kept beside the existing database in
+`.localgpt-profile/avatar.png`. Nothing is uploaded to a cloud service. Reset is a
+preview until Save. A stale browser cannot overwrite a newer avatar silently.
+
+Visible branding is now LocalGPT. Repository slug, checkout directory, API paths,
+SQLite paths, browser storage keys, LM Studio instance ownership IDs and the
+`HanzAgent` application-support directory intentionally remain legacy identifiers.
+This avoids losing drafts, cached paths, backups, model ownership or saved links.
+The half-knot logo is retained; this is an independent local application.
+See [Round 6 delivery contract](docs/ROUND6.md) for the direct Cloud API workflow,
+reference measurements and validation boundaries. Earlier round documents are
+historical evidence and retain their original names.

@@ -1,0 +1,95 @@
+/* Round 6: chat message icon actions (tokens from studio.css) */
+.message-action-tooltip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  max-width: 240px;
+  padding: 8px 12px;
+  border: 1px solid #ffffff0d;
+  border-radius: 14px;
+  background: var(--tooltip-bg, #0d0d0d);
+  color: var(--tooltip-ink, #fff);
+  box-shadow: 0 8px 18px #0f172a33;
+  font-size: 12px;
+  line-height: 18px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.user-message-shell {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: min(80%, 560px);
+}
+
+.user-message-shell > .user-message {
+  align-self: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+.message-reference-shell {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.assistant-message > .message-actions,
+.result > .message-actions {
+  margin-top: 8px;
+}
+
+.message-action.action, #imageDialog .message-action.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 6px;
+  gap: 0;
+  border-radius: 8px;
+  color: var(--ink-secondary);
+  text-decoration: none;
+  font-size: 0;
+  line-height: 0;
+}
+
+.message-action.action:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--row-hover);
+  color: var(--ink);
+}
+
+.message-action.action:disabled,
+.message-action.action[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.message-action .message-action-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.message-action-icon rect,
+.message-action-icon circle {
+  fill: none;
+}

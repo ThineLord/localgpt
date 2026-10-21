@@ -83,7 +83,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 body { overflow: hidden; background: var(--sidebar); }
-body.sidebar-open { --main-inset: var(--sidebar-width); }
+body.sidebar-open { --main-inset: var(--sidebar-width); --main-radius: 0 16px 0 0; }
 [hidden] { display: none !important; }
 button, input, select, textarea, summary, a { font: inherit; }
 button, summary { cursor: pointer; }
@@ -151,7 +151,9 @@ svg {
 .sidebar-temporary #sidebarToggle, .history-panel:hover #sidebarToggle, .history-panel:focus-within #sidebarToggle { opacity:1; }
 .sidebar-label { color:var(--ink-secondary); font-size:12px; line-height:18px; padding:16px 16px 8px; }
 .chat-list { display:flex; flex-direction:column; gap:2px; flex:1; min-height:0; overflow:auto; padding:0 8px 16px; }
-.shell { position:relative; isolation:isolate; height:100dvh; margin-left:var(--main-inset); display:flex; flex-direction:column; min-width:0; background:var(--canvas); clip-path:inset(0 round var(--main-radius)); }
+.shell { position:relative; isolation:isolate; height:100dvh; margin-left:var(--main-inset); display:flex; flex-direction:column; min-width:0; background:var(--canvas); }
+/* One boundary contract for all full-size application surfaces. */
+.shell, .app-surface, #imageDialog { clip-path:inset(0 round var(--main-radius)); }
 .sidebar-open #headerNewChat { display:none; }
 .profile-menu, #appearanceMenu { padding:10px; }
 .profile-summary { display:flex; align-items:center; gap:10px; padding:10px; font-size:14px; border-bottom:1px solid var(--line); margin-bottom:4px; }
@@ -692,22 +694,25 @@ dialog::backdrop { background: var(--backdrop); }
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--canvas);
+  background: var(--sidebar);
+  box-shadow:none;
 }
-.settings-layout { display: grid; grid-template-columns: var(--rail) var(--settings-nav-width) minmax(0, 1fr); grid-template-rows: 52px minmax(0,1fr); height: 100%; }
-.settings-rail { grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 6px; background: var(--sidebar); }
+.preferences-dialog.settings-surface::backdrop { background:transparent; }
+.settings-layout { display:grid; grid-template-columns:var(--rail) minmax(0,1fr); height:100%; }
+.settings-page { grid-column:2; min-width:0; display:grid; grid-template-columns:var(--settings-nav-width) minmax(0,1fr); grid-template-rows:52px minmax(0,1fr); background:var(--canvas); }
+.settings-rail { width:var(--rail); grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 6px; background: var(--sidebar); }
 .settings-rail .chrome-button { color: var(--ink-secondary); }
-.settings-layout-header { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0 8px 0 16px; border-right: 1px solid var(--line); }
+.settings-layout-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; padding: 0 8px 0 16px; border-right: 1px solid var(--line); }
 .settings-layout-header h2 { flex: 1; margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .settings-layout-body { display: contents; }
-.settings-nav { grid-column: 2; grid-row: 2; padding: 8px; border-right: 1px solid var(--line); overflow: auto; }
+.settings-nav { grid-column: 1; grid-row: 2; padding: 8px; border-right: 1px solid var(--line); overflow: auto; }
 .settings-nav-label { padding: 8px 8px 12px; color: var(--ink-secondary); font-size: 14px; }
 .settings-section-select, .settings-back { display: none; }
 .settings-nav-list { display: flex; flex-direction: column; gap: 0; }
 .settings-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; line-height: 20px; text-align: left; }
 .settings-nav-item svg { width: 18px; height: 18px; }
 .settings-nav-item:hover, .settings-nav-item[aria-selected="true"] { background: var(--settings-row-selected); }
-.settings-panels { grid-column: 3; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: 32px; }
+.settings-panels { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: 32px; }
 .settings-panel { width: 100%; max-width: var(--settings-content-max); margin: 0 auto; }
 .settings-panel-title { margin: 0 0 var(--settings-title-gap); font-size: 24px; font-weight: 500; line-height: 32px; letter-spacing: normal; }
 .settings-panel:has(.settings-subtitle) { --settings-title-gap: 44px; }
@@ -732,7 +737,7 @@ dialog::backdrop { background: var(--backdrop); }
 .settings-row-button.preference-link svg { width: 18px; height: 18px; }
 .memory-dialog { width: min(560px, calc(100vw - 32px)); }
 /* Viewer occupies the same main surface, with navigation kept at its edges. */
-#imageDialog { position:fixed; inset:0 0 0 var(--main-inset); width:calc(100vw - var(--main-inset)); height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; border-radius:var(--main-radius); background:var(--canvas); box-shadow:none; }
+#imageDialog { position:fixed; inset:0 0 0 var(--main-inset); width:calc(100vw - var(--main-inset)); height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; border-radius:0; background:var(--canvas); box-shadow:none; }
 #imageDialog[open] { display:flex; flex-direction:column; }
 #imageDialog::backdrop { background:transparent; }
 .image-viewer-header { display:flex; align-items:center; justify-content:flex-end; gap:8px; height:52px; flex:none; padding:8px; }
@@ -863,7 +868,8 @@ dialog button.primary, #saveMemory {
   .composer-trailing { grid-column:2; grid-row:2; justify-content:flex-end; }
   .model-menu-trigger { max-width:160px; }
   .composer-plus, #generate, #cancel { width:36px; height:36px; }
-  .settings-layout { grid-template-columns:1fr; grid-template-rows:52px minmax(0,1fr); }
+  .settings-layout { grid-template-columns:1fr; }
+  .settings-page { grid-column:1; grid-template-columns:1fr; grid-template-rows:52px minmax(0,1fr); }
   .settings-layout-header { grid-column:1; grid-row:1; border:0; gap:8px; padding:0 8px; }
   .settings-back { display:grid; }
   .settings-layout-header h2 { font-size:18px; font-weight:500; }
