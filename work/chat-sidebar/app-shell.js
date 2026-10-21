@@ -105,9 +105,14 @@
   };
   if (memoryOpener) registerOpenMemory(memoryOpener);
 
-  prefs?.addEventListener("close", () => {
+  function noteSettingsClosed() {
     if (!document.body.classList.contains("settings-surface-open") && !settingsOrigin) return;
     applyClosed();
+  }
+  // Chrome 156 fires beforetoggle and does not fire close for dialog.close().
+  prefs?.addEventListener("close", noteSettingsClosed);
+  prefs?.addEventListener("beforetoggle", (event) => {
+    if (event.newState === "closed") noteSettingsClosed();
   });
 
   addEventListener("appshell-settings-section", (e) => {

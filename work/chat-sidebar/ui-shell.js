@@ -180,7 +180,9 @@
   }
   addEventListener('hanzlanguage',title);
   section('general');responsive();addEventListener('resize',responsive,{passive:true});
-  dialog.addEventListener('close',()=>{drawer(false);responsive();});
+  const resetSettingsChrome=()=>{drawer(false);responsive();};
+  dialog.addEventListener('close',resetSettingsChrome);
+  dialog.addEventListener('beforetoggle',event=>{if(event.newState==='closed')resetSettingsChrome();});
 })();
 
 /* Shared top-layer tooltips. Native title bubbles are removed for these controls. */

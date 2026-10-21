@@ -1224,7 +1224,7 @@ function temporarySidebar(open) {
   document.body.classList.toggle('sidebar-temporary', open);
   syncSidebar();
 }
-function setSidebar(open) {
+function setSidebar(open, options = {}) {
   const wasOpen = document.body.classList.contains('sidebar-open');
   document.body.classList.remove('sidebar-temporary');
   document.body.classList.toggle('sidebar-open', open);
@@ -1233,6 +1233,7 @@ function setSidebar(open) {
     try { localStorage.setItem('qwen-studio-sidebar', open ? 'open' : 'closed'); } catch {}
   }
   syncSidebar();
+  if (options.focus === false) return;
   if (innerWidth <= 760) {
     if (open) $('sidebarToggle').focus();
     else if (wasOpen) $('mobileMenu').focus();
@@ -1680,7 +1681,13 @@ $("closeImage").onclick = () => {
   LiquidLayers.close($("imageDialog"));
   gallerySelection = null;
 };
-$("imageDialog").addEventListener("close", () => (gallerySelection = null));
+function clearGallerySelection() {
+  gallerySelection = null;
+}
+$("imageDialog").addEventListener("close", clearGallerySelection);
+$("imageDialog").addEventListener("beforetoggle", (event) => {
+  if (event.newState === "closed") clearGallerySelection();
+});
 $("galleryOpenChat").onclick = async () => {
   const item = gallerySelection;
   await LiquidLayers.close($("imageDialog"));
@@ -2236,7 +2243,17 @@ matchMedia("(max-width:760px)").addEventListener("change", () => {
   setSidebar(innerWidth > 760 && pinned);
   settings.open = false;
 });
-addEventListener("appshell-surface", syncSidebar);
+addEventListener("appshell-surface", () => {
+  if (
+    document.body.classList.contains("settings-surface-open") &&
+    innerWidth <= 760 &&
+    document.body.classList.contains("sidebar-open")
+  ) {
+    setSidebar(false, { focus: false });
+    return;
+  }
+  syncSidebar();
+});
 window.addEventListener("resize", () => {
   document.querySelectorAll(".chat-row-menu:popover-open").forEach(menu => menu.hidePopover());
   syncSidebar();
