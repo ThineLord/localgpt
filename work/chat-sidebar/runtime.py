@@ -182,22 +182,31 @@ def install(app, backend, database, input_root, output_root):
                     if response.status>=400:raise ValueError('停止失败，请重试。')
         return reply({'requested':True})
     @routes.get('/qwen-cn/memory')
-    async def get_memory(r):return reply({'items':memory.list(),'preferences':memory.preferences()})
+    async def get_memory(r):return reply(memory.snapshot())
     @routes.patch('/qwen-cn/memory/preferences')
-    async def preferences(r):mutate(r);return reply(memory.configure(await r.json()))
+    async def preferences(r):
+        mutate(r);data=await r.json()
+        version=data.get('preferences_version')
+        patch={k:data[k] for k in ('enabled','auto_capture') if k in data}
+        if not patch:raise ValueError('Invalid memory preferences')
+        return reply(memory.configure(patch,preferences_version=version))
     @routes.post('/qwen-cn/memory')
     async def add_memory(r):
         mutate(r);data=await r.json();return reply(memory.put(data.get('content'),data.get('category','preference')),201)
     @routes.patch('/qwen-cn/memory/{memory_id}')
     async def edit_memory(r):
-        mutate(r);data=await r.json();return reply(memory.put(data.get('content'),data.get('category','preference'),memory_id=r.match_info['memory_id'],version=data.get('version')))
+        mutate(r);data=await r.json();memory_id=r.match_info['memory_id']
+        if 'active' in data and data.get('content') is None and data.get('category') is None:
+            if type(data.get('active')) is not bool:raise ValueError('Invalid active flag')
+            return reply(memory.set_active(memory_id,data['active'],version=data.get('version')))
+        return reply(memory.put(data.get('content'),data.get('category','preference'),memory_id=memory_id,version=data.get('version'),allow_slot_replace=True))
     @routes.delete('/qwen-cn/memory/{memory_id}')
-    async def forget(r):mutate(r);memory.delete(r.match_info['memory_id']);return reply({'deleted':True})
+    async def forget(r):
+        mutate(r);data=await r.json();memory.delete(r.match_info['memory_id'],version=data.get('version'));return reply({'deleted':True})
     @routes.delete('/qwen-cn/memory')
     async def clear(r):
         mutate(r);data=await r.json()
-        if data.get('confirm') is not True:raise ValueError('需要确认清空记忆。')
-        memory.clear();return reply({'deleted':True})
+        memory.clear(confirm=data.get('confirm') is True,collection_revision=data.get('collection_revision'));return reply({'deleted':True})
 
     install_history_metadata(store, routes, mutate, reply)
     app.add_routes(routes)
