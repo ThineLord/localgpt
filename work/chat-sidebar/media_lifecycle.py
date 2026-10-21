@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import stat
 import time
 import uuid
+import unicodedata
 
 from storage import Conflict
 
@@ -33,7 +34,9 @@ def canonical(image):
 
 def key(image):
     value = canonical(image)
-    return tuple(value[k] for k in ('type', 'subfolder', 'filename'))
+    # Compare conservatively across case-insensitive and normalization-insensitive
+    # filesystems. Keep original descriptors for actual filesystem operations.
+    return tuple(unicodedata.normalize('NFC', value[k]).casefold() for k in ('type', 'subfolder', 'filename'))
 
 
 class MediaLifecycle:

@@ -331,5 +331,54 @@ class MediaLifecycleTests(unittest.TestCase):
         self.assertEqual(self.media.purge_image(message['id'])['deleted_files'], 1)
         self.assertTrue(self.media.purge_chat(chat['id'])['deleted'])
 
+    def test_case_and_unicode_alias_drafts_protect_actual_output_name(self):
+        cases = [
+            ('Original.PNG', 'FolderA', 'original.png', 'foldera'),
+            ('Résumé.PNG', 'AlbumÉ', 're\u0301sume\u0301.png', 'albume\u0301'),
+        ]
+        for filename, folder, alias_name, alias_folder in cases:
+            with self.subTest(filename=filename):
+                image = self.image(filename, folder)
+                source, message = self.message(image)
+                target = self.store.create('Synthetic alias draft')
+                alias = {**image, 'filename': alias_name, 'subfolder': alias_folder}
+                self.store.patch(target['id'], 0, draft={'reference': alias})
+                self.media.trash_image(message['id'])
+                disk_names = sorted(str(p.relative_to(self.output)) for p in self.output.rglob('*'))
+                with self.assertRaises(Conflict): self.media.purge_image(message['id'])
+                self.assertEqual(self.store.message(message['id'])['image'], image)
+                self.assertEqual(canonical(image), image)
+                self.assertEqual(sorted(str(p.relative_to(self.output)) for p in self.output.rglob('*')), disk_names)
+                self.assertEqual((self.output / folder / filename).read_bytes(), b'synthetic image bytes')
+                self.store.patch(target['id'], 1, draft={})
+                self.media.purge_image(message['id'])
+                journal = json.loads(self.journal('image:' + message['id'])['payload'])
+                self.assertEqual(journal['images'], [image])  # Identity folding never renames a file.
+                with self.assertRaises(Conflict): self.store.patch(target['id'], 2, draft={'reference': alias})
+                with self.assertRaises(Conflict): self.store.update(message['id'], image_json=json.dumps(alias))
+                with self.assertRaises(Conflict):
+                    self.store.reserve(target['id'], 'Synthetic', alias, 512, 512, 15, 'test', 'alias-' + filename)
+                self.assertFalse((self.output / folder / filename).exists())
+
+    def test_upload_alias_references_and_tombstones_preserve_original_spelling(self):
+        image = {'filename': 'Café.PNG', 'subfolder': 'UploadsÉ', 'type': 'input'}
+        folder = self.input / image['subfolder']; folder.mkdir()
+        path = folder / image['filename']; path.write_bytes(b'synthetic upload')
+        upload = self.media.register_upload(image)
+        self.assertEqual(upload['image'], image)
+        target = self.store.create('Synthetic upload alias')
+        alias = {'filename': 'cafe\u0301.png', 'subfolder': 'uploadse\u0301', 'type': 'input'}
+        self.store.patch(target['id'], 0, draft={'reference': alias})
+        self.assertEqual(self.media.list_uploads()['items'][0]['reference_count'], 1)
+        with self.assertRaises(Conflict): self.media.purge_upload(upload['id'])
+        self.assertEqual(path.read_bytes(), b'synthetic upload')
+        self.assertEqual(self.media.list_uploads()['items'][0]['image'], image)
+        self.store.patch(target['id'], 1, draft={})
+        self.media.purge_upload(upload['id'])
+        with self.assertRaises(Conflict): self.store.patch(target['id'], 2, draft={'reference': alias})
+        journal = json.loads(self.journal('upload:' + upload['id'])['payload'])
+        self.assertEqual(journal['images'], [image])
+        self.assertFalse(path.exists())
+
 
 if __name__ == '__main__': unittest.main()

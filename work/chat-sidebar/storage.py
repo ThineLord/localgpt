@@ -5,6 +5,7 @@ import json
 import sqlite3
 import time
 import uuid
+import unicodedata
 
 class Conflict(Exception):
     pass
@@ -127,7 +128,10 @@ class Store:
             if '\\' in folder or '\x00' in folder or PurePosixPath(folder).is_absolute() or '..' in folder.split('/'):
                 raise ValueError('图片目录无效。')
             folder = str(PurePosixPath(folder)) if folder else ''
-            return (kind, '' if folder == '.' else folder, name)
+            # APFS may treat case and Unicode normalization variants as one
+            # file. Normalize identity only; keep stored/on-disk names intact.
+            return tuple(unicodedata.normalize('NFC', value).casefold()
+                         for value in (kind, '' if folder == '.' else folder, name))
         # Validate before checking for the additive table: old installations and
         # prevalidated requests must not introduce an alias that bypasses a tombstone.
         target = key(reference)

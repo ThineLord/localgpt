@@ -98,6 +98,8 @@ async def restore_chat(request):
     mutate(request)
     try:
         return reply(STORE.restore(request.match_info['chat_id']))
+    except Conflict as error:
+        return reply({'error':str(error)},409)
     except KeyError:
         raise web.HTTPNotFound()
 

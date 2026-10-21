@@ -233,7 +233,7 @@
         e.preventDefault();
         e.stopPropagation();
         this.open ? this.close() : this.show();
-      });
+      }, {signal:this.events.signal});
       trigger.addEventListener("keydown", (e) => {
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
@@ -243,7 +243,7 @@
             preventScroll: true,
           });
         }
-      });
+      }, {signal:this.events.signal});
       panel.addEventListener("keydown", (e) => {
         const items = this.items();
         const index = items.indexOf(document.activeElement);
@@ -262,7 +262,7 @@
           e.stopPropagation();
           this.close();
         } else if (e.key === "Tab") this.close(false);
-      });
+      }, {signal:this.events.signal});
       document.addEventListener(
         "pointerdown",
         (e) => {
