@@ -19,15 +19,19 @@ Existing rows in `memory_preferences` keep their stored values. `preferences_ver
 
 | Intent | Examples |
 |--------|----------|
-| Explicit save | `记住：…`, `remember: …` |
+| Explicit save | `记住：…`, `记住，…`, `记住 …`, `记住我的…`, `remember: …`, `remember that …` |
 | Style preference | `以后回答时请简洁。`, `Going forward, please answer in English.` |
-| Forget | `忘记：项目 Alpha`, `forget: coffee preference` |
+| Forget | `忘记：项目 Alpha`, `forget: coffee preference`, `forget about …` |
 | Correction (fragment) | `将记忆"钴蓝色"修改为"琥珀色"`；`correct memory "tea" to "coffee"` |
 | Correction (full fact) | `修改我之前关于颜色的记忆：用户最喜欢的颜色是琥珀色`；`correct my memory about color: My favorite color is amber.` |
 
 Rejected: secrets, code blocks, questions, quoted third-party text, prompt-injection patterns, assistant/tool directives.
 
 Fragment correction replaces one occurrence inside the stored fact and keeps the rest (`用户最喜欢的颜色是钴蓝色。` → `用户最喜欢的颜色是琥珀色。`). If the fragment is missing or repeats, the row is left unchanged. The broader “修改我之前关于…的记忆” / `correct my memory about …` form replaces that one fact with the supplied text.
+
+A remember or forget command needs an imperative boundary: a colon or comma, whitespace before the payload, or the `记住我的…` form. `记住了吗`, `忘记了吗`, and `remember that?` are ordinary questions. So is any turn containing `?` / `？` or ending in `吗` / `呢` / `么` / `嘛`, including `请记住，1+1等于几？`. Those turns do not change memory and do not receive the fixed command reply; they continue to the model. A loose payload that itself starts as a question (`remember whether …`, `记住 什么…`) is also left for the model. Punctuated commands such as `记住：…` and `remember: …` stay explicit.
+
+Forget resolves one explicit target. The target must be the whole stored fact, a phrase that occurs inside that fact, or that row's topic id (for example `answer_style`). A longer sentence does not match merely because it contains a short fact, so `忘记：请不要删除茶这个字` does not delete a row whose text is `茶`. Negated wording is not a partial target. Two matches delete nothing. A version conflict on forget or correction deletes or overwrites nothing, stores `status: rejected`, and the reserved chat message still leaves `submitting` so the next send can run. The fixed reply does not claim success.
 
 Ambiguous forget/correction returns `status: "ambiguous"` and **does not** mutate rows. A disabled memory returns `status: "disabled"` with empty `saved` / `updated` / `forgotten`; the model is told only a fixed status sentence, not that the command succeeded.
 
@@ -142,4 +146,5 @@ The live script refuses any non-loopback LM URL, reads `/api/v1/models`, and pre
 - Dietary recall adds a few domain terms (食物, 饮食, allergy) only when the stored fact itself looks dietary. Other preferences are not injected for every query.
 - Live acceptance compares the decoded SSE `answer` with the stored message. It does not search the raw escaped JSON, and it only deletes the TemporaryDirectory it created.
 - The memory manager sends `collection_revision`, `preferences_version`, and item `version`. A stale token is a visible 409, not a second write.
+- A settings content edit calls `MemoryStore.put` without `source`, `chat_id`, or `message_id`. That update stores `source=manual` and clears the previous chat and message ids. A chat correction that passes the current turn still records that turn. This settings-edit provenance reset is intentional and unchanged.
 - Synthetic demo answers are fixtures. They are not evidence that a local model used a memory.

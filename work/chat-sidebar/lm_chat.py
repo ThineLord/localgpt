@@ -332,10 +332,12 @@ def install(core):
                 message,_=core.STORE.reserve(chat_id,prompt,settings['reference'],width,height,int(settings['quality']),'qwen-chat-'+secrets.token_hex(16),key,kind='routing',model=settings['model'],settings=settings)
                 memory=getattr(core,'MEMORY',None)
                 if memory:
+                    from memory_store import MemoryConflict
                     try:
                         outcome=memory.process_turn(prompt,chat_id,message['id'])
                         message=core.STORE.update(message['id'],memory_json=json.dumps({**outcome,'used':[]},ensure_ascii=False))
-                    except (ValueError,sqlite3.Error) as error:
+                    except (ValueError,sqlite3.Error,MemoryConflict,KeyError) as error:
+                        # Record a rejected outcome and still start the turn so the row leaves submitting.
                         message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':[],'updated':[],'forgotten':[],'used':[],'notice':str(error),'status':'rejected'},ensure_ascii=False))
                 task=asyncio.create_task(run_turn(core,message,settings));CHAT_TASKS[message['id']]=task
                 task.add_done_callback(lambda done:CHAT_TASKS.pop(message['id'],None))

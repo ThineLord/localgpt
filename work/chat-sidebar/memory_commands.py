@@ -4,16 +4,36 @@ import re
 from memory_retrieval import unsafe_for_recall
 from memory_store import MemoryConflict
 
-_REMEMBER = re.compile(
-    r"^(?:请)?(?:记住|记一下|记下来)[：:,，\s]*(.+)$|"
-    r"^(?:please\s+)?remember(?:\s+that)?[：:,\s]+(.+)$",
+# A payload needs punctuation or whitespace after the verb. 记住了吗 is not 记住 + 了吗.
+_REMEMBER_PUNCT = re.compile(
+    r"^(?:请)?(?:记住|记一下|记下来)\s*[：:，,]\s*(\S.*?)\s*$|"
+    r"^(?:please\s+)?remember\s*[:：]\s*(\S.*?)\s*$",
     re.I | re.S,
 )
-_FORGET = re.compile(
-    r"^(?:请)?(?:忘记|忘掉|删除记忆)[：:,，\s]*(.+)$|"
-    r"^(?:please\s+)?forget(?:\s+about)?[：:,\s]+(.+)$",
+_REMEMBER_LOOSE = re.compile(
+    r"^(?:请)?(?:记住|记一下|记下来)[ \t]+(\S.*?)\s*$|"
+    r"^(?:请)?(?:记住|记一下|记下来)(我的\S.*?)\s*$|"
+    r"^(?:please\s+)?remember\s+that\s+(\S.*?)\s*$|"
+    r"^(?:please\s+)?remember\s+(?!that\b)(\S.*?)\s*$",
     re.I | re.S,
 )
+_FORGET_PUNCT = re.compile(
+    r"^(?:请)?(?:忘记|忘掉|删除记忆)\s*[：:，,]\s*(\S.*?)\s*$|"
+    r"^(?:please\s+)?forget\s*[:：]\s*(\S.*?)\s*$",
+    re.I | re.S,
+)
+_FORGET_LOOSE = re.compile(
+    r"^(?:请)?(?:忘记|忘掉|删除记忆)[ \t]+(\S.*?)\s*$|"
+    r"^(?:please\s+)?forget\s+about\s+(\S.*?)\s*$|"
+    r"^(?:please\s+)?forget\s+(?!about\b)(\S.*?)\s*$",
+    re.I | re.S,
+)
+_OPEN_QUESTION = re.compile(
+    r"^(?:whether|if|what|why|how|when|who|which|did|do|does|is|are|can|could|would|should)\b|"
+    r"^(?:是不是|什么|为什么|怎么|如何)",
+    re.I,
+)
+_NEGATION = re.compile(r"(不要|别删|并非|do\s+not|don't|never)", re.I)
 # Fragment form keeps the rest of the fact. About form replaces the whole fact.
 _CORRECT_QUOTED_ZH = re.compile(
     r'^将记忆[「\"“](.+?)[」\"”]修改为[「\"“](.+?)[」\"”][。.!！]?$',
@@ -74,6 +94,47 @@ def _group_value(match):
     return next((g.strip() for g in match.groups() if g), "")
 
 
+def _is_question(text):
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    if "?" in raw or "？" in raw:
+        return True
+    return bool(re.search(r"[吗呢么嘛][。.!！…]*$", raw))
+
+
+def _usable_payload(value):
+    value = (value or "").strip()
+    if not value or not re.search(r"[\w\u4e00-\u9fff]", value):
+        return None
+    return value
+
+
+def _bounded_value(text, punct, loose):
+    """Return a payload only for an imperative with a real boundary. Questions return None."""
+    raw = (text or "").strip()
+    if _is_question(raw):
+        return None
+    match = punct.match(raw)
+    if match:
+        return _usable_payload(_group_value(match))
+    match = loose.match(raw)
+    if not match:
+        return None
+    value = _usable_payload(_group_value(match))
+    if value is None or _OPEN_QUESTION.match(value):
+        return None
+    return value
+
+
+def _remember_value(text):
+    return _bounded_value(text, _REMEMBER_PUNCT, _REMEMBER_LOOSE)
+
+
+def _forget_value(text):
+    return _bounded_value(text, _FORGET_PUNCT, _FORGET_LOOSE)
+
+
 def _normalize_match(text):
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
@@ -130,12 +191,15 @@ def _about_correction(text):
 
 
 def _explicit_command(text):
+    raw = (text or "").strip()
+    if not raw or _is_question(raw):
+        return False
     return bool(
-        _REMEMBER.match(text)
-        or _FORGET.match(text)
-        or _quoted_correction(text)
-        or _about_correction(text)
-        or _STYLE.match(text)
+        _remember_value(raw) is not None
+        or _forget_value(raw) is not None
+        or _quoted_correction(raw)
+        or _about_correction(raw)
+        or _STYLE.match(raw)
     )
 
 
@@ -230,19 +294,34 @@ def _truthful(result):
 
 
 def _match_rows(store, needle, *, topic=None):
+    """Match an explicit target. A longer sentence that merely contains a short fact is not a target."""
     needle_n = _normalize_match(needle)
+    if not needle_n:
+        return []
+    negative = bool(_NEGATION.search(needle or ""))
     hits = []
+    seen = set()
+
+    def add(row):
+        if row["id"] not in seen:
+            seen.add(row["id"])
+            hits.append(row)
+
     for row in store.list():
-        content_n = _normalize_match(row["content"])
-        if needle_n and (needle_n in content_n or content_n in needle_n):
-            hits.append(row)
-            continue
-        if topic and row.get("topic") == topic:
-            hits.append(row)
+        content_n = _normalize_match(row.get("content") or "")
+        row_topic = _normalize_match(row.get("topic") or "")
+        exact = bool(content_n) and needle_n == content_n
+        inside = bool(content_n) and needle_n in content_n
+        topic_hit = bool(row_topic) and needle_n == row_topic
+        if exact or topic_hit:
+            add(row)
+        elif inside and not negative:
+            add(row)
     if topic:
-        topic_hits = [r for r in store.list() if r.get("topic") == topic]
-        if topic_hits and not hits:
-            hits = topic_hits
+        wanted = _normalize_match(topic)
+        for row in store.list():
+            if _normalize_match(row.get("topic") or "") == wanted:
+                add(row)
     return hits
 
 
@@ -264,7 +343,7 @@ class MemoryCommandProcessor:
         if not isinstance(text, str):
             return result
         raw = text.strip()
-        if not raw:
+        if not raw or _is_question(raw):
             return result
 
         explicit_intent = _explicit_command(raw)
@@ -278,9 +357,9 @@ class MemoryCommandProcessor:
         if not explicit_intent and _reject_capture_text(raw):
             return result
 
-        forget = _FORGET.match(raw)
-        if forget:
-            return self._forget(_group_value(forget), result)
+        forget = _forget_value(raw)
+        if forget is not None:
+            return self._forget(forget, result)
 
         quoted = _quoted_correction(raw)
         if quoted:
@@ -294,9 +373,9 @@ class MemoryCommandProcessor:
         if style:
             return self._save_style(_group_value(style), chat_id, message_id, result)
 
-        remember = _REMEMBER.match(raw)
-        if remember:
-            value = _group_value(remember)
+        remember = _remember_value(raw)
+        if remember is not None:
+            value = remember
             if _unsafe_payload(value):
                 result["notice"] = "无法保存含系统或权限指令的内容。"
                 result["status"] = "rejected"
@@ -454,7 +533,18 @@ class MemoryCommandProcessor:
             result["status"] = "ambiguous"
             return result
         row = hits[0]
-        self.store.delete(row["id"], version=row["version"])
+        try:
+            self.store.delete(row["id"], version=row["version"])
+        except MemoryConflict as error:
+            result["notice"] = str(error)
+            result["status"] = "rejected"
+            result["forgotten"] = []
+            return result
+        except KeyError:
+            result["notice"] = "未找到匹配的记忆，未删除任何内容。"
+            result["status"] = "rejected"
+            result["forgotten"] = []
+            return result
         result["forgotten"].append(row["id"])
         result["status"] = "forgotten"
         return result

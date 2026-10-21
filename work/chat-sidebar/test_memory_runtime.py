@@ -276,6 +276,111 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         rows=await (await self.client.get('/qwen-cn/memory')).json()
         self.assertEqual(sorted(item['content'] for item in rows['items']),['我在上海工作','我在杭州工作'])
 
+    async def test_ordinary_questions_reach_the_model_without_memory_writes(self):
+        chat=await self.chat()
+        for prompt, key in (
+            ('记住了吗','q-remember'),
+            ('忘记了吗','q-forget'),
+            ('remember that?','q-remember-en'),
+            ('请记住，1+1等于几？','q-math-question'),
+        ):
+            before=len(self.payloads)
+            _, sent, final, _=await self.complete_turn(chat, prompt, key)
+            self.assertEqual(len(self.payloads), before+1, prompt)
+            self.assertNotIn('已保存', final['answer'])
+            self.assertNotIn('已删除', final['answer'])
+            self.assertNotIn('没有保存、修改或删除记忆', final['answer'])
+            self.assertIsNone((sent.get('memory') or {}).get('status'))
+            self.assertEqual(final['status'],'completed')
+        listed=await (await self.client.get('/qwen-cn/memory')).json()
+        self.assertEqual(listed['item_count'],0)
+        before=len(self.payloads)
+        _, _, kept, _=await self.complete_turn(chat,'记住：合成事实短句。','q-still-explicit')
+        self.assertEqual(len(self.payloads), before)
+        self.assertEqual(kept['answer'],'已保存这条记忆。')
+
+    async def _terminal_messages(self, chat):
+        stored=await (await self.client.get('/qwen-cn/chats/'+chat['id'])).json()
+        self.assertTrue(stored['messages'])
+        self.assertTrue(all(item['status'] not in ('submitting','running') for item in stored['messages']))
+        return stored['messages']
+
+    async def test_forget_version_race_releases_the_send_queue(self):
+        from memory_store import MemoryStore
+        chat=await self.chat()
+        await self.client.post('/qwen-cn/memory',json={'content':'茶','category':'note'})
+        real=MemoryStore.delete
+        def stale_delete(store, memory_id, *, version):
+            with store.connect() as db:
+                db.execute('UPDATE user_memory SET version=version+1 WHERE id=?',(memory_id,))
+            return real(store, memory_id, version=version)
+        MemoryStore.delete=stale_delete
+        try:
+            before=len(self.payloads)
+            _, _, final, _=await self.complete_turn(chat,'忘记：茶','forget-race')
+        finally:
+            MemoryStore.delete=real
+        self.assertEqual(len(self.payloads), before)
+        self.assertEqual(final['status'],'completed')
+        self.assertNotIn('已删除', final['answer'])
+        self.assertEqual(final['memory']['status'],'rejected')
+        self.assertEqual(final['memory']['forgotten'],[])
+        listed=await (await self.client.get('/qwen-cn/memory')).json()
+        self.assertEqual([item['content'] for item in listed['items']],['茶'])
+        await self._terminal_messages(chat)
+        before=len(self.payloads)
+        _, _, nxt, _=await self.complete_turn(chat,'今天天气怎么样','after-forget-race')
+        self.assertEqual(len(self.payloads), before+1)
+        self.assertEqual(nxt['status'],'completed')
+        await self._terminal_messages(chat)
+
+    async def test_correction_conflict_and_escaped_conflict_do_not_stick(self):
+        from memory_store import MemoryConflict, MemoryStore
+        chat=await self.chat()
+        await self.client.post('/qwen-cn/memory',json={'content':'用户最喜欢的颜色是钴蓝色。','category':'preference'})
+        real_put=MemoryStore.put
+        def stale_put(store, content, category=None, *args, **kwargs):
+            memory_id=kwargs.get('memory_id')
+            version=kwargs.get('version')
+            if memory_id is not None and version is not None:
+                with store.connect() as db:
+                    db.execute('UPDATE user_memory SET version=version+1 WHERE id=?',(memory_id,))
+            return real_put(store, content, category, *args, **kwargs)
+        MemoryStore.put=stale_put
+        try:
+            before=len(self.payloads)
+            _, _, final, _=await self.complete_turn(chat,'将记忆“钴蓝色”修改为“琥珀色”','correct-race')
+        finally:
+            MemoryStore.put=real_put
+        self.assertEqual(len(self.payloads), before)
+        self.assertEqual(final['memory']['status'],'rejected')
+        self.assertNotIn('已更新', final['answer'])
+        self.assertNotIn('琥珀', final['answer'])
+        listed=await (await self.client.get('/qwen-cn/memory')).json()
+        self.assertEqual(listed['items'][0]['content'],'用户最喜欢的颜色是钴蓝色。')
+        await self._terminal_messages(chat)
+        real_turn=MemoryStore.process_turn
+        def explode(store, text, chat_id, message_id):
+            raise MemoryConflict('记忆已在其他页面更新，请刷新后重试。')
+        MemoryStore.process_turn=explode
+        try:
+            before=len(self.payloads)
+            _, _, escaped, _=await self.complete_turn(chat,'忘记：钴蓝色','conflict-escape')
+        finally:
+            MemoryStore.process_turn=real_turn
+        self.assertEqual(len(self.payloads), before)
+        self.assertEqual(escaped['status'],'completed')
+        self.assertEqual(escaped['memory']['status'],'rejected')
+        self.assertEqual(escaped['memory']['forgotten'],[])
+        self.assertNotIn('已删除', escaped['answer'])
+        listed=await (await self.client.get('/qwen-cn/memory')).json()
+        self.assertIn('钴蓝色', listed['items'][0]['content'])
+        await self._terminal_messages(chat)
+        before=len(self.payloads)
+        _, _, nxt, _=await self.complete_turn(chat,'今天天气怎么样','after-escaped-conflict')
+        self.assertEqual(len(self.payloads), before+1)
+        self.assertEqual(nxt['status'],'completed')
+
 
 def synthetic_answer(messages):
     system = "\n".join(m.get("content", "") for m in messages if m.get("role") == "system" and isinstance(m.get("content"), str))

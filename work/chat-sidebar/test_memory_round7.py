@@ -430,6 +430,115 @@ class Round7MemoryTests(unittest.TestCase):
         self.assertNotIn("已保存", command_reply("记住：秘密。", {"status": "rejected"}))
         self.assertIsNone(command_reply("今天天气怎么样", {"status": "saved"}))
         self.assertIsNone(command_reply("记住：茶。", {}))
+        self.assertIsNone(command_reply("记住了吗", {"status": "saved"}))
+        self.assertIsNone(command_reply("remember that?", {"status": "saved"}))
+        self.assertIsNone(command_reply("请记住，1+1等于几？", {"status": "saved"}))
+
+    def test_questions_are_not_commands_and_do_not_mutate(self):
+        from memory_commands import command_reply
+
+        before = len(self.mem.list())
+        for text in (
+            "记住了吗",
+            "忘记了吗",
+            "remember that?",
+            "forget that?",
+            "请记住，1+1等于几？",
+            "记住：1+1等于几？",
+            "remember whether I like tea",
+            "今天天气怎么样",
+        ):
+            out = self.mem.process_turn(text, "c", "m")
+            self.assertIsNone(out["status"], text)
+            self.assertEqual(out["saved"], [], text)
+            self.assertEqual(out["forgotten"], [], text)
+            self.assertIsNone(command_reply(text, out), text)
+        self.assertEqual(len(self.mem.list()), before)
+
+    def test_explicit_imperatives_still_save_and_forget(self):
+        saved = self.mem.process_turn("记住我的名字是林雨", "c", "m1")
+        self.assertEqual(saved["status"], "saved")
+        self.assertIn("林雨", self.mem.list()[0]["content"])
+        comma = self.mem.process_turn("记住，我喜欢深色主题。", "c", "m2")
+        self.assertEqual(comma["status"], "saved")
+        spaced = self.mem.process_turn("remember that I prefer tea in the morning.", "c", "m3")
+        self.assertEqual(spaced["status"], "saved")
+        style = self.mem.process_turn("以后回答时请简洁。", "c", "m4")
+        self.assertIn(style["status"], ("saved", "updated"))
+        gone = self.mem.process_turn("忘记：深色主题", "c", "m5")
+        self.assertEqual(gone["status"], "forgotten")
+        self.assertFalse(any("深色主题" in row["content"] for row in self.mem.list()))
+
+    def test_forget_does_not_delete_short_facts_inside_longer_text(self):
+        tea = self.mem.put("茶")
+        other = self.mem.put("用户最喜欢的颜色是琥珀色。")
+        negative = self.mem.process_turn("忘记：请不要删除茶这个字", "c", "m1")
+        self.assertEqual(negative["status"], "rejected")
+        self.assertEqual(negative["forgotten"], [])
+        self.assertEqual({row["content"] for row in self.mem.list()}, {tea["content"], other["content"]})
+        unrelated = self.mem.process_turn("忘记：咖啡", "c", "m2")
+        self.assertEqual(unrelated["status"], "rejected")
+        self.assertEqual(len(self.mem.list()), 2)
+        self.mem.put("我也喜欢茶")
+        ambiguous = self.mem.process_turn("忘记：茶", "c", "m3")
+        self.assertEqual(ambiguous["status"], "ambiguous")
+        self.assertEqual(len(self.mem.list()), 3)
+        fresh = tempfile.TemporaryDirectory()
+        try:
+            lone = MemoryStore(Path(fresh.name) / "lone.sqlite3")
+            lone.put("茶")
+            deleted = lone.process_turn("忘记：茶", "c", "m")
+            self.assertEqual(deleted["status"], "forgotten")
+            self.assertEqual(lone.list(), [])
+            lone.put("请不要删除茶这个字")
+            named = lone.process_turn("忘记：请不要删除茶这个字", "c", "m2")
+            self.assertEqual(named["status"], "forgotten")
+            lone.put("请用短句。", category="preference", topic="answer_style")
+            topic = lone.process_turn("忘记：answer_style", "c", "m3")
+            self.assertEqual(topic["status"], "forgotten")
+            self.assertEqual(lone.list(), [])
+        finally:
+            fresh.cleanup()
+
+    def test_forget_and_correction_conflicts_do_not_write(self):
+        item = self.mem.put("茶")
+        real_delete = MemoryStore.delete
+
+        def stale_delete(store, memory_id, *, version):
+            with store.connect() as db:
+                db.execute("UPDATE user_memory SET version=version+1 WHERE id=?", (memory_id,))
+            return real_delete(store, memory_id, version=version)
+
+        MemoryStore.delete = stale_delete
+        try:
+            out = self.mem.process_turn("忘记：茶", "c", "m")
+        finally:
+            MemoryStore.delete = real_delete
+        self.assertEqual(out["status"], "rejected")
+        self.assertEqual(out["forgotten"], [])
+        self.assertEqual(self.mem.list()[0]["content"], "茶")
+        self.assertGreater(self.mem.list()[0]["version"], item["version"])
+
+        color = self.mem.put("用户最喜欢的颜色是钴蓝色。")
+        real_put = MemoryStore.put
+
+        def stale_put(store, content, category=None, *args, **kwargs):
+            memory_id = kwargs.get("memory_id")
+            version = kwargs.get("version")
+            if memory_id is not None and version is not None:
+                with store.connect() as db:
+                    db.execute("UPDATE user_memory SET version=version+1 WHERE id=?", (memory_id,))
+            return real_put(store, content, category, *args, **kwargs)
+
+        MemoryStore.put = stale_put
+        try:
+            corrected = self.mem.process_turn('将记忆“钴蓝色”修改为“琥珀色”', "c", "m2")
+        finally:
+            MemoryStore.put = real_put
+        self.assertEqual(corrected["status"], "rejected")
+        self.assertEqual(corrected["updated"], [])
+        self.assertTrue(any(row["content"] == color["content"] for row in self.mem.list()))
+        self.assertFalse(any("琥珀" in row["content"] for row in self.mem.list()))
 
     def test_model_selection_prefers_app_default_without_inventing_one(self):
         import importlib.util
