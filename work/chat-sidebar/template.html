@@ -27,86 +27,33 @@
     <style>
       /* STUDIO_STYLES */
     </style>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23547168%22/%3E%3Cpath d=%22M9 7v18M23 7v18M9 16h14%22 fill=%22none%22 stroke=%22white%22 stroke-width=%221.8%22 stroke-linecap=%22round%22/%3E%3C/svg%3E"
-    />
+    <!-- HANZ_FAVICON -->
   </head>
   <body>
     <div class="sidebar-shade" id="sidebarShade" aria-hidden="true"></div>
-    <aside class="sidebar" id="sidebar" aria-label="聊天记录">
-      <div class="sidebar-top">
-        <span class="sidebar-brand"
-          ><span class="brand-mark" aria-hidden="true"
-            ><svg viewBox="0 0 32 32">
-              <path d="M8 6v20M24 6v20M8 16h16" /></svg></span
-          >HanzAgent</span
-        ><button
-          id="sidebarToggle"
-          class="chrome-button"
-          type="button"
-          aria-label="收起侧边栏"
-          title="收起侧边栏"
-          aria-controls="sidebar"
-          aria-expanded="true"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="16" rx="3" />
-            <path d="M9 4v16" />
-          </svg>
-        </button>
-      </div>
-      <div class="sidebar-navigation">
-        <button
-          id="newChat"
-          class="nav-button"
-          type="button"
-          aria-label="新对话"
-          title="新对话"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" /></svg
-          ><span>新对话</span></button
-        ><button
-          id="galleryNav"
-          class="nav-button"
-          type="button"
-          aria-label="图库"
-          title="图库"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="16" rx="3" />
-            <circle cx="8" cy="9" r="1.5" />
-            <path d="m3 17 6-5 4 3 3-3 5 5" /></svg
-          ><span>图库</span>
-        </button>
-      </div>
-      <div class="sidebar-label">聊天记录</div>
-      <nav id="chatList" class="chat-list" aria-label="聊天记录"></nav>
-      <div class="sidebar-footer">
-        <button
-          id="appSettings"
-          class="chrome-button rail-settings"
-          type="button"
-          aria-label="设置"
-          title="设置"
-          aria-haspopup="dialog"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M10 3h4l.5 2.3 1.8 1L18.5 6l2 3.5-1.7 1.5v2l1.7 1.5-2 3.5-2.2-.3-1.8 1L14 21h-4l-.5-2.3-1.8-1-2.2.3-2-3.5L5.2 13v-2L3.5 9.5l2-3.5 2.2.3 1.8-1Z"
-            />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
-      </div>
-      <div class="database-note" id="databasePath" title="本地数据库">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <ellipse cx="12" cy="5" rx="8" ry="3" />
-          <path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" /></svg
-        ><span>本地数据库</span>
-      </div>
+    <aside class="sidebar" id="sidebar" aria-label="聊天导航">
+      <nav class="app-rail" aria-label="应用导航">
+        <button id="homeNav" class="chrome-button" type="button" aria-label="主页" title="主页" aria-controls="historyPanel" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 8 7-5.5L17 8v8.5a1 1 0 0 1-1 1h-3.5V12h-5v5.5H4a1 1 0 0 1-1-1Z"/></svg></button>
+        <button id="galleryNav" class="chrome-button" type="button" aria-label="图库" title="图库"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3" width="15" height="14" rx="3"/><circle cx="6.5" cy="7" r="1"/><path d="m3 14 4-4 3 3 2.5-2.5 5 5"/></svg></button>
+        <button id="profileButton" class="chrome-button profile-button" type="button" aria-label="用户菜单" title="本地用户" aria-controls="profileMenu" aria-haspopup="menu" aria-expanded="false"><span class="local-avatar"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></svg></span></button>
+      </nav>
+      <section id="historyPanel" class="history-panel" aria-label="聊天记录">
+        <div class="sidebar-top"><span class="sidebar-home-label">HanzAgent</span>
+          <button id="sidebarToggle" class="chrome-button" type="button" aria-label="固定侧边栏" title="固定侧边栏" aria-controls="historyPanel" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M8 4v12"/></svg></button>
+        </div>
+          <button id="newChat" class="new-chat-row" type="button" aria-label="新对话" title="新对话"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M11 4l2-2 5 5-2 2-7 7-4 1 1-4Z"/></svg><span>新对话</span></button>
+        <div class="sidebar-label">聊天记录</div>
+        <nav id="chatList" class="chat-list" aria-label="聊天记录"></nav>
+      </section>
     </aside>
+    <div id="profileMenu" class="compact-menu profile-menu" role="menu" popover="manual" hidden>
+      <div class="profile-summary"><span class="local-avatar">H</span><div>本地用户<small>HanzAgent · 本机数据</small></div></div>
+      <button id="appSettings" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="m9 3-1 3-3 1-2 4 2 2 1 4 3 1 2 3 4-1 1-3 3-1 2-4-2-2-1-4-3-1-2-3Z"/></svg><span>设置</span></button>
+      <button id="profileMemory" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>记忆</span></button>
+      <button id="profileAppearance" role="menuitem" type="button" aria-haspopup="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span>外观</span><span class="menu-chevron">›</span></button>
+      <button id="profileAbout" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><span>关于 HanzAgent</span></button>
+    </div>
+    <div id="appearanceMenu" class="compact-menu" role="menu" popover="manual" hidden></div>
     <a class="skip-link" href="#prompt">跳到输入框</a>
     <main class="shell" id="mainContent">
       <header>
@@ -122,13 +69,14 @@
             <rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16" />
           </svg>
         </button>
-        <div class="chat-heading"><span class="main-brand">HanzAgent</span><span class="chat-title" id="chatTitle">新对话</span></div>
+        <button id="headerNewChat" class="chrome-button" type="button" aria-label="新对话" title="新对话"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M11 4l2-2 5 5-2 2-7 7-4 1 1-4Z"/></svg></button><div class="chat-heading"><span class="chat-title" id="chatTitle">新对话</span></div>
         <button id="chatActions" class="chrome-button" type="button" aria-label="对话操作" title="对话操作" aria-controls="chatActionsMenu" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
         <div id="chatActionsMenu" class="compact-menu" role="menu" popover="manual" hidden>
           <button id="renameChat" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/></svg><span>重命名对话</span></button>
           <button id="deleteCurrent" class="danger-link" type="button" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg><span>删除对话</span></button>
         </div>
       </header>
+      <button id="retryConnection" class="connection-retry" type="button" hidden>连接失败 · 重试</button>
       <div id="appStatus" class="app-status" role="status" hidden></div>
       <div class="workspace">
         <button id="jumpLatest" class="jump-latest action" type="button" hidden>
@@ -203,7 +151,7 @@
             </div>
           </div>
           <div id="trashList"></div>
-          <p id="trashEmpty" class="empty-collection">暂无已删除对话</p>
+          <p id="trashEmpty" class="empty-collection">暂无已删除对话</p><section id="imageTrashSection"><h2>图片回收站</h2><p class="dialog-note">恢复只影响图库显示；永久删除会移除选定图片的聊天引用和原文件。其他引用会阻止删除。</p><div id="imageTrashList"></div><p id="mediaDeleteStatus" role="status"></p></section>
         </section>
         <form id="form" class="composer">
           <div class="draft-conflict" id="draftConflict" hidden>
@@ -526,7 +474,7 @@
               <h3 class="settings-panel-title">通用</h3>
               <div class="settings-group">
                 <div class="settings-row">
-                  <span class="settings-row-label">连接状态</span>
+                  <span class="settings-row-label" title="本地数据库">连接状态</span>
                   <span class="badge" id="connection" role="status">连接中</span>
                 </div>
                 <div class="settings-row">
@@ -665,7 +613,7 @@
       aria-describedby="confirmBody"
     >
       <h2 id="confirmTitle"></h2>
-      <p id="confirmBody"></p>
+      <div id="confirmBody"></div>
       <p id="confirmError" role="alert" class="error" hidden></p>
       <div class="confirm-actions">
         <button type="button" id="confirmCancel" class="action">取消</button

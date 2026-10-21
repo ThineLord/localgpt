@@ -1,19 +1,21 @@
 /* Round 4 — Memory modal & settings hooks only. Requires studio.css tokens. */
 .memory-dialog.memory-dialog--round4 {
   width: min(680px, calc(100vw - 32px));
-  max-height: min(90dvh, 720px);
+  max-height: min(calc(100dvh - 40px), 800px);
+  border-radius:24px;
   padding: 0;
   overflow: hidden;
-  display: flex;
   flex-direction: column;
   font-size: 14px;
   line-height: 20px;
 }
 
+.memory-dialog.memory-dialog--round4[open] { display: flex; }
+
 .memory-dialog.memory-dialog--round4 .dialog-heading {
   flex: none;
   margin: 0;
-  padding: 16px 16px 12px;
+  padding:20px;
   border-bottom: 1px solid var(--line);
   gap: 8px;
 }
@@ -41,7 +43,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 16px 16px;
+  padding:0 20px 20px;
 }
 
 .memory-dialog--footer {

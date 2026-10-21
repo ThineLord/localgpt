@@ -412,11 +412,15 @@ function setConnection(text) {
   $("connection").dataset.state = text === "本地已连接" ? "online" : "offline";
 }
 async function request(url, options = {}) {
-  const r = await fetch(url, {
+  let r;
+  try { r = await fetch(url, {
     cache: "no-store",
     signal: AbortSignal.timeout(30000),
     ...options,
-  });
+  }); } catch (cause) {
+    const e = Error("HanzAgent 本地服务未连接。请启动应用，然后重试；模型服务状态与数据库连接无关。");
+    e.code = "service_offline"; e.cause = cause; throw e;
+  }
   const txt = await r.text();
   let data;
   try {
@@ -431,6 +435,7 @@ async function request(url, options = {}) {
         : data.error?.message || JSON.stringify(data.node_errors || data),
     );
     e.status = r.status;
+    e.code = data.code || (r.status === 502 ? "upstream_unavailable" : "request_failed");
     throw e;
   }
   return data;
@@ -683,6 +688,8 @@ function setChatTitle() {
         : current
           ? t(current.title)
           : t("新对话");
+  document.title = view === 'chat' && !current ? 'HanzAgent' : $('chatTitle').textContent + ' · HanzAgent';
+  $('chatTitle').hidden = view === 'chat' && !current;
   $("renameChat").disabled = view !== "chat" || !current;
   $("deleteCurrent").hidden = view !== "chat" || !current;
 }
@@ -1019,6 +1026,7 @@ async function selectChat(id) {
   updateActivity();
   render(true);
   if (innerWidth < 761) setSidebar(false);
+  else temporarySidebar(false);
 }
 async function newChat() {
   if (creatingChat) return;
@@ -1043,6 +1051,7 @@ async function newChat() {
     updateActivity();
     render(true);
     if (innerWidth < 761) setSidebar(false);
+  else temporarySidebar(false);
     $("prompt").focus();
   } finally {
     creatingChat = false;
@@ -1065,13 +1074,25 @@ function updateActivity() {
   document.querySelectorAll(".edit-result").forEach((b) => (b.disabled = busy));
   updateSendButton();
 }
+let connectionFailure = false;
+function connectionError(e) {
+  connectionFailure = true;
+  const db = e.code === 'database_unavailable';
+  setConnection(db ? '数据库暂不可用' : e.code === 'service_offline' ? '服务未连接' : '刷新失败');
+  setStatus(e.code ? e.message : '界面刷新失败。请重试；这不代表数据库损坏。', true);
+  if ($('retryConnection')) $('retryConnection').hidden = false;
+}
+function connectionRecovered() {
+  setConnection('本地已连接');
+  if (connectionFailure) { setStatus(''); connectionFailure = false; }
+  if ($('retryConnection')) $('retryConnection').hidden = true;
+}
 async function refresh() {
   if (refreshing) return;
   refreshing = true;
   try {
     chats = await request("/qwen-cn/chats");
-    setConnection("本地已连接");
-    if (lastStatus === "数据库连接失败，请检查本地服务。") setStatus("");
+    connectionRecovered();
     if (current) {
       const refreshId = current.id;
       const fresh = await request(`/qwen-cn/chats/${refreshId}`);
@@ -1113,40 +1134,70 @@ async function refresh() {
     else if (view === "trash") await loadTrash();
     renderSidebar();
   } catch (e) {
-    setConnection("服务未连接");
-    setStatus("数据库连接失败，请检查本地服务。", true);
+    connectionError(e);
   } finally {
     refreshing = false;
   }
 }
+let desktopPinned = false;
 function syncSidebar() {
-  const open = document.body.classList.contains("sidebar-open");
-  $("sidebarToggle").setAttribute("aria-expanded", String(open));
-  $("sidebarToggle").setAttribute(
-    "aria-label",
-    t(open ? "收起侧边栏" : "展开侧边栏"),
-  );
-  $("sidebarToggle").title = t(open ? "收起侧边栏" : "展开侧边栏");
-  $("mobileMenu").setAttribute("aria-expanded", String(open));
-  const modal = open && innerWidth <= 760;
-  $("mainContent").inert = modal;
-  $("sidebar").inert = !open && innerWidth <= 760;
+  const pinned = document.body.classList.contains('sidebar-open');
+  const temporary = document.body.classList.contains('sidebar-temporary');
+  const visible = pinned || temporary;
+  $('sidebar').dataset.state = innerWidth <= 760 ? (pinned ? 'mobile-overlay' : 'mobile-closed') : pinned ? 'pinned' : temporary ? 'temporary' : 'collapsed';
+  $('homeNav').setAttribute('aria-expanded', String(visible));
+  $('sidebarToggle').setAttribute('aria-expanded', String(pinned));
+  $('sidebarToggle').setAttribute('aria-pressed', String(pinned));
+  $('sidebarToggle').title = $('sidebarToggle').ariaLabel = t(pinned ? '收起侧边栏' : '固定侧边栏');
+  $('mobileMenu').setAttribute('aria-expanded', String(pinned));
+  $('mainContent').inert = pinned && innerWidth <= 760;
+  $('sidebar').inert = !visible && innerWidth <= 760;
+  $('historyPanel').inert = !visible;
+}
+function temporarySidebar(open) {
+  if (innerWidth <= 760 || document.body.classList.contains('sidebar-open')) return;
+  document.body.classList.toggle('sidebar-temporary', open);
+  syncSidebar();
 }
 function setSidebar(open) {
-  const wasOpen = document.body.classList.contains("sidebar-open");
-  document.body.classList.toggle("sidebar-open", open);
+  const wasOpen = document.body.classList.contains('sidebar-open');
+  document.body.classList.remove('sidebar-temporary');
+  document.body.classList.toggle('sidebar-open', open);
+  if (innerWidth > 760) {
+    desktopPinned = open;
+    try { localStorage.setItem('qwen-studio-sidebar', open ? 'open' : 'closed'); } catch {}
+  }
   syncSidebar();
   if (innerWidth <= 760) {
-    if (open) $("sidebarToggle").focus();
-    else if (wasOpen) $("mobileMenu").focus();
+    if (open) $('sidebarToggle').focus();
+    else if (wasOpen) $('mobileMenu').focus();
   }
-  try {
-    localStorage.setItem("qwen-studio-sidebar", open ? "open" : "closed");
-  } catch {}
 }
-$("sidebarToggle").onclick = () =>
-  setSidebar(!document.body.classList.contains("sidebar-open"));
-$("sidebarShade").onclick = () => setSidebar(false);
+$('homeNav').onclick = () => {
+  if (innerWidth <= 760) setSidebar(false);
+  else if (document.body.classList.contains('sidebar-open')) setSidebar(false);
+  else temporarySidebar(true);
+};
+$('homeNav').addEventListener('pointerenter', e => {
+  if (e.pointerType === 'mouse') temporarySidebar(true);
+});
+$('sidebar').addEventListener('pointerleave', () => {
+  if (!$('chatList').querySelector(':popover-open') && !$('historyPanel').contains(document.activeElement)) temporarySidebar(false);
+});
+$('sidebar').addEventListener('focusout', () => queueMicrotask(() => {
+  if (!$('sidebar').contains(document.activeElement) && !$('sidebar').matches(':hover')) temporarySidebar(false);
+}));
+document.addEventListener('pointerdown',e => {
+  if (!$('sidebar').contains(e.target)) temporarySidebar(false);
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('sidebar-temporary')) {
+    temporarySidebar(false); $('homeNav').focus();
+  }
+});
+$('sidebarToggle').onclick = () => setSidebar(!document.body.classList.contains('sidebar-open'));
+$('sidebarShade').onclick = () => setSidebar(false);
+$('headerNewChat').onclick = () => newChat().catch(e => setStatus(e.message,true));
 $("newChat").onclick = () => newChat().catch((e) => setStatus(e.message, true));
 $("keepDraft").onclick = () =>
   resolveConflict(true).catch((e) => setStatus(e.message, true));
@@ -1221,7 +1272,7 @@ $("file").onchange = async () => {
           : "png";
     form.append("image", f, `参考图_${crypto.randomUUID()}.${suffix}`);
     form.append("type", "input");
-    const result = await request("/upload/image", {
+    const result = await request("/qwen-cn/uploads", {
       method: "POST",
       body: form,
     });
@@ -1348,6 +1399,7 @@ async function setView(next) {
   else if (next === "trash") await loadTrash();
   else render(true);
   if (innerWidth < 761) setSidebar(false);
+  else temporarySidebar(false);
 }
 async function deleteChat(id) {
   if (id === current?.id && !(await saveDraft())) return;
@@ -1384,6 +1436,7 @@ async function restoreChat(id, open = false) {
 async function loadTrash() {
   trashItems = await request("/qwen-cn/trash");
   renderTrash();
+  await window.HanzMedia?.render();
 }
 function renderTrash(force = false) {
   const sig = JSON.stringify(trashItems) + language;
@@ -1608,23 +1661,28 @@ $("galleryEdit").onclick = async () => {
     setStatus(e.message, true);
   }
 };
-let initialized = false;
+let initialized = false, initRunning = false, appReady = false, refreshTimer = null, initRetry = null;
 async function init() {
+  if (initRunning) return;
+  initRunning = true;
+  clearTimeout(initRetry);
   if (!initialized) {
     captureLanguage();
     initialized = true;
   }
+  if ($("retryConnection")) $("retryConnection").onclick = () => appReady ? refresh() : init();
   $("language").onclick = () => applyLanguage(language === "en" ? "zh" : "en");
   applyLanguage(language, false);
   try {
-    let open = innerWidth > 760;
+    desktopPinned = true;
     try {
       const pref = localStorage.getItem("qwen-studio-sidebar");
-      if (pref) open = pref === "open" && innerWidth > 760;
+      if (pref) desktopPinned = pref === "open";
     } catch {}
-    setSidebar(open);
+    setSidebar(desktopPinned && innerWidth > 760);
     const health = await request("/qwen-cn/health");
-    $("databasePath").title = health.database || "";
+    if ($("databasePath")) $("databasePath").title = health.database || "";
+    if ($("settingsDatabasePathDisplay")) $("settingsDatabasePathDisplay").textContent = health.database || "";
     chats = await request("/qwen-cn/chats");
     const id = new URLSearchParams(location.hash.slice(1)).get("chat");
     if (location.hash === "#gallery") await setView("gallery");
@@ -1652,16 +1710,17 @@ async function init() {
         }
       }
     }
-    setConnection("本地已连接");
+    connectionRecovered();
+    appReady = true;
     loadModels();
-    setInterval(() => {
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
       if (!document.hidden) refresh();
     }, 3000);
   } catch (e) {
-    setConnection("服务未连接");
-    setStatus(e.message, true);
-    setTimeout(init, 5000);
-  }
+    connectionError(e);
+    initRetry = setTimeout(init, 5000);
+  } finally { initRunning = false; }
 }
 
 function readOptions() {
@@ -2137,7 +2196,8 @@ document.addEventListener("keydown", (e) => {
   }
 });
 matchMedia("(max-width:760px)").addEventListener("change", () => {
-  setSidebar(false);
+  const pinned = desktopPinned;
+  setSidebar(innerWidth > 760 && pinned);
   settings.open = false;
 });
 window.addEventListener("resize", () => {

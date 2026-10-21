@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <title>HanzAgent diagonal half knot</title>
+  <desc>Original sixfold woven geometry, clipped along the 45 degree line y=x. Not an official OpenAI mark.</desc>
+  <style>:root{color:#161616}@media(prefers-color-scheme:dark){:root{color:#f5f5f5}}</style>
+  <defs>
+    <clipPath id="diagonal"><path d="M0 0H32V32Z"/></clipPath>
+    <path id="strand" d="M16 4.2C20.2 1.8 25.5 4.2 26.4 8.8C26.7 10.1 26.5 11.8 26 12.9L26 19.1L16 24.9L10.8 21.9"/>
+  </defs>
+  <g clip-path="url(#diagonal)" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#strand"/><use href="#strand" transform="rotate(60 16 16)"/><use href="#strand" transform="rotate(120 16 16)"/><use href="#strand" transform="rotate(180 16 16)"/><use href="#strand" transform="rotate(240 16 16)"/><use href="#strand" transform="rotate(300 16 16)"/>
+  </g>
+</svg>

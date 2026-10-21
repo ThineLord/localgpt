@@ -6,12 +6,14 @@ import json
 import shutil
 import sqlite3
 import time
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from aiohttp import web
 import aiohttp
 from storage import Store, Conflict
 from memory_store import MemoryStore, MemoryConflict
+from media_lifecycle import MediaLifecycle
 from generation import image_path, clean_draft, graph
 import lm_chat
 
@@ -27,7 +29,7 @@ def backup_before_migration(database):
 
 def install(app, backend, database, input_root, output_root):
     path=Path(database)
-    store=Store(path);memory=MemoryStore(path);routes=web.RouteTableDef()
+    store=Store(path);memory=MemoryStore(path);media=MediaLifecycle(store,input_root,output_root);routes=web.RouteTableDef()
     def reply(data,status=200):return web.json_response(data,status=status,headers={'Cache-Control':'no-store'})
     def mutate(request):
         if request.content_type!='application/json':raise web.HTTPUnsupportedMediaType()
@@ -37,12 +39,20 @@ def install(app, backend, database, input_root, output_root):
             data=json.loads(raw) if raw.strip() else {}
             if r.status>=400:raise ValueError(str(data.get('error',data)))
             return data
-    core=SimpleNamespace(STORE=store,MEMORY=memory,reply=reply,mutate=mutate,Conflict=Conflict,SUBMIT_LOCK=asyncio.Lock(),
+    core=SimpleNamespace(STORE=store,MEMORY=memory,MEDIA=media,reply=reply,mutate=mutate,Conflict=Conflict,SUBMIT_LOCK=asyncio.Lock(),
         clean_draft=lambda d:clean_draft(d,input_root,output_root),image_path=lambda i:image_path(i,input_root,output_root),
         graph=graph,comfy=comfy,shutil=shutil,folder_paths=SimpleNamespace(get_output_directory=lambda:output_root),
         PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=routes)))
     # Genuine local chat execution, with existing routing, streaming, cancellation.
     lm_chat.install(core)
+
+    @routes.get('/qwen-cn/health')
+    async def health(r):
+        # Probe this process's actual database, independently of model servers.
+        with store.connect() as db:
+            db.execute('SELECT count(*) FROM chats').fetchone()
+        return reply({'ready': True, 'service': 'hanzagent', 'database_ready': True,
+                      'database': str(path), 'output_directory': str(output_root)})
 
     @routes.get('/qwen-cn/chats')
     async def chats(r):return reply(store.chats())
@@ -71,14 +81,62 @@ def install(app, backend, database, input_root, output_root):
     async def purge(r):
         mutate(r);data=await r.json()
         if data.get('confirm') is not True:raise ValueError('需要确认永久删除。')
-        return reply(store.purge(r.match_info['chat_id']))
+        return reply(media.purge_chat(r.match_info['chat_id'],data.get('include_media',False)))
     @routes.get('/qwen-cn/gallery')
     async def gallery(r):return reply(store.gallery(r.query.get('q','')[:200],max(0,int(r.query.get('offset',0))),max(1,min(100,int(r.query.get('limit',60))))))
     @routes.delete('/qwen-cn/gallery/{message_id}')
     async def delete_image(r):
         mutate(r);data=await r.json()
         if data.get('confirm') is not True:raise ValueError('需要确认删除图片。')
-        return reply(store.delete_gallery(r.match_info['message_id']))
+        return reply(media.trash_image(r.match_info['message_id']))
+    @routes.get('/qwen-cn/media/trash')
+    async def media_trash(r):return reply(media.trash_list())
+    @routes.post('/qwen-cn/media/trash/{message_id}/restore')
+    async def media_restore(r):
+        mutate(r);return reply(media.restore_image(r.match_info['message_id']))
+    @routes.delete('/qwen-cn/media/trash/{message_id}')
+    async def media_purge(r):
+        mutate(r);data=await r.json()
+        if data.get('confirm') is not True:raise ValueError('需要确认永久删除。')
+        return reply(media.purge_image(r.match_info['message_id'],True))
+
+    @routes.get('/qwen-cn/uploads')
+    async def uploads(r):return reply(media.list_uploads())
+    @routes.post('/qwen-cn/uploads')
+    async def upload(r):
+        if not r.content_type.startswith('multipart/'):
+            raise web.HTTPUnsupportedMediaType()
+        reader=await r.multipart();part=await reader.next()
+        while part and part.name!='image':part=await reader.next()
+        if part is None:raise ValueError('缺少参考图片。')
+        ext=Path(part.filename or '').suffix.lower()
+        if ext not in ('.png','.jpg','.jpeg','.webp'):raise ValueError('仅支持 PNG、JPEG、WebP 参考图。')
+        content=await part.read()
+        if len(content)>20*1024**2:raise ValueError('图片不能超过 20 MB。')
+        form=aiohttp.FormData();form.add_field('image',content,filename='hanz-ref-'+uuid.uuid4().hex+ext,content_type=part.headers.get('Content-Type','application/octet-stream'))
+        form.add_field('type','input');form.add_field('subfolder','hanzagent');form.add_field('overwrite','false')
+        async with aiohttp.ClientSession() as session:
+            async with session.post(backend+'/upload/image',data=form) as upstream:
+                if upstream.status>=400:raise ValueError('参考图上传失败，请重试。')
+                result=await upstream.json()
+        image={'filename':result['name'],'subfolder':result.get('subfolder',''),'type':'input'}
+        registered=media.register_upload(image)
+        return reply({**result,'upload_id':registered['id']})
+    @routes.delete('/qwen-cn/uploads/{upload_id}')
+    async def purge_upload(r):
+        mutate(r);data=await r.json()
+        if data.get('confirm') is not True:raise ValueError('需要确认永久删除上传文件。')
+        return reply(media.purge_upload(r.match_info['upload_id'],True))
+    @routes.get('/qwen-cn/storage/retained-copies')
+    async def retained_copies(r):
+        # Metadata only; no backup or legacy content is read or silently removed.
+        migration=Path(__file__).parent.parent/'liquid-memory'/'backups'
+        safety=Path(__file__).parent.parent.parent/'output'/'acceptance'
+        legacy=path.parent/'qwen-studio-history.json'
+        return reply({'legacy_migration':str(legacy) if legacy.is_file() else None,
+                      'backup_directories':[{'path':str(folder),'count':sum(1 for _ in folder.rglob('*.sqlite3')) if folder.exists() else 0} for folder in (migration,safety)],
+                      'policy':'explicit_retention_no_automatic_cleanup'})
+
     @routes.post('/qwen-cn/messages/{message_id}/stop')
     async def stop(r):
         mutate(r);mid=r.match_info['message_id'];message=store.message(mid)
@@ -123,5 +181,9 @@ def install(app, backend, database, input_root, output_root):
 async def errors(request,handler):
     try:return await handler(request)
     except (Conflict,MemoryConflict) as e:return web.json_response({'error':str(e)},status=409)
+    except sqlite3.Error:
+        return web.json_response({'error':'本地数据库暂时不可用。数据未被重建，请重试或检查存储权限。', 'code':'database_unavailable'},status=503)
+    except OSError:
+        return web.json_response({'error':'本地文件操作未完成。记录已保留，请检查权限后重试。', 'code':'file_operation_failed'},status=503)
     except KeyError:return web.json_response({'error':'记录不存在或已删除。'},status=404)
     except (ValueError,TypeError) as e:return web.json_response({'error':str(e)},status=400)

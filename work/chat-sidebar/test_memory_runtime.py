@@ -37,7 +37,7 @@ class MemoryTests(unittest.TestCase):
         with self.assertRaises(Conflict):self.store.purge('legacy')
         self.mem.capture('我喜欢测试','legacy','note')
         self.store.trash('legacy');self.store.purge('legacy')
-        self.assertEqual(self.store.chats(deleted=True),[]);self.assertEqual(self.mem.list(),[])
+        self.assertEqual(self.store.chats(deleted=True),[]);self.assertEqual(len(self.mem.list()),1);self.assertIsNone(self.mem.list()[0]["chat_id"])
         with self.assertRaises(KeyError):self.store.chat('legacy')
         kept=self.store.gallery()['items'][0];self.assertTrue(kept['chat_purged']);self.assertIsNone(kept['chat_id']);self.assertEqual(kept['prompt'],'已保留的图片')
         self.store.delete_gallery(image['id']);self.assertEqual(self.store.gallery()['total'],0)

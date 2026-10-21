@@ -6,14 +6,6 @@
     `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
 
   (function injectRound4Assets() {
-    if (!document.querySelector('link[data-round4="settings-memory"]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.dataset.round4 = "settings-memory";
-      const base = location.pathname.replace(/\/?$/, "/");
-      link.href = base + "settings-memory.css";
-      document.head.append(link);
-    }
     const navList = document.querySelector(".settings-nav-list");
     const select = el("settingsSectionSelect");
     const panelsRoot = document.querySelector(".settings-panels");
@@ -78,7 +70,7 @@
             <span class="settings-diagnostics-value" id="settingsDiagnosticsConnectionHook" data-settings-hook="connection"></span>
           </div>
           <div class="settings-row" id="settingsDiagnosticsDatabaseRow">
-            <span class="settings-row-label">${tr("数据库路径", "Database path")}</span>
+            <span class="settings-row-label" id="databasePath">${tr("数据库路径", "Database path")}</span>
             <span class="settings-diagnostics-value" id="settingsDatabasePathDisplay" data-settings-hook="database-path" title="">—</span>
           </div>
           <button type="button" id="settingsDiagnosticsRefresh" class="settings-row-button preference-link" data-settings-hook="diagnostics-refresh">
@@ -87,8 +79,8 @@
           </button>
         </div>
         <p class="dialog-note" style="margin:16px 0 0">${tr(
-          "此处仅展示本机连接与存储位置。健康检查与头像等功能将由后续集成提供。",
-          "Shows local connection and storage location only. Health checks and avatars will be wired in a later integration.",
+          "数据库健康状态独立于 LM Studio 和 ComfyUI。关闭模型服务不会删除聊天。",
+          "Database health is independent of LM Studio and ComfyUI. Stopping a model service does not delete chats.",
         )}</p>`;
       const trashPanel = panelsRoot.querySelector('[data-settings-panel="trash"]');
       panelsRoot.insertBefore(aboutPanel, trashPanel);
@@ -191,7 +183,7 @@
     editorHeading.append(editorBack, editorTitle);
     listView.append(...notes, switches, statusNode, toolbar, listScroll, addBtn);
     editorView.append(editorHeading, form);
-    body.append(listView, editorView);
+    body.append(statusNode, listView, editorView);
     const footer = document.createElement("div");
     footer.className = "memory-dialog--footer";
     footer.append(clearBtn);
@@ -233,6 +225,7 @@
   const rowMenus = [];
   class MemoryRowMenu {
     constructor(trigger, panel) {
+      this.events = new AbortController();
       this.trigger = trigger;
       this.panel = panel;
       rowMenus.push(this);
@@ -280,9 +273,9 @@
           )
             this.close(false);
         },
-        true,
+        {capture:true, signal:this.events.signal},
       );
-      addEventListener("liquidlayerchange", () => this.close(false));
+      addEventListener("liquidlayerchange", () => this.close(false), {signal:this.events.signal});
     }
     items() {
       return [...this.panel.querySelectorAll("button")];
@@ -296,7 +289,8 @@
       const r = this.trigger.getBoundingClientRect();
       this.panel.style.inset = "auto";
       this.panel.style.left = Math.max(12, r.right - 180) + "px";
-      this.panel.style.top = r.bottom + 6 + "px";
+      const box=this.panel.getBoundingClientRect();
+      this.panel.style.top = Math.max(12,Math.min(r.bottom+6,innerHeight-box.height-12))+"px";
       this.items()[0]?.focus({ preventScroll: true });
     }
     close(restore = true) {
@@ -322,7 +316,7 @@
     return b;
   };
   function ask(title, body, action) {
-    if (confirm.open) return;
+    if (confirm.open || pending) return;
     el("confirmTitle").textContent = title;
     el("confirmBody").textContent = body;
     el("confirmError").hidden = true;
@@ -338,6 +332,7 @@
       el("confirmCancel").disabled = true;
       try {
         await action();
+        pending = false;
         await LiquidLayers.close(confirm);
       } catch (e) {
         el("confirmError").textContent = e.message;
@@ -388,7 +383,7 @@
   function visibleMemoryRows() {
     return [...el("memoryList").querySelectorAll(".memory-item")];
   }
-  function focusMemoryRow(index) {
+  function focusMemoryRow(index, moveFocus = true) {
     const rows = visibleMemoryRows();
     if (!rows.length) {
       listFocusIndex = -1;
@@ -399,7 +394,7 @@
       row.tabIndex = i === listFocusIndex ? 0 : -1;
       row.setAttribute("aria-selected", String(i === listFocusIndex));
     });
-    rows[listFocusIndex].focus({ preventScroll: true });
+    if (moveFocus) rows[listFocusIndex].focus({ preventScroll: true });
   }
   function setMemoryView(mode) {
     const listView = el("memoryListView");
@@ -417,13 +412,17 @@
     if (editorTitleEl) editorTitleEl.textContent = el("memoryTitle").textContent;
   }
   function openMemoryEditor(item, seed) {
+    if (pending) return;
     resetEdit();
     if (item) edit(item);
     else if (seed) el("memoryContent").value = seed;
     setMemoryView("editor");
     el("memoryContent").focus();
   }
+  memory.canClose = confirm.canClose = () => !pending;
+  memory.addEventListener("cancel",e=>{if(pending || !el("memoryEditorView").hidden){e.preventDefault();e.stopImmediatePropagation();if(!pending)closeMemoryEditor();}},{capture:true});
   function closeMemoryEditor() {
+    if (pending) return;
     resetEdit();
     setMemoryView("list");
     focusMemoryRow(0);
@@ -476,6 +475,7 @@
   function renderMemories() {
     for (const menu of document.querySelectorAll(".memory-row-menu")) {
       menu._controller?.close(false);
+      menu._controller?.events.abort();
       menu.remove();
     }
     rowMenus.length = 0;
@@ -570,9 +570,10 @@
           if (e.target.closest(".memory-item-more")) return;
           openMemoryEditor(item);
         });
+        row.addEventListener("keydown",e=>{if(e.target===row && ["Enter"," "].includes(e.key)){e.preventDefault();openMemoryEditor(item);}});
         root.append(row);
       }
-      focusMemoryRow(Math.min(listFocusIndex, items.length - 1));
+      focusMemoryRow(Math.min(listFocusIndex, items.length - 1), false);
     }
     el("clearMemory").disabled = !memories.length;
     el("memoryAddButton")?.toggleAttribute(
@@ -623,7 +624,7 @@
       status(e.message, true);
     }
   }
-  el("memoryNav").onclick = () => showMemory(null, el("memoryNav"));
+  el("memoryNav").onclick = () => showMemory(null, el("preferencesDialog").open ? el("memoryNav") : el("profileButton"));
   el("cancelMemoryEdit").onclick = closeMemoryEditor;
   el("memoryForm").onsubmit = async (e) => {
     e.preventDefault();
@@ -699,10 +700,10 @@
     );
   async function deleteImage(item) {
     ask(
-      tr("删除这张图库图片？", "Delete this gallery image?"),
+      tr("移至图片回收站？", "Move image to Trash?"),
       tr(
-        "从图库与对话中移除这张图片。磁盘原图保留在本机输出目录。",
-        "Remove this image from the gallery and conversation. The original file remains in the local output folder.",
+        "仅从图库移至回收站，可恢复。聊天中的图片及磁盘原图保留。永久删除需在回收站另行确认。",
+        "Hide from Gallery reversibly. Chat images and files remain. Permanent file deletion requires separate confirmation in Trash.",
       ),
       async () => {
         await request(
@@ -717,7 +718,7 @@
           current = await request("/qwen-cn/chats/" + current.id);
           render(true);
         }
-        setStatus(tr("图片已从图库删除。", "Image removed from gallery."));
+        setStatus(tr("图片已移至回收站，可恢复。", "Image moved to Trash; it can be restored."));
       },
     );
   }
@@ -725,35 +726,20 @@
     if (gallerySelection) deleteImage(gallerySelection);
   };
   window.HanzFeatures = {
+    confirm: ask,
     deleteImage,
     remember: (message) => showMemory(message.prompt),
-    purge: (chat) =>
-      ask(
-        tr("永久删除这段对话？", "Permanently delete this conversation?"),
-        tr(
-          "删除对话、消息及由此保存的全局记忆，无法恢复。生成的图片保留在图库。",
-          "Delete the conversation, messages and personal memories saved from it. This cannot be undone. Generated images remain in the gallery.",
-        ),
-        async () => {
-          await request(
-            "/qwen-cn/trash/" + chat.id,
-            json("DELETE", { confirm: true }),
-          );
-          if (lastDeleted === chat.id) {
-            lastDeleted = null;
-            el("deleteToast").hidden = true;
-          }
-          if (current?.id === chat.id) {
-            current = null;
-            dirty = false;
-            conflict = null;
-            showDraft({});
-          }
-          await loadTrash();
-          chats = await request("/qwen-cn/chats");
-          renderSidebar(true);
-        },
-      ),
+    purge: (chat) => {
+      ask(tr('永久删除这段对话？','Permanently delete this conversation?'),tr('聊天记录将无法恢复。独立记忆保留。默认将生成图片保留在图库；勾选后仅删除没有其他引用的生成原文件。旧迁移 JSON 和手动安全备份不在此操作范围内。','Chat records cannot be restored. Memory is retained. Images stay in Gallery unless the option below is selected; shared files are always retained. Legacy migration JSON and explicit safety backups are outside this operation.'),async()=>{
+        const result=await request('/qwen-cn/trash/'+chat.id,json('DELETE',{confirm:true,include_media:!!el('purgeMedia')?.checked}));
+        if(lastDeleted===chat.id){lastDeleted=null;el('deleteToast').hidden=true;}
+        if(current?.id===chat.id){current=null;dirty=false;conflict=null;showDraft({});}
+        await loadTrash();chats=await request('/qwen-cn/chats');renderSidebar(true);
+        setStatus(tr(`已删除。删除原文件 ${result.deleted_files}；保留共享图片 ${result.retained_shared}、参考图 ${result.retained_inputs}。`,`Deleted. Files removed: ${result.deleted_files}; shared images retained: ${result.retained_shared}; reference files retained: ${result.retained_inputs}.`));
+      });
+      const label=document.createElement('label');label.className='delete-scope';
+      const check=document.createElement('input');check.type='checkbox';check.id='purgeMedia';label.append(check,document.createTextNode(tr('同时删除未被其他记录引用的生成原文件','Also delete generated files without other references')));el('confirmBody').append(label);
+    },
   };
   window.addEventListener("hanzlanguage", () => {
     el("backMemory").setAttribute(

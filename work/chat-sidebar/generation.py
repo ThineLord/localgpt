@@ -47,7 +47,7 @@ def graph(prompt,width,height,steps,reference,cfg=1,seed=None):
         '480':{'class_type':'QwenImage21Cache','inputs':{'model':['451',0],'device':'off','dtype':'default'}},
         '458':{'class_type':'KSampler','inputs':{'model':['480',0],'seed':secrets.randbits(48) if seed is None else seed,'steps':steps,'cfg':cfg,'sampler_name':'euler','scheduler':'simple','positive':['452',0],'negative':['452',1],'latent_image':['456',0],'denoise':1}},
         '457':{'class_type':'VAEDecode','inputs':{'samples':['458',0],'vae':['454',0]}},
-        '461':{'class_type':'SaveImage','inputs':{'images':['457',0],'filename_prefix':'Qwen中文生成/编辑' if reference else 'Qwen中文生成/图片'}}}
+        '461':{'class_type':'SaveImage','inputs':{'images':['457',0],'filename_prefix':('Qwen中文生成/编辑-' if reference else 'Qwen中文生成/图片-')+secrets.token_hex(12)}}}
     if reference:
         path = (reference.get('subfolder','')+'/' if reference.get('subfolder') else '')+reference['filename']
         g['460']={'class_type':'LoadImage','inputs':{'image':path+(' [output]' if reference.get('type')=='output' else '')}}

@@ -48,12 +48,12 @@
       const fallback = parent?.open
         ? [...parent.querySelectorAll("button:not(:disabled):not([hidden])")]
             .find((button) => button.getClientRects().length)
-        : document.getElementById("appSettings");
+        : document.getElementById("profileButton");
       fallback?.focus({ preventScroll: true });
     }
   }
   function close(dialog, { cascade = false, immediate = false } = {}) {
-    if (!dialog.open) return Promise.resolve();
+    if (!dialog.open || dialog.canClose?.() === false) return Promise.resolve();
     void immediate;
     let record = records.get(dialog);
     const ancestors = [];

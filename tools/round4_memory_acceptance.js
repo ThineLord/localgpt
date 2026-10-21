@@ -3,7 +3,7 @@
 // npx playwright test is not required; use: npx playwright run-code tools/round4_memory_acceptance.js
 // Or pipe this file as the async page => {...} body via your project's Playwright harness.
 async (page) => {
-  const base = "http://127.0.0.1:8191";
+  const base = "http://127.0.0.1:8193";
   const health = await (await page.request.get(base + "/qwen-cn/health")).json();
   if (!health.demo) throw new Error("Synthetic demo on port 8191 required");
   const check = (ok, m) => {
@@ -21,6 +21,7 @@ async (page) => {
   await page.reload();
   await page.locator("#chatList .chat-item").first().waitFor();
 
+  await page.locator("#profileButton").click();
   await page.locator("#appSettings").click();
   await page.waitForFunction(
     () => document.getElementById("preferencesDialog")?.open,
@@ -96,7 +97,7 @@ async (page) => {
     await page
       .locator("#memoryList .memory-item-more")
       .first()
-      .evaluate((node) => node.click());
+      .click();
     await page.waitForFunction(
       () => document.querySelector(".memory-row-menu:popover-open"),
     );
@@ -152,7 +153,7 @@ async (page) => {
 
   await page.setViewportSize({ width: 390, height: 844 });
   if (!(await page.evaluate(() => document.getElementById("preferencesDialog")?.open)))
-    await page.locator("#appSettings").click();
+    { await page.locator("#profileButton").click(); await page.locator("#appSettings").click(); }
   await page.waitForFunction(() => document.getElementById("preferencesDialog")?.open);
   await page.evaluate(() => {
     const dialog = document.getElementById("preferencesDialog");
@@ -175,4 +176,4 @@ async (page) => {
     confirmGuard: true,
     mobileLayout: true,
   };
-};
+}

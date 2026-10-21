@@ -1,5 +1,5 @@
 """Transactional local chat store. Images remain in ComfyUI input/output folders."""
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from contextlib import contextmanager
 import json
 import sqlite3
@@ -107,9 +107,40 @@ class Store:
             result['messages'] = [self._message(r) for r in db.execute('SELECT * FROM messages WHERE chat_id=? ORDER BY created,id',(chat_id,))]
             return result
 
+    def _check_media_reference(self, db, reference):
+        if reference is None or reference == {}:
+            return
+        # A legacy marker carries no filesystem reference.
+        if isinstance(reference, dict) and reference.get('legacy') is True and 'filename' not in reference:
+            return
+        def key(image):
+            # Keep the same canonical path policy as MediaLifecycle, but avoid
+            # importing the UI runtime from the independently installed Store.
+            if not isinstance(image, dict):
+                raise ValueError('图片描述无效。')
+            kind = image.get('type', 'output')
+            name, folder = image.get('filename', ''), image.get('subfolder', '') or ''
+            if kind not in ('input', 'output') or not isinstance(name, str) or not isinstance(folder, str):
+                raise ValueError('图片描述无效。')
+            if not name or name in ('.', '..') or '/' in name or '\\' in name or '\x00' in name:
+                raise ValueError('图片文件名无效。')
+            if '\\' in folder or '\x00' in folder or PurePosixPath(folder).is_absolute() or '..' in folder.split('/'):
+                raise ValueError('图片目录无效。')
+            folder = str(PurePosixPath(folder)) if folder else ''
+            return (kind, '' if folder == '.' else folder, name)
+        # Validate before checking for the additive table: old installations and
+        # prevalidated requests must not introduce an alias that bypasses a tombstone.
+        target = key(reference)
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_deletions'").fetchone():
+            return
+        for row in db.execute('SELECT payload FROM media_deletions'):
+            if any(key(image) == target for image in json.loads(row['payload']).get('images', [])):
+                raise Conflict('这张图片正在删除或已永久删除，请重新选择参考图片。')
+
     def patch(self, chat_id, expected, title=None, draft=None):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            self._check_media_reference(db, (draft or {}).get('reference'))
             row = db.execute('SELECT * FROM chats WHERE id=?',(chat_id,)).fetchone()
             if not row:
                 raise KeyError(chat_id)
@@ -123,6 +154,7 @@ class Store:
     def reserve(self, chat_id, prompt, reference, width, height, steps, client_id, request_key, kind="image", model="", settings=None):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            self._check_media_reference(db, reference)
             duplicate = db.execute('SELECT * FROM messages WHERE request_key=?',(request_key,)).fetchone()
             if duplicate:
                 if duplicate['chat_id'] != chat_id:
@@ -163,6 +195,9 @@ class Store:
         if not fields or not set(fields).issubset(allowed):
             raise ValueError('Invalid fields')
         with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self._check_media_reference(db, json.loads(fields.get('reference_json') or 'null'))
+            self._check_media_reference(db, json.loads(fields.get('image_json') or 'null'))
             row = db.execute('SELECT chat_id FROM messages WHERE id=?',(message_id,)).fetchone()
             if not row:
                 raise KeyError(message_id)
@@ -177,6 +212,8 @@ class Store:
         source = (image.get('subfolder') or '')+'/'+image['filename']
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            try:self._check_media_reference(db,image)
+            except Conflict:return
             if db.execute('SELECT source FROM removed_sources WHERE source=?',(source,)).fetchone(): return
             if db.execute('SELECT id FROM messages WHERE source_key=?',(source,)).fetchone() or any((json.loads(r['image_json']).get('subfolder',''),json.loads(r['image_json']).get('filename'))==(image.get('subfolder',''),image['filename']) for r in db.execute('SELECT image_json FROM messages WHERE image_json IS NOT NULL')):
                 return
@@ -198,6 +235,9 @@ class Store:
 
     def restore(self, chat_id):
         with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_deletions'").fetchone() and db.execute("SELECT 1 FROM media_deletions WHERE id=? AND state!='complete'",('chat:'+chat_id,)).fetchone():
+                raise Conflict('此对话有未完成的永久删除，请先重试原操作。')
             if not db.execute('SELECT id FROM chats WHERE id=?',(chat_id,)).fetchone():
                 raise KeyError(chat_id)
             db.execute('UPDATE chats SET deleted_at=NULL,updated=?,version=version+1,draft_version=draft_version+1 WHERE id=?',(time.time(),chat_id))
@@ -208,14 +248,23 @@ class Store:
             rows=db.execute("SELECT m.*,c.title AS chat_title,c.deleted_at AS chat_deleted FROM messages m JOIN chats c ON c.id=m.chat_id WHERE m.status='completed' AND m.image_json IS NOT NULL AND m.image_deleted=0")
             items=[self._message(r) for r in rows]
             items += [json.loads(r['payload']) for r in db.execute('SELECT payload FROM gallery_archive')]
+        with self.connect() as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='media_trash'").fetchone():
+                hidden={r['id'] for r in db.execute('SELECT id FROM media_trash')}
+                items=[m for m in items if m['id'] not in hidden]
         if search:items=[m for m in items if search.lower() in m['prompt'].lower()]
         items.sort(key=lambda m:(m['created'],m['id']),reverse=True)
         total=len(items);page=items[offset:offset+limit]
         return {'items':page,'total':total,'next_offset':offset+len(page) if offset+len(page)<total else None}
 
+    def _check_legacy_deletion(self, db):
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('media_trash','media_deletions') LIMIT 1").fetchone():
+            raise Conflict('数据已升级，请在 8190 端口的 HanzAgent 新版界面执行删除。')
+
     def delete_gallery(self, message_id):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            self._check_legacy_deletion(db)
             row=db.execute('SELECT * FROM messages WHERE id=? AND image_json IS NOT NULL AND image_deleted=0',(message_id,)).fetchone()
             archived=db.execute('SELECT payload FROM gallery_archive WHERE id=?',(message_id,)).fetchone()
             if not row and not archived:raise KeyError(message_id)
@@ -232,6 +281,7 @@ class Store:
     def purge(self, chat_id):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            self._check_legacy_deletion(db)
             chat=db.execute('SELECT * FROM chats WHERE id=?',(chat_id,)).fetchone()
             if not chat:raise KeyError(chat_id)
             if chat['deleted_at'] is None:raise Conflict('只能永久删除回收站里的对话。')
@@ -251,5 +301,5 @@ class Store:
             db.execute('DELETE FROM chats WHERE id=?',(chat_id,))
             # MemoryStore is optional for installations that predate this feature.
             if db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_memory'").fetchone():
-                db.execute('DELETE FROM user_memory WHERE chat_id=?',(chat_id,))
+                db.execute('UPDATE user_memory SET chat_id=NULL,message_id=NULL WHERE chat_id=?',(chat_id,))
         return {'deleted':True,'images_retained':True}
