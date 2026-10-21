@@ -3,9 +3,16 @@ import time
 from storage import Conflict, _ensure_pin_schema, _pin_row
 
 
+def _expected_pin_version(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("固定版本无效。")
+    return value
+
+
 def set_pin(store, chat_id, pinned, expected_version):
     if not isinstance(pinned, bool):
         raise ValueError("Invalid pin state.")
+    expected_version = _expected_pin_version(expected_version)
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
         _ensure_pin_schema(db)

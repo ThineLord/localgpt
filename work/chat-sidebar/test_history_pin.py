@@ -42,6 +42,24 @@ class PinMetadataTests(unittest.TestCase):
             self.assertEqual(after["version"], version["version"])
             self.assertEqual(after["draft_version"], version["draft_version"])
 
+    def test_reads_do_not_initialize_pin_schema(self):
+        storage = sys.modules["storage"]
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "ready.sqlite3")
+            chat = store.create("Ready")
+            def forbidden(_db):
+                raise AssertionError("pin schema init does not belong on read")
+            original = storage._ensure_pin_schema
+            storage._ensure_pin_schema = forbidden
+            try:
+                listed = store.chats()
+                full = store.chat(chat["id"])
+            finally:
+                storage._ensure_pin_schema = original
+            self.assertIs(listed[0]["pinned"], False)
+            self.assertIs(full["pinned"], False)
+            self.assertEqual(full["pin_version"], 0)
+
 
 class PinAPITests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -104,7 +122,47 @@ class PinAPITests(unittest.IsolatedAsyncioTestCase):
         restored = await self.client.post(url + "/restore", json={})
         self.assertEqual(restored.status, 200)
         again = await (await self.client.get("/qwen-cn/chats")).json()
-        self.assertTrue(again[0]["pinned"])
+        self.assertIs(again[0]["pinned"], True)
+        self.assertEqual(again[0]["pin_version"], 1)
+        detail = await (await self.client.get(url)).json()
+        self.assertIs(detail["pinned"], True)
+        self.assertEqual(detail["pin_version"], 1)
+
+    async def test_pin_rejects_non_boolean_and_bad_version(self):
+        chat = await self.create()
+        url = f"/qwen-cn/chats/{chat['id']}/pin"
+        for body in (
+            {"pinned": 1, "pin_version": 0},
+            {"pinned": "true", "pin_version": 0},
+            {"pinned": False, "pin_version": True},
+            {"pinned": False, "pin_version": 1.5},
+            {"pinned": False, "pin_version": -1},
+        ):
+            response = await self.client.patch(url, json=body)
+            self.assertEqual(response.status, 400, body)
+        missing = await self.client.patch(url, json={"pinned": True})
+        self.assertEqual(missing.status, 400)
+
+    async def test_deleted_chat_cannot_be_pinned_and_restore_keeps_pin(self):
+        chat = await self.create()
+        url = f"/qwen-cn/chats/{chat['id']}"
+        before = self.core.STORE.chat(chat["id"])
+        await self.client.patch(url, json={"version": before["draft_version"], "draft": {"prompt": "keep"}})
+        drafted = self.core.STORE.chat(chat["id"])
+        pinned = await self.client.patch(url + "/pin", json={"pinned": True, "pin_version": 0})
+        self.assertEqual(pinned.status, 200)
+        after_pin = self.core.STORE.chat(chat["id"])
+        self.assertEqual(after_pin["draft"], {"prompt": "keep"})
+        self.assertEqual(after_pin["draft_version"], drafted["draft_version"])
+        self.assertEqual(after_pin["version"], drafted["version"])
+        await self.client.delete(url, json={})
+        denied = await self.client.patch(url + "/pin", json={"pinned": False, "pin_version": 1})
+        self.assertEqual(denied.status, 400)
+        restored = await self.client.post(url + "/restore", json={})
+        self.assertEqual(restored.status, 200)
+        body = await restored.json()
+        self.assertIs(body["pinned"], True)
+        self.assertEqual(body["pin_version"], 1)
 
     async def test_purge_removes_pin_metadata(self):
         chat = await self.create()

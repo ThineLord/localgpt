@@ -82,9 +82,9 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
-body { overflow: hidden; background: var(--sidebar); }
-body.sidebar-open { --main-inset: var(--sidebar-width); --main-radius: 0 16px 0 0; --main-clip: inset(0 0 0 -16px round 16px); }
-body:not(.sidebar-open) { --main-clip: inset(0 round var(--main-radius)); }
+body { overflow: hidden; background: var(--sidebar); --main-clip: inset(0 round var(--main-radius)); }
+/* Pinned corners: square left, 16px top-right, square bottom-right. Collapsed keeps four 16px corners. */
+body.sidebar-open { --main-inset: var(--sidebar-width); --main-radius: 0 16px 0 0; }
 [hidden] { display: none !important; }
 button, input, select, textarea, summary, a { font: inherit; }
 button, summary { cursor: pointer; }
@@ -154,7 +154,7 @@ svg {
 .chat-list { display:flex; flex-direction:column; gap:2px; flex:1; min-height:0; overflow:auto; padding:0 8px 16px; }
 .shell { position:relative; isolation:isolate; height:100dvh; margin-left:var(--main-inset); display:flex; flex-direction:column; min-width:0; background:var(--canvas); }
 /* One boundary contract for all full-size application surfaces. */
-.shell, .app-surface, #imageDialog, #preferencesDialog.settings-surface .settings-page { clip-path:var(--main-clip, inset(0 round var(--main-radius))); }
+.shell, .app-surface, #imageDialog, #preferencesDialog.settings-surface .settings-page { clip-path:inset(0 round var(--main-radius)); }
 .sidebar-open #headerNewChat { display:none; }
 .profile-menu, #appearanceMenu { padding:10px; }
 .profile-summary { display:flex; align-items:center; gap:10px; padding:10px; font-size:14px; border-bottom:1px solid var(--line); margin-bottom:4px; }
@@ -237,6 +237,8 @@ svg {
 .workspace:has(#intro:not([hidden])) { justify-content: flex-start; }
 /* Preserve the empty-state vertical anchor after the52px header became an overlay. */
 .intro { width:min(var(--composer-width), calc(100% - 32px)); margin:0 auto; text-align: center; padding: max(152px, calc(40dvh - 72px)) 8px 54px; }
+/* The welcome heading was a 28px line box. Keep that strut so the composer anchor does not jump. */
+.intro-copy { min-height: 28px; }
 .suggestions { display: none; }
 
 /* Messages */
@@ -686,6 +688,7 @@ dialog {
 dialog::backdrop { background: var(--backdrop); }
 .preferences-dialog.settings-surface {
   position: fixed;
+  z-index: 20;
   inset: 0 0 0 var(--main-inset);
   width: calc(100vw - var(--main-inset));
   max-width: none;
@@ -701,7 +704,7 @@ dialog::backdrop { background: var(--backdrop); }
 }
 .preferences-dialog.settings-surface::backdrop { background:transparent; }
 .settings-layout { display:block; height:100%; }
-.settings-page { width:100%; height:100%; min-width:0; display:grid; grid-template-columns:var(--settings-nav-width) minmax(0,1fr); grid-template-rows:52px minmax(0,1fr); background:var(--canvas); }
+.settings-page { position:relative; width:100%; height:100%; min-width:0; display:grid; grid-template-columns:var(--settings-nav-width) minmax(0,1fr); grid-template-rows:52px minmax(0,1fr); background:var(--canvas); }
 .settings-layout-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; padding: 0 8px 0 16px; border-right: 1px solid var(--line); }
 .settings-layout-header h2 { flex: 1; margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .settings-layout-body { display: contents; }
@@ -873,8 +876,9 @@ dialog button.primary, #saveMemory {
   .settings-panels { grid-column:1; grid-row:2; padding:32px 20px; }
   .settings-panel-title { display:none; }
   .settings-nav { display:none; }
-  .settings-nav-open .settings-nav { display:block; position:absolute; z-index:3; top:52px; bottom:0; left:52px; width:min(280px,calc(100vw - 100px)); background:var(--canvas); border:0; border-radius:0 16px 16px 0; }
-  .settings-nav-open .settings-nav-shade { display:block; position:absolute; z-index:2; inset:52px 0 0; background:var(--backdrop); border-radius:0; }
+  .settings-layout-header .mobile-menu { display:grid; }
+  .settings-nav-open .settings-nav { display:block; position:absolute; z-index:3; top:52px; bottom:0; left:0; width:min(var(--settings-nav-width), calc(100vw - 48px)); background:var(--canvas); border:0; border-right:1px solid var(--line); border-radius:0 16px 16px 0; box-shadow:var(--floating-shadow); }
+  .settings-nav-open .settings-nav-shade { display:block; position:absolute; z-index:2; inset:52px 0 0 0; background:var(--backdrop); border-radius:0; }
   #settingsPanelAppearance .settings-row { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:12px; min-height:108px; padding:8px 16px; }
   .theme-preview { width:80px; height:60px; }
   @media (max-width:350px) { .theme-preview { width:66px; } .themes { gap:8px; } }

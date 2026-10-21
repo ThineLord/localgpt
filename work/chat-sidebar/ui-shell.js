@@ -196,7 +196,7 @@
   }
   function show(button){
     hide();
-    if(button.disabled||button.getAttribute('aria-expanded')==='true'||document.querySelector('dialog[open]'))return;
+    if(button.disabled||button.getAttribute('aria-expanded')==='true'||document.querySelector('dialog[open]:not(#preferencesDialog)'))return;
     const text=button.getAttribute('aria-label');if(!text)return;
     owner=button;previousDescription=button.getAttribute('aria-describedby');
     button.setAttribute('aria-describedby',[previousDescription,tip.id].filter(Boolean).join(' '));
