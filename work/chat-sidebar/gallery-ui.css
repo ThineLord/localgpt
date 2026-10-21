@@ -4,58 +4,20 @@
 #galleryGrid.gallery-grid--hanz {
   --gallery-gap: 12px;
   box-sizing: border-box;
+  position: relative;
   width: 100%;
   margin: 0;
   padding: 0 0 24px;
-  container-type: inline-size;
-  container-name: gallery;
-  display: grid;
-  gap: var(--gallery-gap);
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  align-items: start;
-}
-
-/* Adapter approximations (not measured); map to @sm2 / @xl3 / @3xl4 / @5xl5 / @7xl6 naming. */
-@container gallery (min-width: 384px) {
-  #galleryView #galleryGrid.gallery-grid--hanz,
-  #galleryGrid.gallery-grid--hanz {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@container gallery (min-width: 576px) {
-  #galleryView #galleryGrid.gallery-grid--hanz,
-  #galleryGrid.gallery-grid--hanz {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@container gallery (min-width: 768px) {
-  #galleryView #galleryGrid.gallery-grid--hanz,
-  #galleryGrid.gallery-grid--hanz {
-    --gallery-gap: 16px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@container gallery (min-width: 1024px) {
-  #galleryView #galleryGrid.gallery-grid--hanz,
-  #galleryGrid.gallery-grid--hanz {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
-
-@container gallery (min-width: 1280px) {
-  #galleryView #galleryGrid.gallery-grid--hanz,
-  #galleryGrid.gallery-grid--hanz {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
+  min-height: 1px;
 }
 
 #galleryView .gallery-tile,
 #galleryGrid.gallery-grid--hanz .gallery-tile {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 #galleryView .gallery-card,
