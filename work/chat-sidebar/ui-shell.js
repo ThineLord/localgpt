@@ -101,7 +101,7 @@
 
   const attachment=new Menu($('upload'),$('attachmentMenu'),()=>{
     const definitions=[
-      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M21.44 11.05 12 20.49a6.5 6.5 0 0 1-9.19-9.19l9.36-9.36a4.5 4.5 0 0 1 6.36 6.36L8.46 18.07a2.5 2.5 0 0 1-3.54-3.54l8.84-8.84"/>',()=>$('file').click()],
+      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M8 8v9a4 4 0 0 0 8 0V6a3 3 0 0 0-6 0v10a1 1 0 0 0 2 0V8"/>',()=>$('file').click()],
       ['attach-image-mode',tr('创建图片','Create image'),'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/>',()=>{mode.value='image';changed(mode);focus($('prompt'));}],
       ['attach-generation',tr('生成与对话参数','Generation and chat settings'),'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',()=>window.LiquidLayers.openSettings()],
     ];

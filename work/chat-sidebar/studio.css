@@ -9,6 +9,7 @@
   --composer-bg: #ffffff;
   --composer-border: #e8e8e8;
   --row-hover: rgb(0 0 0 / 5%);
+  --attachment-row-hover: var(--row-hover);
   --ink: #0d0d0d;
   --ink-secondary: #6b6b6b;
   --line: #e6e6e6;
@@ -43,6 +44,7 @@
   --composer-bg: #212121;
   --composer-border: transparent;
   --row-hover: #373737;
+  --attachment-row-hover: #383838;
   --ink: #ededed;
   --ink-secondary: #a3a3a3;
   --line: #262626;
@@ -584,10 +586,10 @@ svg {
   color: var(--ink);
   box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
 }
-#attachmentMenu {
+.attachment-menu {
+  --menu-item-inset: 8px;
+  --menu-item-radius: 12px;
   padding: 7px;
-  border-radius: 20px;
-  background: var(--surface-elevated);
 }
 .attachment-menu-item,
 .model-menu-item {
@@ -596,23 +598,17 @@ svg {
   width: 100%;
   min-height: 36px;
   gap: 12px;
-  padding: 0 12px;
-  border-radius: 10px;
+  padding: 0 var(--menu-item-inset, 12px);
+  border-radius: var(--menu-item-radius, 10px);
   font-size: 14px;
   line-height: 20px;
   text-align: left;
 }
-#attachmentMenu .attachment-menu-item {
-  min-height: 36px;
-  padding: 0 8px;
-  border-radius: 12px;
+.attachment-menu-item:focus,
+.attachment-menu-item:hover {
+  background: var(--attachment-row-hover);
 }
-#attachmentMenu .attachment-menu-item:focus,
-#attachmentMenu .attachment-menu-item:hover,
-#attachmentMenu .attachment-menu-item:focus-visible {
-  background: #383838;
-}
-#attachmentMenu .attachment-menu-item:focus-visible {
+.attachment-menu-item:focus-visible {
   outline: none;
 }
 .model-menu-item:hover,
