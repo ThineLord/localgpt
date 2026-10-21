@@ -8,6 +8,11 @@ async page => {
   await page.setViewportSize({width:1440,height:900});
   await page.goto(base+'/qwen-cn/');
   await page.locator('#intro').waitFor({state:'visible'});
+  if(await page.locator('#sidebarToggle').getAttribute('aria-expanded')==='true')await page.locator('#sidebarToggle').click();
+  for(const [id,y] of [['sidebarToggle',8],['newChat',60],['galleryNav',112]]){
+    const r=await page.locator('#'+id).boundingBox();
+    check(r.x===8&&r.y===y&&r.width===36&&r.height===36,'Rail geometry: '+id);
+  }
   const before=await count();
   await page.locator('#newChat').click();await page.locator('#newChat').click();
   check(await count()===before,'Untouched new chats created history rows');

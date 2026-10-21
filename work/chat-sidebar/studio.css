@@ -126,7 +126,7 @@ svg {
   flex-direction: column;
   padding: 0 8px 10px;
   background: var(--sidebar);
-  border-right: 1px solid var(--line);
+  box-shadow: inset -1px 0 var(--line);
   overflow: hidden;
 }
 .sidebar-open .sidebar {
