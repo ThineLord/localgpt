@@ -9,6 +9,8 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 ROOT = pathlib.Path(__file__).parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 for name in ("storage", "runtime"):
     spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)
@@ -152,7 +154,8 @@ class PinAPITests(unittest.IsolatedAsyncioTestCase):
         pinned = await self.client.patch(url + "/pin", json={"pinned": True, "pin_version": 0})
         self.assertEqual(pinned.status, 200)
         after_pin = self.core.STORE.chat(chat["id"])
-        self.assertEqual(after_pin["draft"], {"prompt": "keep"})
+        self.assertEqual(after_pin["draft"]["prompt"], "keep")
+        self.assertEqual(after_pin["draft"], drafted["draft"])
         self.assertEqual(after_pin["draft_version"], drafted["draft_version"])
         self.assertEqual(after_pin["version"], drafted["version"])
         await self.client.delete(url, json={})

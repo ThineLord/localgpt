@@ -292,8 +292,10 @@ async (page) => {
   await page.request.patch(base + `/qwen-cn/chats/${target.id}/pin`, {
     data: { pinned: true, pin_version: target.pin_version ?? 0 },
   });
+  await page.goto(base + "/qwen-cn/");
+  await page.locator("#prompt").waitFor();
   await page.locator("#homeNav").hover();
-  await page.waitForTimeout(200);
+  await page.locator(".sidebar-label").filter({ hasText: /固定|Pinned/ }).first().waitFor();
   check(
     (await page.locator(".sidebar-label").filter({ hasText: /固定|Pinned/ }).count()) >= 1,
     "Pinned group heading",

@@ -129,6 +129,9 @@
       close(dialog);
     });
     dialog.addEventListener("close", sync);
+    dialog.addEventListener("beforetoggle", (event) => {
+      if (event.newState === "closed") sync();
+    });
     dialog.addEventListener("pointerdown", (event) => {
       if (event.target !== dialog) return;
       const r = dialog.getBoundingClientRect();
