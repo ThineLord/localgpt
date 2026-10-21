@@ -206,7 +206,7 @@ svg {
 /* Header + workspace */
 /* Only actionable chrome overlays the scroll view; title remains in the browser tab. */
 .shell > header { position:absolute; z-index:4; inset:0 0 auto; height:var(--header); display:flex; align-items:center; gap:8px; padding:0 8px 0 12px; pointer-events:none; }
-.shell > header > button, .header-actions { pointer-events:auto; }
+.shell > header > button, .header-actions, #chatActionsMenu { pointer-events:auto; }
 .shell > header .chrome-button { background:var(--canvas); }
 .shell > header .chrome-button:hover { background:var(--selected); }
 .chat-heading { flex:1; min-width:0; }

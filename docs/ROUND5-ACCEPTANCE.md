@@ -46,3 +46,10 @@ the integrated PR, not the Cloud self-report.
 Reproduce synthetic fixtures: build the frontend, run tools/round5_demo.py
 --port8194, then execute the round5 shell/gallery/scroll Playwright functions.
 The standalone gallery harness requires a locally available Playwright package.
+
+GitHub automated review found inherited pointer-events disabling the header menu.
+The menu now explicitly accepts pointer events; mouse rename persistence and
+mouse/touch delete confirmation plus touch rename are covered by
+round5_header_actions_acceptance.js. A separate Chrome run with Playwright's
+scrollbar-hiding launch flag removed verified the native thin scrollbar is
+visible at the far right and can be dragged (scrollTop advanced to1406).
