@@ -830,11 +830,7 @@ function icon(name) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 }
 function messageAction(button, name, label) {
-  button.classList.add("message-action");
-  button.dataset.actionIcon = name;
-  button.innerHTML = icon(name) + '<span class="sr-only">' + escapeHTML(t(label)) + "</span>";
-  button.title = t(label);
-  button.setAttribute("aria-label", t(label));
+  LocalMessageActions.configureAction(button, name, t(label));
 }
 function render(force = false) {
   if (view !== "chat") return;
@@ -889,10 +885,32 @@ function render(force = false) {
     entry.dataset.renderKey = key;
     entry.className = "entry";
     entry.dataset.messageId = m.id;
+    const userShell = document.createElement("div");
+    userShell.className = "user-message-shell";
     const prompt = document.createElement("p");
     prompt.className = "user-message";
     prompt.textContent = m.prompt;
-    entry.append(prompt);
+    userShell.append(prompt);
+    if (
+      (m.kind === "chat" || m.kind === "routing") &&
+      !["submitting", "running"].includes(m.status)
+    ) {
+      const userActions = document.createElement("div");
+      userActions.className = "message-actions";
+      const userEdit = document.createElement("button");
+      userEdit.type = "button";
+      userEdit.className = "action edit-result";
+      messageAction(userEdit, "edit", "编辑后重发");
+      userEdit.disabled = busy;
+      userEdit.onclick = () => {
+        showDraft({ ...m.settings, prompt: m.prompt, reference: m.reference });
+        scheduleSave();
+        $("prompt").focus();
+      };
+      userActions.append(userEdit);
+      userShell.append(userActions);
+    }
+    entry.append(userShell);
     if (m.status === "completed" || m.status === "stopped") {
       const remember = document.createElement("button");
       remember.type = "button";
@@ -939,11 +957,11 @@ function render(force = false) {
       stage.append(full);
       result.append(stage);
       const actions = document.createElement("div");
-      actions.className = "actions";
+      actions.className = "message-actions";
       const edit = document.createElement("button");
       edit.type = "button";
       edit.className = "action edit-result";
-      edit.innerHTML = icon("edit") + t("继续修改");
+      messageAction(edit, "edit", "继续修改");
       edit.disabled = busy;
       edit.onclick = () => {
         if (busy) return;
@@ -960,8 +978,7 @@ function render(force = false) {
           subfolder: m.image.subfolder || "",
         });
       dl.download = m.image.filename;
-      dl.innerHTML = icon("download") + t("保存");
-      dl.setAttribute("aria-label", t("保存图片"));
+      messageAction(dl, "download", "保存图片");
       actions.append(dl);
       result.append(actions);
       entry.append(result);
@@ -1989,8 +2006,11 @@ async function copyText(text, button) {
   try {
     await navigator.clipboard.writeText(text);
     if (button.classList.contains("message-action")) {
-      messageAction(button, "check", "已复制");
-      setTimeout(() => messageAction(button, "copy", "复制"), 1400);
+      LocalMessageActions.refreshAction(button, "check", t("已复制"));
+      setTimeout(
+        () => LocalMessageActions.refreshAction(button, "copy", t("复制")),
+        1400,
+      );
     } else {
       button.textContent = t("已复制");
       setTimeout(() => (button.textContent = t("复制")), 1400);
@@ -2037,7 +2057,7 @@ function renderAnswer(entry, m) {
   }
   if (!["submitting", "running"].includes(m.status)) {
     const actions = document.createElement("div");
-    actions.className = "actions";
+    actions.className = "message-actions";
     if (m.answer) {
       const copy = document.createElement("button");
       copy.className = "action";
@@ -2058,17 +2078,7 @@ function renderAnswer(entry, m) {
         reference: m.reference,
         mode: m.kind === "chat" ? "chat" : m.settings.mode,
       });
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "action edit-result";
-    messageAction(edit, "edit", "编辑后重发");
-    edit.disabled = busy;
-    edit.onclick = () => {
-      showDraft({ ...m.settings, prompt: m.prompt, reference: m.reference });
-      scheduleSave();
-      $("prompt").focus();
-    };
-    actions.append(retry, edit);
+    actions.append(retry);
     answer.append(actions);
   }
   entry.append(answer);
