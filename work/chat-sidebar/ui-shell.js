@@ -124,27 +124,14 @@
   addEventListener('liquidlayerchange',()=>{for(const menu of controllers)menu.close(false);});
 
   const profile = new Menu($('profileButton'),$('profileMenu'),null,$('profileButton'),228,8);
-  const appearance = new Menu($('profileAppearance'),$('appearanceMenu'),()=>{
-    const root=$('appearanceMenu');root.replaceChildren();
-    const back=document.createElement('button');back.type='button';back.setAttribute('role','menuitem');back.textContent=tr('‹ 用户菜单','‹ User menu');
-    back.onclick=()=>{appearance.close(false);profile.show();focus($('profileAppearance'));};root.append(back);
-    for(const [value,zh,en] of [['system','跟随系统','System'],['light','浅色','Light'],['dark','深色','Dark']]) {
-      const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(themePreference===value));b.textContent=tr(zh,en);
-      b.onclick=()=>{applyTheme(value,true);appearance.close(false);focus($('profileButton'));};root.append(b);
-    }
-  },$('profileButton'),228,8);
-  for(const menu of [profile,appearance])menu.place=()=>{
-    const r=$('profileButton').getBoundingClientRect(),p=menu.panel;
+  profile.place=()=>{
+    const r=$('profileButton').getBoundingClientRect(),p=profile.panel;
     p.style.inset='auto';p.style.width=Math.min(228,innerWidth-24)+'px';p.style.maxHeight=(innerHeight-24)+'px';
     const b=p.getBoundingClientRect();p.style.left=Math.min(r.right+5,innerWidth-b.width-12)+'px';
     p.style.top=Math.max(12,Math.min(r.bottom-b.height,innerHeight-b.height-8))+'px';
   };
-  $('appearanceMenu').addEventListener('keydown',e=>{if(e.key==='ArrowLeft'){e.preventDefault();appearance.close(false);profile.show();focus($('profileAppearance'));}});
-  $('profileAppearance').addEventListener('keydown',e=>{if(e.key==='ArrowRight'){e.preventDefault();appearance.show();}});
-  $('appSettings').addEventListener('click',()=>profile.close(false),{capture:true});
-  $('profileMemory').onclick=()=>{profile.close(false);$('memoryNav').click();};
-  $('profileAvatar').onclick=()=>{profile.close(false);$('appSettings').click();section('profile');};
-  $('profileAbout').onclick=()=>{profile.close(false);$('appSettings').click();if(tabs.some(b=>b.dataset.settingsSection==='about'))section('about');};
+  $('appSettings').addEventListener('click',()=>{profile.close(false);window.AppShell?.openSettings('general',$('appSettings'));},{capture:true});
+  $('profileAbout').addEventListener('click',()=>{profile.close(false);window.AppShell?.openSettings(tabs.some(b=>b.dataset.settingsSection==='about')?'about':'general',$('profileAbout'));},{capture:true});
   const dialog=$('preferencesDialog'), nav=$('settingsNav'), toggle=$('settingsBack');
   const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
   const tabs=[...nav.querySelectorAll('[data-settings-section]')];
@@ -157,7 +144,7 @@
     dialog.classList.toggle('settings-nav-open',open);
     toggle.setAttribute('aria-expanded',String(open));$('settingsNavShade').hidden=!open;
     if(innerWidth<=760){
-      nav.inert=!open;dialog.querySelector('.settings-rail').inert=!open;
+      nav.inert=!open;
       dialog.querySelector('.settings-panels').inert=open;
     }
     title();
@@ -185,14 +172,11 @@
   dialog.addEventListener('keydown',e=>{
     if(e.key==='Escape'&&dialog.classList.contains('settings-nav-open')){e.preventDefault();e.stopPropagation();drawer(false);}
   });
-  for(const button of dialog.querySelectorAll('[data-settings-route]'))button.onclick=async()=>{
-    await window.LiquidLayers.close(dialog);if(button.dataset.settingsRoute!=='close')$(button.dataset.settingsRoute).click();
-  };
   $('openGenerationSettings').onclick=async()=>{await window.LiquidLayers.close(dialog);window.LiquidLayers.openSettings();};
   function responsive(){
     const mobile=innerWidth<=760;title();
-    if(!mobile){nav.inert=false;dialog.querySelector('.settings-rail').inert=false;dialog.querySelector('.settings-panels').inert=false;}
-    else if(!dialog.classList.contains('settings-nav-open')){nav.inert=true;dialog.querySelector('.settings-rail').inert=true;}
+    if(!mobile){nav.inert=false;dialog.querySelector('.settings-panels').inert=false;}
+    else if(!dialog.classList.contains('settings-nav-open')){nav.inert=true;}
   }
   addEventListener('hanzlanguage',title);
   section('general');responsive();addEventListener('resize',responsive,{passive:true});

@@ -16,6 +16,7 @@ from media_lifecycle import MediaLifecycle
 from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
+from history_metadata import install as install_history_metadata
 
 
 def backup_before_migration(database):
@@ -198,6 +199,7 @@ def install(app, backend, database, input_root, output_root):
         if data.get('confirm') is not True:raise ValueError('需要确认清空记忆。')
         memory.clear();return reply({'deleted':True})
 
+    install_history_metadata(store, routes, mutate, reply)
     app.add_routes(routes)
     async def cleanup(app):
         yield

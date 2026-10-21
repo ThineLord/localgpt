@@ -348,11 +348,7 @@
   confirm.addEventListener("cancel", (e) => {
     if (pending) e.preventDefault();
   });
-  el("appSettings").onclick = () => {
-    LiquidLayers.closeSettings({ focus: false });
-    LiquidLayers.open(prefs, el("appSettings"));
-  };
-  el("closePreferences").onclick = () => LiquidLayers.close(prefs);
+  el("closePreferences").onclick = () => window.AppShell?.closeSettings();
   el("closeMemory").onclick = () =>
     LiquidLayers.close(memory, { cascade: true });
   el("backMemory").onclick = () => LiquidLayers.close(memory);
@@ -625,6 +621,10 @@
     }
   }
   el("memoryNav").onclick = () => showMemory(null, el("preferencesDialog").open ? el("memoryNav") : el("profileButton"));
+  if (window.AppShell) {
+    window.AppShell.openMemory = (origin) =>
+      showMemory(null, origin || el("memoryNav"));
+  }
   el("cancelMemoryEdit").onclick = closeMemoryEditor;
   el("memoryForm").onsubmit = async (e) => {
     e.preventDefault();

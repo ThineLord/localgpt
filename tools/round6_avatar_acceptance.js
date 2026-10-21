@@ -4,7 +4,7 @@ async(page)=>{
  const check=(x,m)=>{if(!x)throw Error(m)},meta=async()=>(await(await page.request.get(base+'/qwen-cn/profile')).json());
  let m=await meta();if(m.avatar_url)await page.request.delete(base+'/qwen-cn/profile/avatar',{headers:{'If-Match':'"'+m.version+'"'}});
  await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.reload();
- const open=async()=>{await page.locator('#profileButton').click();await page.locator('#profileAvatar').click();await page.waitForFunction(()=>!document.getElementById('chooseAvatar').disabled);};
+ const open=async()=>{await page.locator('#profileButton').click();await page.locator('#appSettings').click();await page.locator('[data-settings-section="profile"]').click();await page.waitForFunction(()=>!document.getElementById('chooseAvatar').disabled);};
  const encoded=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=96;const x=c.getContext('2d');x.fillStyle='#9cbcb0';x.fillRect(0,0,96,96);x.fillStyle='#233c35';x.beginPath();x.arc(48,48,26,0,Math.PI*2);x.fill();return c.toDataURL('image/png').split(',')[1];});
  const file={name:'synthetic-avatar.png',mimeType:'image/png',buffer:Buffer.from(encoded,'base64')};
  await open();await page.locator('#avatarFile').setInputFiles(file);await page.locator('#avatarPreview img').waitFor();

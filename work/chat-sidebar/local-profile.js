@@ -66,8 +66,7 @@
     finally { working = false; render(); }
   };
   $('preferencesDialog').addEventListener('close', () => { if (!working) { clear(); say(''); } });
-  $('profileAvatar').addEventListener('click', refresh);
-  document.querySelector('[data-settings-section="profile"]').addEventListener('click', refresh);
+  document.querySelector('[data-settings-section="profile"]')?.addEventListener('click', refresh);
   addEventListener('focus', refresh);
   if (channel) channel.onmessage = refresh;
   addEventListener('hanzlanguage', render);
