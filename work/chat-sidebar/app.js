@@ -1098,6 +1098,7 @@ async function newChat() {
   $("newChat").disabled = true;
   try {
     if (!(await saveDraft())) return;
+    await window.AppShell?.leaveSettingsForNavigation?.();
     ++navigationVersion;
     current = null;
     dirty = false;
@@ -1214,7 +1215,7 @@ function syncSidebar() {
   $('sidebarToggle').setAttribute('aria-pressed', String(pinned));
   $('sidebarToggle').ariaLabel = t(pinned ? '收起侧边栏' : '固定侧边栏');
   $('mobileMenu').setAttribute('aria-expanded', String(pinned));
-  $('mainContent').inert = pinned && innerWidth <= 760;
+  $('mainContent').inert = (pinned && innerWidth <= 760) || document.body.classList.contains('settings-surface-open');
   $('sidebar').inert = !visible && innerWidth <= 760;
   $('historyPanel').inert = !visible;
 }
@@ -1252,6 +1253,10 @@ document.addEventListener('pointerdown',e => {
 });
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('sidebar-temporary')) {
+    const modal = e.target.closest?.('dialog[open]');
+    if (modal && modal.id !== 'preferencesDialog') return;
+    e.preventDefault();
+    e.stopPropagation();
     temporarySidebar(false); $('homeNav').focus();
   }
 });
@@ -1884,7 +1889,8 @@ for (const id of [
     scheduleSave();
   });
 $("prompt").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     if (!busy) $("form").requestSubmit();
   }
@@ -2185,15 +2191,21 @@ document.addEventListener("pointerdown", (e) => {
     LiquidLayers.closeSettings({ focus: false });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.defaultPrevented || e.target.closest?.("dialog[open]")) return;
+  const modal = e.target.closest?.("dialog[open]");
+  const settingsPage = modal?.id === "preferencesDialog";
+  if (e.defaultPrevented || (modal && !settingsPage)) return;
+  if (settingsPage && e.key !== "Escape") return;
   if (e.key === "Escape" && settings.open) {
     e.preventDefault();
+    e.stopPropagation();
     closeSettings();
     return;
   }
   const sidebarModal =
     innerWidth <= 760 && document.body.classList.contains("sidebar-open");
   if (e.key === "Escape" && sidebarModal) {
+    e.preventDefault();
+    e.stopPropagation();
     setSidebar(false);
     return;
   }
@@ -2224,6 +2236,7 @@ matchMedia("(max-width:760px)").addEventListener("change", () => {
   setSidebar(innerWidth > 760 && pinned);
   settings.open = false;
 });
+addEventListener("appshell-surface", syncSidebar);
 window.addEventListener("resize", () => {
   document.querySelectorAll(".chat-row-menu:popover-open").forEach(menu => menu.hidePopover());
   syncSidebar();

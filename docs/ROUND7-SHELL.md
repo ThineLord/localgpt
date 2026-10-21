@@ -3,13 +3,16 @@
 ## Navigation contract
 
 - **Single rail:** `#sidebar .app-rail` is the only application navigation rail. Settings no longer renders a duplicate `.settings-rail`.
-- **Settings surface:** `#preferencesDialog` is positioned on the main surface (`inset: 0 0 0 var(--main-inset)`), sharing clip tokens with chat/gallery (`--main-clip`, `--canvas`, `--sidebar`).
+- **Settings surface:** `#preferencesDialog` is a page layer on the main surface (`inset: 0 0 0 var(--main-inset)`), opened with `dialog.show()` so the shared rail stays active. It is not a modal. Nested Memory and confirm dialogs stay modal. The same `#sidebar .app-rail` node is used on every page.
+- **Corners:** collapsed/temporary clip is `inset(0 round 16px)`. Pinned radius is `0 16px 0 0` (square left, 16px top-right, square bottom-right). Mobile is square. Temporary sidebar does not change `--main-inset`.
 - **AppShell API** (`app-shell.js`, `window.AppShell`):
-  - `openSettings(section?, origin?)` — opens settings and optionally selects a tab (`general`, `profile`, `appearance`, `memory`, `about`, …).
-  - `closeSettings()` — closes the settings dialog.
-  `leaveSettingsForNavigation()` — closes settings before chat/gallery navigation.
-  - `openMemory(origin?)` — registered from `workspace.js`; opens the Memory nested dialog without duplicating rail chrome.
-  - Event `appshell-settings-section` — detail is the settings section id; `ui-shell.js` listens and activates the tab.
+  - `openSettings(section?, origin?)` — opens the settings page and optionally selects a tab (`general`, `profile`, `appearance`, `memory`, `about`, …).
+  - `closeSettings()` — returns a Promise that resolves after the page is closed and focus is restored.
+  - `leaveSettingsForNavigation()` — returns that same close Promise; chat/gallery navigation awaits it.
+  - `registerOpenMemory(fn)` — registers the Memory opener. `workspace.js` may call this, or assign `window.AppShellRegistrations.openMemory`, before `app-shell.js` runs.
+  - `openMemory(origin?)` — opens the registered Memory dialog without duplicating rail chrome.
+  - Event `appshell-settings-section` — detail is the settings section id; the shell activates that tab.
+  - Event `appshell-surface` — sidebar sync reads settings-open state from this signal.
 
 Role B should call `AppShell.openSettings('memory')` or `AppShell.openMemory(button)` instead of building a second rail.
 

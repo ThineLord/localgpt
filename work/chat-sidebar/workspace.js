@@ -621,10 +621,10 @@
     }
   }
   el("memoryNav").onclick = () => showMemory(null, el("preferencesDialog").open ? el("memoryNav") : el("profileButton"));
-  if (window.AppShell) {
-    window.AppShell.openMemory = (origin) =>
-      showMemory(null, origin || el("memoryNav"));
-  }
+  const openMemoryFromShell = (origin) => showMemory(null, origin || el("memoryNav"));
+  window.AppShellRegistrations = window.AppShellRegistrations || {};
+  window.AppShellRegistrations.openMemory = openMemoryFromShell;
+  window.AppShell?.registerOpenMemory?.(openMemoryFromShell);
   el("cancelMemoryEdit").onclick = closeMemoryEditor;
   el("memoryForm").onsubmit = async (e) => {
     e.preventDefault();

@@ -30,7 +30,8 @@
     if (dialog.open) return;
     const parent = origin?.closest?.("dialog[open]") || null;
     records.set(dialog, { origin, parent });
-    dialog.showModal();
+    if (dialog.id === "preferencesDialog") dialog.show();
+    else dialog.showModal();
     sync();
   }
   function focusReturn(dialog) {

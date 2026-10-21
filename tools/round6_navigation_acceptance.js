@@ -25,7 +25,8 @@ async(page)=>{
    await page.screenshot({path:out+`after-${width}-${theme}-pinned.png`});
    await page.locator('#profileButton').click();await page.locator('#appSettings').click();
    const settings=await page.locator('.settings-page').evaluate(e=>({clip:getComputedStyle(e).clipPath,x:e.getBoundingClientRect().x}));
-   check(shell.clip===settings.clip && settings.x===52,'Settings boundary differs; settings categories replace history');
+   check(shell.clip===settings.clip && settings.x===shell.x,'Settings must share the pinned main surface');
+   check(await page.locator('.app-rail').count()===1,'Settings must not add a second rail');
    await page.screenshot({path:out+`after-${width}-${theme}-settings.png`});
    await page.locator('#closePreferences').click();
    await page.locator('#homeNav').click();check(await page.locator('#intro').isVisible(),'Home did not navigate blank');

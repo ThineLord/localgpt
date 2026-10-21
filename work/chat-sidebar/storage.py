@@ -129,7 +129,6 @@ class Store:
 
     def chats(self, deleted=False):
         with self.connect() as db:
-            _ensure_pin_schema(db)
             rows = db.execute(
                 f"""SELECT c.id,c.title,c.created,c.updated,c.version,
                 (SELECT count(*) FROM messages m WHERE m.chat_id=c.id) AS count,
@@ -140,7 +139,13 @@ class Store:
                 WHERE (c.deleted_at IS NOT NULL)=?{_chats_order_sql()}""",
                 (int(deleted),),
             )
-            return [dict(r) for r in rows]
+            listed = []
+            for row in rows:
+                item = dict(row)
+                item["pinned"] = bool(item["pinned"])
+                item["pin_version"] = int(item["pin_version"])
+                listed.append(item)
+            return listed
 
     def create(self, title='新对话'):
         now = time.time()
@@ -154,7 +159,6 @@ class Store:
             row = db.execute('SELECT * FROM chats WHERE id=?',(chat_id,)).fetchone()
             if not row:
                 raise KeyError(chat_id)
-            _ensure_pin_schema(db)
             result = self._chat(row)
             _attach_pin_fields(result, _pin_row(db, chat_id))
             result['messages'] = [self._message(r) for r in db.execute('SELECT * FROM messages WHERE chat_id=? ORDER BY created,id',(chat_id,))]
