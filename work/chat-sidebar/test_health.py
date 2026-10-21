@@ -10,7 +10,7 @@ from storage import Store
 
 class HealthTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.tmp=tempfile.TemporaryDirectory();root=Path(self.tmp.name)
+        self.tmp=tempfile.TemporaryDirectory();root=Path(self.tmp.name);self.root=root
         self.client=TestClient(TestServer(create_app('http://127.0.0.1:1',database=root/'db.sqlite3',input_root=root/'input',output_root=root/'output')))
         await self.client.start_server()
     async def asyncTearDown(self):
@@ -30,6 +30,21 @@ class HealthTests(unittest.IsolatedAsyncioTestCase):
         c=await(await self.client.post('/qwen-cn/chats',json={'title':'Synthetic persistence'})).json()
         for _ in range(4):self.assertEqual((await self.client.get('/qwen-cn/health')).status,200)
         self.assertEqual((await(await self.client.get('/qwen-cn/chats')).json())[0]['id'],c['id'])
+
+    async def test_missing_database_never_creates_replacement_and_recovers(self):
+        original=await(await self.client.post('/qwen-cn/chats',json={'title':'Synthetic original'})).json()
+        source=self.root/'db.sqlite3';held=self.root/'held.sqlite3'
+        source.rename(held)
+        try:
+            for path in ('/qwen-cn/health','/qwen-cn/chats','/qwen-cn/memory'):
+                response=await self.client.get(path)
+                self.assertEqual(response.status,503)
+                self.assertEqual((await response.json())['code'],'database_unavailable')
+                self.assertFalse(source.exists(), 'Runtime must never create a replacement DB')
+        finally:held.rename(source)
+        self.assertEqual((await self.client.get('/qwen-cn/health')).status,200)
+        records=await(await self.client.get('/qwen-cn/chats')).json()
+        self.assertEqual(records[0]['id'],original['id'])
 
 class GenerationIdentityTests(unittest.TestCase):
     def test_identical_seed_does_not_reuse_deleted_output_names(self):

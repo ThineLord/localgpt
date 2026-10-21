@@ -55,7 +55,7 @@ usage UNKNOWN. PR#8 head5293bf7e22706da8de532d6f2babe00c7c415233 supplied
 Settings/Memory. Codex integrated it and repaired search focus, menu disposal,
 viewport bounds, close guards and local diagnostics before acceptance.
 
-Synthetic checks:50 Python tests; navigation/theme/error recovery browser matrix;
+Synthetic checks:51 Python tests; navigation/theme/error recovery browser matrix;
 Memory add/edit/search/confirmation; Gallery Trash/restore/shared-file rejection/
 permanent404; upload registration/reference guard/permanent404. Screenshots and
 private-service receipts stay under ignored output/. New SVG is original vector
@@ -88,3 +88,9 @@ unchanged; tests cover output/upload, filename/subfolder aliases and post-delete
 writes. Case-sensitive filesystems conservatively retain ambiguous aliases. The
 legacy restore endpoint now reports a pending-delete conflict as409; all Memory
 row-menu listeners share its abort lifecycle.
+
+A final fault-injection test moves only a temporary test database away while the
+server runs. Health/chat/Memory return503 without creating an empty replacement;
+restoring that file recovers the original record. Store and MemoryStore permit
+creation only during explicit initialization and use SQLite mode=rw thereafter.
+No real database file was moved for this test.
