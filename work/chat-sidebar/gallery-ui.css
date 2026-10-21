@@ -27,7 +27,7 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-subtle);
   border-radius: 16px;
   background: var(--surface-elevated);
   color: var(--ink);
@@ -147,7 +147,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-subtle);
   border-radius: 10px;
   background: var(--surface-elevated);
   color: var(--ink);

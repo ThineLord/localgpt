@@ -1,6 +1,6 @@
 // Round 5 gallery module — synthetic DOM harness (module CSS+JS only).
 // Run from repo root:
-// NODE_PATH=/home/ubuntu/.npm/_npx/e41f203b7505f1fb/node_modules node -e "
+// node -e "
 // const { chromium } = require('playwright');
 // const fs = require('fs');
 // const run = eval(fs.readFileSync('tools/round5_gallery_acceptance.js','utf8'));
@@ -18,7 +18,7 @@ async (page) => {
 
   const cssRel = "work/chat-sidebar/gallery-ui.css";
   const jsRel = "work/chat-sidebar/gallery-ui.js";
-  const candidates = [path.resolve(__dirname, ".."), process.cwd()];
+  const candidates = [process.cwd()];
   const repoRoot = candidates.find((root) =>
     fs.existsSync(path.join(root, cssRel)),
   );

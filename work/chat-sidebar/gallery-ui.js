@@ -16,7 +16,7 @@
    * Inferred content-width breakpoints (not Space originals):
    * 358→1 col (390 viewport − mobile inset), 1132→5, 1292→6.
    */
-  const INFERRED_COL_BREAKPOINTS = [576, 768, 992, 1132, 1292];
+  const INFERRED_COL_BREAKPOINTS = [384, 576, 768, 1024, 1280];
 
   const CARD_BORDER_Y = 2;
   const roots = new WeakMap();
@@ -95,6 +95,7 @@
     const tiles = state.tiles || [];
     const colHeights = new Array(cols).fill(0);
 
+    for (const tile of tiles) tile.style.width = `${colWidth}px`;
     for (const tile of tiles) {
       let col = 0;
       for (let c = 1; c < cols; c++) {
@@ -110,7 +111,6 @@
       const left = col * (colWidth + gap);
       const top = colHeights[col];
 
-      tile.style.width = `${colWidth}px`;
       tile.style.transform = `translate(${left}px, ${top}px)`;
 
       colHeights[col] += height + gap;
@@ -119,7 +119,7 @@
     const maxHeight = colHeights.length
       ? Math.max(...colHeights) - gap
       : 0;
-    root.style.height = `${Math.max(0, maxHeight)}px`;
+    root.style.height = `${Math.max(0, maxHeight) + 24}px`;
     state.lastCols = cols;
     state.lastGap = gap;
     state.lastColWidth = colWidth;
@@ -130,7 +130,6 @@
     state.layoutFrame = requestAnimationFrame(() => {
       state.layoutFrame = 0;
       layoutMasonry(root, state);
-      requestAnimationFrame(() => layoutMasonry(root, state));
     });
   }
 

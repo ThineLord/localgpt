@@ -9,6 +9,11 @@
     el.dispatchEvent(new Event("change", {bubbles:true}));
   };
   const controllers = [];
+  const composerObserver=new ResizeObserver(()=>{
+    document.querySelector('.workspace').style.setProperty('--composer-block-height', $('form').getBoundingClientRect().height+'px');
+  });
+  composerObserver.observe($('form'));
+
 
   class Menu {
     constructor(trigger, panel, render, anchor = trigger, width = 254, gap = 8) {
@@ -191,4 +196,41 @@
   addEventListener('hanzlanguage',title);
   section('general');responsive();addEventListener('resize',responsive,{passive:true});
   dialog.addEventListener('close',()=>{drawer(false);responsive();});
+})();
+
+/* Shared top-layer tooltips. Native title bubbles are removed for these controls. */
+(() => {
+  const tip=document.createElement('div');tip.id='chromeTooltip';tip.className='chrome-tooltip';
+  tip.setAttribute('role','tooltip');tip.setAttribute('popover','manual');document.body.append(tip);
+  let owner=null,timer=0,previousDescription=null;
+  function hide(){
+    clearTimeout(timer);
+    if(tip.matches(':popover-open'))tip.hidePopover();
+    if(owner){if(previousDescription===null)owner.removeAttribute('aria-describedby');else owner.setAttribute('aria-describedby',previousDescription);}
+    owner=null;
+  }
+  function show(button){
+    hide();
+    if(button.disabled||button.getAttribute('aria-expanded')==='true'||document.querySelector('dialog[open]'))return;
+    const text=button.getAttribute('aria-label');if(!text)return;
+    owner=button;previousDescription=button.getAttribute('aria-describedby');
+    button.setAttribute('aria-describedby',[previousDescription,tip.id].filter(Boolean).join(' '));
+    tip.textContent=text;tip.showPopover();
+    const r=button.getBoundingClientRect(),b=tip.getBoundingClientRect();
+    const rail=button.closest('.app-rail');
+    tip.style.left=Math.max(8,Math.min(rail?r.right+8:r.left+(r.width-b.width)/2,innerWidth-b.width-8))+'px';
+    tip.style.top=Math.max(8,Math.min(rail?r.top+(r.height-b.height)/2:r.bottom+8,innerHeight-b.height-8))+'px';
+  }
+  for(const button of document.querySelectorAll('.app-rail .chrome-button, #sidebarToggle, #headerNewChat, #mobileMenu, #chatActions')){
+    button.removeAttribute('title');
+    button.addEventListener('pointerenter',e=>{if(e.pointerType==='mouse'){hide();timer=setTimeout(()=>show(button),350);}});
+    button.addEventListener('pointerleave',hide);
+    button.addEventListener('focus',()=>{if(button.matches(':focus-visible'))show(button);});
+    button.addEventListener('blur',hide);
+    new MutationObserver(()=>{button.removeAttribute('title');if(owner===button)hide();}).observe(button,{attributes:true,attributeFilter:['title','aria-expanded','aria-label']});
+  }
+  document.addEventListener('pointerdown',hide,true);document.addEventListener('keydown',e=>{if(e.key==='Escape')hide();},true);
+  document.addEventListener('scroll',hide,true);addEventListener('resize',hide);addEventListener('liquidlayerchange',hide);
+  const language=()=>{document.getElementById('imageInfoLabel').textContent=document.documentElement.lang==='en'?'Image information':'图片信息';document.getElementById('galleryRetry').textContent=document.documentElement.lang==='en'?'Retry':'重试';};
+  language();addEventListener('hanzlanguage',language);
 })();
