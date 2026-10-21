@@ -122,6 +122,14 @@ async def api(session, base, path, method="GET", payload=None):
         return body
 
 
+def decoded_answers(events):
+    return [
+        event.get("answer")
+        for event in events
+        if isinstance(event, dict) and isinstance(event.get("answer"), str)
+    ]
+
+
 async def turn(session, base, model, prompt):
     chat = await api(session, base, "/qwen-cn/chats", "POST", {})
     sent = await api(
@@ -140,14 +148,24 @@ async def turn(session, base, model, prompt):
         },
     )
     async with session.get(base + f"/qwen-cn/messages/{sent['id']}/events") as response:
+        expect(response.status == 200, "event stream status %s" % response.status)
+        content_type = response.headers.get("Content-Type", "")
+        expect(content_type.startswith("text/event-stream"), "event stream content-type %s" % content_type)
         raw = await response.text()
     events = parse_events(raw)
     expect(events, "event stream was empty")
+    expect(raw.strip(), "event stream body was empty")
     final = events[-1]
     expect(final.get("status") in ("completed", "stopped"), f"turn did not finish: {final.get('error') or final.get('status')}")
     answer = final.get("answer") or ""
-    expect(answer.strip(), "model returned an empty answer")
-    expect(answer in raw, "answer was not delivered on the event stream")
+    expect(isinstance(answer, str) and answer.strip(), "model returned an empty answer")
+    decoded = decoded_answers(events)
+    expect(decoded, "event stream had no decoded answer")
+    expect(decoded[-1] == answer, "decoded SSE answer did not match the final event")
+    stored = await api(session, base, f"/qwen-cn/chats/{chat['id']}")
+    saved = next(item for item in stored["messages"] if item["id"] == sent["id"])
+    expect(saved.get("status") == final.get("status"), "stored status drifted from the event stream")
+    expect(saved.get("answer") == answer, "stored answer drifted from the decoded event stream")
     return sent, final, answer
 
 
@@ -204,6 +222,8 @@ async def exercise(session, base, model):
     expect("琥珀" in color_after and "钴" not in color_after, f"color after correction: {color_after}")
 
     await api(session, base, "/qwen-cn/memory", "POST", {"content": "我不吃花生。", "category": "preference"})
+    _, _, diet = await turn(session, base, model, "我有什么饮食偏好？")
+    expect("花生" in diet, f"dietary preference was not recalled: {diet}")
     _, _, math = await turn(session, base, model, "1+1等于几")
     expect("花生" not in math, f"unrelated answer used a dietary memory: {math}")
 

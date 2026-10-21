@@ -37,14 +37,33 @@ _STOPWORDS = frozenset(
     }
 )
 
+# Role, authority, and output-hijack directives. This is not a complete sandbox:
+# stored rows stay unchanged, and ordinary facts or style hints must still pass.
 _INJECTION_MARKERS = re.compile(
-    r"(ignore\s+(all\s+)?(previous|prior)\s+instructions|"
+    r"(ignore\s+(all\s+)?(previous|prior|above)\s+instructions|"
+    r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions|"
     r"system\s*:\s*|<<\s*sys\s*>>|"
-    r"你现在是|扮演|role\s*:\s*assistant|"
+    r"你现在是|扮演|role\s*:\s*(assistant|system|developer)|"
     r"工具调用|function\s*call|"
-    r"sudo\s+|api[_\s-]?key\s*[:=])",
+    r"sudo\s+|api[_\s-]?key\s*[:=]|"
+    r"更高优先级|更高权限|高优先级指令|"
+    r"忽略(之前|以上|前面|所有).{0,12}(指令|规则|策略|提示)|"
+    r"覆盖(本|这个|系统)?(策略|指令|规则)|"
+    r"(全部|整个|唯一).{0,8}(回答|输出|回复).{0,8}(只能|必须|仅能)|"
+    r"(your\s+)?(entire|whole|only)\s+(answer|response|output)\s+(must|can\s+only|should\s+only)|"
+    r"(answer|respond|reply|output)\s+only\s+with|"
+    r"you\s+are\s+now\s+(a\s+|an\s+|the\s+)?(system|developer|assistant|admin)|"
+    r"higher[- ]priority\s+instruction|"
+    r"override\s+(the\s+)?(system|policy|instructions|developer))",
     re.I,
 )
+
+# Query-side hints for a dietary fact. Not applied to every preference row.
+_DIETARY_FACT = re.compile(
+    r"(不吃|忌口|过敏|素食|不能吃|饮食限制|allergic|allergy|don'?t eat|do not eat|vegetarian|vegan|intoleran)",
+    re.I,
+)
+_DIETARY_TERMS = frozenset({"饮食", "食物", "忌口", "food", "diet", "allergy", "eat"})
 
 _SYNONYMS = {
     "name": {"名字", "姓名", "称呼", "name"},
@@ -66,8 +85,19 @@ def _terms(text):
     return {w for w in words if w not in _STOPWORDS and len(w) > 1}
 
 
-def _hostile(text):
+def unsafe_for_recall(text):
+    """True when text tries to seize role, authority, or the answer itself."""
     return bool(_INJECTION_MARKERS.search(text or ""))
+
+
+def _hostile(text):
+    return unsafe_for_recall(text)
+
+
+def _domain_terms(content):
+    if _DIETARY_FACT.search(content or ""):
+        return set(_DIETARY_TERMS)
+    return set()
 
 
 def _slot_terms(row):
@@ -80,7 +110,7 @@ def _slot_terms(row):
 
 def _meaningful_overlap(query_terms, row):
     content_terms = _terms(row.get("content", ""))
-    slot_terms = _slot_terms(row)
+    slot_terms = _slot_terms(row) | _domain_terms(row.get("content", ""))
     return len(query_terms & content_terms) + len(query_terms & slot_terms)
 
 

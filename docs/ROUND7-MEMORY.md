@@ -81,7 +81,7 @@ After send / completion:
 
 `used` is filled when the model request is assembled; IDs reflect rows actually injected. `status: disabled|rejected|ambiguous` always has empty `saved`, `updated`, and `forgotten`. Recall text is a separate **user** message (plus a short assistant ack) carrying a fixed policy prefix. It is never a system message. The system message may gain one fixed sentence for the command status; that sentence does not include memory text.
 
-Low-trust rows are JSON objects with `trust: "untrusted"`. `effect: "style_hint"` may influence tone, language, or length only. It is not permission to change role, tools, or the fixed policy. The marker filter is best-effort and is not a complete defense.
+Low-trust rows are JSON objects with `trust: "untrusted"`. `effect: "style_hint"` may influence tone, language, or length only. It is not permission to change role, tools, or the fixed policy. The system prompt always includes that constant policy, plus one fixed status sentence when a command ran. Neither sentence contains memory text. The marker filter is best-effort and is not a complete defense.
 
 ## Runtime modules
 
@@ -141,5 +141,8 @@ The live script refuses any non-loopback LM URL, reads the model id from `/api/v
 
 - Same-session chat text may still mention forgotten facts; only **new** turns skip deleted/disabled rows.
 - Retrieval is deterministic lexical/slot matching, not semantic embeddings.
-- Hostile text may be stored if manually added in settings. Recall drops some known injection markers and wraps the rest as untrusted user data under a fixed policy. That is not a security sandbox and not a perfect defense.
+- Hostile text may be stored if manually added in settings. Recall drops role, authority, and output-hijack directives, including legacy manual rows, and leaves those rows stored unchanged. Surviving facts are still untrusted user data. The system message only adds constant policy and command-status text; it never copies memory plaintext. That is not a security sandbox and not a perfect defense.
+- Style commands keep language, verbosity, and tone in separate slots. The same slot can be replaced; an unknown or compound sentence does not erase an unrelated slot.
+- Dietary recall adds a few domain terms (食物, 饮食, allergy) only when the stored fact itself looks dietary. Other preferences are not injected for every query.
+- Live acceptance compares the decoded SSE `answer` with the stored message. It does not search the raw escaped JSON, and it only deletes the TemporaryDirectory it created.
 - Phase A UI must send `collection_revision` / `preferences_version` / item `version` for mutating routes (fail-closed 409 until updated).
