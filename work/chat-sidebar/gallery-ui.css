@@ -1,0 +1,235 @@
+/* Round 5 gallery module — scoped to #galleryView / #galleryGrid and gallery-* only. */
+
+#galleryView #galleryGrid.gallery-grid--hanz,
+#galleryGrid.gallery-grid--hanz {
+  --gallery-gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 24px;
+  container-type: inline-size;
+  container-name: gallery;
+  display: grid;
+  gap: var(--gallery-gap);
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  align-items: start;
+}
+
+/* Adapter approximations (not measured); map to @sm2 / @xl3 / @3xl4 / @5xl5 / @7xl6 naming. */
+@container gallery (min-width: 384px) {
+  #galleryView #galleryGrid.gallery-grid--hanz,
+  #galleryGrid.gallery-grid--hanz {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container gallery (min-width: 576px) {
+  #galleryView #galleryGrid.gallery-grid--hanz,
+  #galleryGrid.gallery-grid--hanz {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container gallery (min-width: 768px) {
+  #galleryView #galleryGrid.gallery-grid--hanz,
+  #galleryGrid.gallery-grid--hanz {
+    --gallery-gap: 16px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container gallery (min-width: 1024px) {
+  #galleryView #galleryGrid.gallery-grid--hanz,
+  #galleryGrid.gallery-grid--hanz {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@container gallery (min-width: 1280px) {
+  #galleryView #galleryGrid.gallery-grid--hanz,
+  #galleryGrid.gallery-grid--hanz {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+#galleryView .gallery-tile,
+#galleryGrid.gallery-grid--hanz .gallery-tile {
+  position: relative;
+  min-width: 0;
+}
+
+#galleryView .gallery-card,
+#galleryGrid.gallery-grid--hanz .gallery-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-elevated);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 5%);
+  transition: background-color 0.15s ease;
+}
+
+#galleryView .gallery-card:hover,
+#galleryGrid.gallery-grid--hanz .gallery-card:hover,
+#galleryView .gallery-card:focus-visible,
+#galleryGrid.gallery-grid--hanz .gallery-card:focus-visible {
+  background: var(--row-hover);
+}
+
+#galleryView .gallery-card:focus-visible,
+#galleryGrid.gallery-grid--hanz .gallery-card:focus-visible {
+  outline: 2px solid var(--ink-secondary);
+  outline-offset: 2px;
+}
+
+#galleryView .gallery-media,
+#galleryGrid.gallery-grid--hanz .gallery-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--gallery-aspect, 1);
+  min-height: 48px;
+  background: var(--canvas);
+  overflow: hidden;
+}
+
+#galleryView .gallery-card img,
+#galleryGrid.gallery-grid--hanz .gallery-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  background: var(--canvas);
+}
+
+#galleryView .gallery-card img.gallery-img--loading,
+#galleryGrid.gallery-grid--hanz .gallery-card img.gallery-img--loading {
+  opacity: 0;
+}
+
+#galleryView .gallery-card img.gallery-img--loaded,
+#galleryGrid.gallery-grid--hanz .gallery-card img.gallery-img--loaded {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+#galleryView .gallery-media::before,
+#galleryGrid.gallery-grid--hanz .gallery-media::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    var(--canvas) 8%,
+    var(--row-hover) 18%,
+    var(--canvas) 33%
+  );
+  background-size: 200% 100%;
+  animation: gallery-shimmer 1.2s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#galleryView .gallery-media:has(.gallery-img--loading)::before,
+#galleryGrid.gallery-grid--hanz .gallery-media:has(.gallery-img--loading)::before {
+  opacity: 1;
+}
+
+#galleryView .gallery-media:has(.gallery-img--loaded)::before,
+#galleryGrid.gallery-grid--hanz .gallery-media:has(.gallery-img--loaded)::before,
+#galleryView .gallery-media:has(.gallery-img--broken)::before,
+#galleryGrid.gallery-grid--hanz .gallery-media:has(.gallery-img--broken)::before {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes gallery-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+#galleryView .gallery-media.gallery-media--broken::after,
+#galleryGrid.gallery-grid--hanz .gallery-media.gallery-media--broken::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--canvas);
+  mask: linear-gradient(var(--ink-secondary) 2px, transparent 0) center/24px 2px
+      no-repeat,
+    linear-gradient(90deg, var(--ink-secondary) 2px, transparent 0) center/2px 24px
+      no-repeat;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+#galleryView .gallery-remove,
+#galleryGrid.gallery-grid--hanz .gallery-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 8%);
+}
+
+#galleryView .gallery-remove svg,
+#galleryGrid.gallery-grid--hanz .gallery-remove svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#galleryView .gallery-remove:focus-visible,
+#galleryGrid.gallery-grid--hanz .gallery-remove:focus-visible {
+  outline: 2px solid var(--ink-secondary);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  #galleryView .gallery-remove,
+  #galleryGrid.gallery-grid--hanz .gallery-remove {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #galleryView .gallery-tile:hover .gallery-remove,
+  #galleryGrid.gallery-grid--hanz .gallery-tile:hover .gallery-remove,
+  #galleryView .gallery-tile:focus-within .gallery-remove,
+  #galleryGrid.gallery-grid--hanz .gallery-tile:focus-within .gallery-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (hover: none) {
+  #galleryView .gallery-remove,
+  #galleryGrid.gallery-grid--hanz .gallery-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
