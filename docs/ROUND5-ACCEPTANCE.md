@@ -53,3 +53,8 @@ mouse/touch soft deletion and undo plus touch rename are covered by
 round5_header_actions_acceptance.js. A separate Chrome run with Playwright's
 scrollbar-hiding launch flag removed verified the native thin scrollbar is
 visible at the far right and can be dragged (scrollTop advanced to1406).
+
+Final empty-state comparison caught the removed header moving the composition
+52px upward. Empty-state padding now preserves the prior anchor: desktop composer
+y378 at1440×900 andy338 at1280×800; mobile composer remainsy692 at390×844.
+Six viewport/theme checks pass without restoring the visible header title.

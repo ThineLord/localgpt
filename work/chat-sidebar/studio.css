@@ -232,7 +232,8 @@ svg {
 }
 .workspace:has(#intro:not([hidden])) #chatScroll { flex: 0 0 auto; overflow: visible; }
 .workspace:has(#intro:not([hidden])) { justify-content: flex-start; }
-.intro { width:min(var(--composer-width), calc(100% - 32px)); margin:0 auto; text-align: center; padding: max(100px, calc(40dvh - 124px)) 8px 54px; }
+/* Preserve the empty-state vertical anchor after the52px header became an overlay. */
+.intro { width:min(var(--composer-width), calc(100% - 32px)); margin:0 auto; text-align: center; padding: max(152px, calc(40dvh - 72px)) 8px 54px; }
 .intro h1 { margin: 0; font-size: 24px; font-weight: 400; line-height: 28px; letter-spacing: normal; }
 .suggestions { display: none; }
 
@@ -851,7 +852,7 @@ dialog button.primary, #saveMemory {
   .image-viewer-media { padding:8px 12px; }
   .image-viewer-footer { padding:8px 12px 20px; }
   .workspace:has(#intro:not([hidden])) #chatScroll { flex: 1 1 auto; }
-  .intro { padding: max(100px, calc(40dvh - 72px)) 0 0; }
+  .intro { padding: max(152px, calc(40dvh - 20px)) 0 0; }
   .intro h1 { font-size: 24px; line-height: 28px; }
   .composer { padding: 8px 0 64px; }
   .composer-help { transform:translateY(-48px); }
