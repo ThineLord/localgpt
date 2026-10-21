@@ -60,3 +60,24 @@ Memory add/edit/search/confirmation; Gallery Trash/restore/shared-file rejection
 permanent404; upload registration/reference guard/permanent404. Screenshots and
 private-service receipts stay under ignored output/. New SVG is original vector
 geometry, not a redistributed official brand asset.
+
+Real-service acceptance: LM Studio qwen3-8b streamed a dedicated synthetic answer.
+ComfyUI completed one 512×512,15-step,CFG1,seed42 synthetic image, decoded in the
+browser; no second inference was needed. ComfyUI was stopped with an empty queue:
+the new UI health remained database_ready=true and the same two-message test chat
+remained accessible, then the backend restarted normally. All18 original chat rows,
+24 original message rows and5 original gallery archive rows remained byte-for-byte
+equal at SQLite row level; quick_check returned ok. Real user data was never purged.
+
+Browser follow-up confirmed the real generated PNG download, image-as-reference,
+registered synthetic PNG upload/preview/removal and three existing-chat reloads.
+The UI process itself was stopped and restarted via launch.py; the detached child
+survived its caller and restored the same chat/image. Round3 conflict regressions
+passed both explicit local/remote resolutions after repeated failed-save reloads.
+
+Visual evidence covers1440×900,1280×800,390×844 in light/dark, expanded/collapsed/
+temporary/mobile sidebar, history/profile/appearance menus, Settings/diagnostics/
+registered uploads, Memory list/editor/menu/confirmation, image Trash and shared
+reference errors. Before captures use8457aba synthetic fixtures. A local comparison
+page includes matched viewport pairs and navigation reference overlay/difference;
+font rasterization and dynamic contents are not interpreted as geometry errors.

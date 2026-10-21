@@ -1,4 +1,6 @@
-# Local acceptance evidence
+# First-round acceptance evidence
+
+Historical record. See [Round 4](ROUND4-REFERENCE.md) for current navigation, reliability and deletion behavior.
 
 Validation was performed on 2026-10-21 using synthetic prompts and dedicated test conversations. Screenshots, raw receipts, databases and generated images stay outside Git. This document records observations; final merge approval is sent separately for an exact commit SHA.
 
