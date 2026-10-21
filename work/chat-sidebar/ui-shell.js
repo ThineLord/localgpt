@@ -136,6 +136,7 @@
   const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
   const tabs=[...nav.querySelectorAll('[data-settings-section]')];
   function title(){
+    toggle.setAttribute('aria-label',dialog.classList.contains('settings-nav-open')?tr('关闭设置分类','Close settings categories'):tr('打开设置分类','Open settings categories'));
     $('preferencesTitle').textContent=innerWidth<=760&&!dialog.classList.contains('settings-nav-open')
       ? panels.find(p=>!p.hidden)?.querySelector('.settings-panel-title').textContent||tr('设置','Settings')
       :tr('设置','Settings');
