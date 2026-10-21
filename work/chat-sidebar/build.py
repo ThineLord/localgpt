@@ -14,7 +14,7 @@ def build(check=False):
     result = result.replace('/* STUDIO_APP */', (ROOT / 'message-actions.js').read_text() + '\n' + (ROOT / 'gallery-ui.js').read_text() + '\n' + (ROOT / 'app.js').read_text())
     result = result.replace('/* LIQUID_LAYERS */', (ROOT / 'liquid-layers.js').read_text())
     result = result.replace('/* ATELIER_MOTION */', (ROOT / 'atelier.js').read_text())
-    result = result.replace('/* WORKSPACE_FEATURES */', (ROOT / 'workspace.js').read_text())
+    result = result.replace('/* WORKSPACE_FEATURES */', (ROOT / 'workspace.js').read_text() + '\n' + (ROOT / 'memory-ui.js').read_text())
     result = result.replace('/* STUDIO_UI_SHELL */', (ROOT / 'app-shell.js').read_text() + '\n' + (ROOT / 'ui-shell.js').read_text() + '\n' + (ROOT / 'data-lifecycle.js').read_text() + '\n' + (ROOT / 'local-profile.js').read_text())
     assert '/* STUDIO_' not in result
     assert '/* LIQUID_' not in result

@@ -449,7 +449,7 @@
               <option value="general">通用</option>
               <option value="appearance">外观</option>
               <option value="models">模型与生成</option>
-              <option value="memory">记忆</option>
+              <option value="memory">个性化</option>
               <option value="trash">回收站</option>
             </select>
             <div class="settings-nav-list" role="tablist" aria-orientation="vertical">
@@ -457,7 +457,7 @@
               <button type="button" class="settings-nav-item" data-settings-section="general" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="m9 3-1 3-3 1-2 4 2 2 1 4 3 1 2 3 4-1 1-3 3-1 2-4-2-2-1-4-3-1-2-3Z"/></svg><span>通用</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="appearance" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span>外观</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="models" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9Z"/></svg><span>模型与生成</span></button>
-              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>记忆</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>个性化</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="trash" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg><span>回收站</span></button>
             </div>
           </nav>
@@ -518,16 +518,25 @@
               </div>
             </section>
             <section class="settings-panel" data-settings-panel="memory" id="settingsPanelMemory" hidden>
-              <h3 class="settings-panel-title">记忆</h3>
+              <h3 class="settings-panel-title">个性化</h3>
+              <p class="dialog-note">全局记忆只保存在本机。关闭后不再记录或引用，已有条目仍可管理，不会被删除。</p>
+              <div class="memory-switches" id="memoryPreferenceSwitches">
+                <label><input type="checkbox" id="memoryEnabled" checked />使用全局记忆</label>
+                <label><input type="checkbox" id="memoryAutomatic" />记住明确表达的个人信息与偏好</label>
+              </div>
+              <p id="memorySettingsSummary" class="memory-settings-summary" role="status">正在读取记忆概况。</p>
+              <ul id="memorySettingsHighlights" class="memory-highlights"></ul>
+              <p id="memorySettingsStatus" class="dialog-note" role="status"></p>
               <div class="settings-group">
                 <button id="memoryNav" type="button" class="settings-row-button preference-link">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6" />
                   </svg>
-                  <span>管理全局记忆</span>
+                  <span>打开记忆管理</span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
               </div>
+              <p class="dialog-note">关闭全局记忆、暂停某一条、删除某一条是三件不同的事。清空全部需要当前列表版本，过期时不会强制删除。</p>
             </section>
             <section class="settings-panel" data-settings-panel="trash" id="settingsPanelTrash" hidden>
               <h3 class="settings-panel-title">回收站</h3>
@@ -548,7 +557,7 @@
     </dialog>
     <dialog
       id="memoryDialog"
-      class="memory-dialog"
+      class="memory-dialog memory-dialog--round4"
       aria-labelledby="memoryTitle"
     >
       <div class="dialog-heading">
@@ -563,7 +572,7 @@
             <path d="m14 6-6 6 6 6" />
           </svg>
         </button>
-        <h2 id="memoryTitle">全局记忆</h2>
+        <h2 id="memoryTitle">已保存的记忆</h2>
         <button
           type="button"
           id="closeMemory"
@@ -575,46 +584,54 @@
           </svg>
         </button>
       </div>
-      <p class="dialog-note">
-        跨对话保留你的偏好与背景，仅存储在本机。你可以随时修改或删除。
-      </p>
-      <div class="memory-switches">
-        <label><input type="checkbox" id="memoryEnabled" />使用全局记忆</label
-        ><label
-          ><input
-            type="checkbox"
-            id="memoryAutomatic"
-          />记住明确表达的个人信息与偏好</label
-        >
-      </div>
-      <p class="dialog-note">
-        只记录明确陈述或「记住：…」，不猜测，不分析旧对话。关闭记忆后停止记录与引用。
-      </p>
-      <p id="memoryStatus" role="status" class="dialog-note"></p>
-      <div id="memoryList" class="memory-list"></div>
-      <form id="memoryForm" class="memory-form">
-        <label for="memoryContent">添加或修改记忆</label
-        ><textarea
-          id="memoryContent"
-          rows="3"
-          maxlength="800"
-          required
-          placeholder="例如：我偏好简洁的中文回答。"
-        ></textarea>
-        <div class="memory-form-actions">
-          <select id="memoryCategory" aria-label="记忆类别">
-            <option value="preference">偏好</option>
-            <option value="profile">个人背景</option>
-            <option value="project">项目</option>
-            <option value="note">其他</option></select
-          ><button type="button" id="cancelMemoryEdit" class="action" hidden>
-            取消编辑</button
-          ><button type="submit" id="saveMemory" class="primary">保存</button>
+      <div class="memory-dialog--body">
+        <p id="memoryConflict" role="alert" class="error" hidden></p>
+        <div id="memoryConflictActions" class="memory-conflict-actions" hidden>
+          <button type="button" id="memoryReload" class="action">重新加载</button>
+          <button type="button" id="memoryAdopt" class="action" hidden>改用服务器上的内容</button>
         </div>
-      </form>
-      <button type="button" id="clearMemory" class="danger-link">
-        清空所有记忆
-      </button>
+        <div id="memoryListView">
+          <p class="dialog-note">只保存明确陈述或「记住：…」。关闭全局记忆后，这里的条目仍可搜索和修改。</p>
+          <p id="memorySummary" class="memory-summary" role="status"></p>
+          <p id="memoryStatus" role="status" class="dialog-note"></p>
+          <div class="memory-list-toolbar">
+            <div class="memory-search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input id="memorySearch" type="search" autocomplete="off" placeholder="搜索记忆" aria-label="搜索记忆" />
+            </div>
+          </div>
+          <div id="memoryListScroll" class="memory-list-scroll">
+            <div id="memoryList" class="memory-list" role="list" aria-label="已保存的记忆"></div>
+          </div>
+          <button type="button" id="memoryAddButton">添加记忆</button>
+        </div>
+        <div id="memoryEditorView" hidden>
+          <div class="memory-editor-heading">
+            <button type="button" id="memoryEditorBack" class="chrome-button" aria-label="返回记忆列表">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            </button>
+            <h3 id="memoryEditorTitle">添加记忆</h3>
+          </div>
+          <form id="memoryForm" class="memory-form">
+            <label for="memoryContent">添加或修改记忆</label>
+            <textarea id="memoryContent" rows="3" maxlength="800" required placeholder="例如：我偏好简洁的中文回答。"></textarea>
+            <p id="memoryEditorNote" class="dialog-note"></p>
+            <div class="memory-form-actions">
+              <select id="memoryCategory" aria-label="记忆类别">
+                <option value="preference">偏好</option>
+                <option value="profile">个人背景</option>
+                <option value="project">项目</option>
+                <option value="note">其他</option>
+              </select>
+              <button type="button" id="cancelMemoryEdit" class="action">取消编辑</button>
+              <button type="submit" id="saveMemory" class="primary">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="memory-dialog--footer">
+        <button type="button" id="clearMemory" class="danger-link">清空所有记忆</button>
+      </div>
     </dialog>
     <dialog
       id="confirmDialog"

@@ -1,6 +1,6 @@
-# LocalGPT Round 7 — Memory backend (Phase B)
+# LocalGPT Round 7 — Memory
 
-Phase B owns durable memory storage, deterministic chat commands, retrieval, HTTP API extensions, and tests. Shell/settings UI remains owned by Phase A; this document records contracts for the next frontend pass.
+Phase B owns durable memory storage, deterministic chat commands, retrieval, the memory HTTP API, memory tests, and the memory settings and manager UI. The shared rail, settings shell, and pin/media stay with Phase A.
 
 ## Product alignment (public concepts only)
 
@@ -95,51 +95,46 @@ Low-trust rows are JSON objects with `trust: "untrusted"`. `effect: "style_hint"
 
 Additive table `memory_meta` (`active`, provenance fields) — legacy `user_memory` rows are never rewritten by migration.
 
-## Stable frontend contract (Phase 2, not implemented here)
+## Frontend (implemented)
 
-Phase A owns Shell, template, ui-shell, liquid-layers, and studio. Memory UI should consume this contract without inventing a second write path.
+Settings → 个性化 (`data-settings-section="memory"`, so `AppShell.openSettings('memory')` still selects it) holds the global `enabled` and `auto_capture` switches, the snapshot summary, and a link to the memory manager. The avatar menu stays Settings and About. Profile and Appearance stay inside Settings. The manager is `#memoryDialog` on the shared rail: summary, search, add, edit, per-row pause/resume, delete, and clear. A row shows its category, source, and a known topic when the snapshot has them. Pause, global off, and delete are separate controls. Global off keeps the rows and still allows management.
 
-`GET /qwen-cn/memory` is the consistent snapshot: `items` (including inactive rows), `preferences`, `preferences_version`, `collection_revision`, `item_count`, and `summary` (`counts.total`, `counts.active`, `counts.by_category`, `highlights`, `recall_enabled`, `auto_capture`). `item_count` equals `items.length` and `summary.counts.total`.
+All of those actions call `/qwen-cn/memory`. Item writes send `version`. Preference writes send `preferences_version`. Clear sends `collection_revision` from the latest `GET`. A 409 leaves the editor text in place, explains the conflict, and offers reload. Reload does not copy the server text into the editor unless the user chooses “改用服务器上的内容”. Failed deletes and clears are not retried with a newer token.
 
-Writes:
+`message.memory` is shown on the user turn by `memory-ui.js` (`HanzFeatures.renderActions`). `saved` / `updated` / `forgotten` are success hints. `disabled` / `rejected` / `ambiguous` are not. `used` is a count of ids actually injected on that turn, without printing the ids, and the hint says injection is not proof the answer relied on them. While memory is disabled, `used` is empty and the hint does not claim a save.
 
-- Create: `POST /qwen-cn/memory` `{content, category}` → item.
-- Edit content: `PATCH /qwen-cn/memory/{id}` `{content, category?, version}`. Omit `active` to keep the current active flag, including an intentionally disabled row. Pass `active: true|false` only for an explicit change. Omit `category` to keep the stored category. Same content and state does not bump `version`.
-- Use or pause one row: `PATCH` `{active, version}` without `content`.
-- Delete one row: `DELETE /qwen-cn/memory/{id}` `{version}`.
-- Clear all: `DELETE /qwen-cn/memory` `{confirm: true, collection_revision}` from the latest snapshot. A content edit that keeps the same count still changes `collection_revision`.
-- Preferences: `PATCH /qwen-cn/memory/preferences` `{enabled?, auto_capture?, preferences_version}`. `enabled: false` stops capture and recall; rows remain manageable. Unchanged values do not bump the counter.
-- Missing or stale `version`, `preferences_version`, or `collection_revision` is HTTP 409. Do not retry a clear or edit with the old token.
+## JS hooks
 
-`message.memory.status` is the command result (`saved`, `updated`, `forgotten`, `ambiguous`, `rejected`, `disabled`). Do not show a success hint when status is `disabled`, `rejected`, or `ambiguous`. `used` is recall only and is empty while memory is disabled. `notice` is a short explanation for the UI.
-
-Summary, search, add, edit, inactive, source, use/pause, and compare-and-swap belong in the next UI pass, together with Settings and usage hints. A list of rows alone is not the memory surface.
-
-## JS hooks (next phase)
-
-- `window.HanzFeatures.showMemory` / memory dialog already loads `GET /qwen-cn/memory`; consume `summary`, `preferences_version`, and `collection_revision` for clear-all and stale 409 handling.
-- Message actions may read `message.memory` for saved/used/disabled notices (Phase A shell).
+- `window.HanzMemory.open(seed?, origin?)` opens the manager and returns focus through `LiquidLayers` to `origin`.
+- `window.AppShell.openMemory(origin?)` uses the registration from `memory-ui.js`.
+- `window.HanzFeatures.remember(message)` opens the editor with that prompt.
+- `window.HanzFeatures.memorySignal(memory)` formats one message payload. `renderActions()` reads the open chat from the API and paints `.memory-turn-hint`.
 
 ## Local acceptance
 
 ```bash
-# Unit tests (no LM)
-cd work/chat-sidebar
-python3 -m unittest test_memory_runtime test_memory_round7
+python3 work/chat-sidebar/build.py
+cd work/chat-sidebar && python3 -m unittest test_memory_runtime test_memory_round7
 
-# Synthetic API acceptance (demo server)
-python3 demo.py --port 8193 &
-node ../tools/round7_memory_api_acceptance.js
+# Synthetic UI. demo.py uses a temporary database and does not call a model.
+python3 work/chat-sidebar/demo.py --port 8196
+node tools/round7_memory_ui_acceptance.js
 
-# LM Studio loopback. The script creates and deletes its own temporary database.
-python3 ../tools/round7_memory_live_acceptance.py --lm-url http://127.0.0.1:1234
+# Optional synthetic API script against that same demo server.
+node tools/round7_memory_api_acceptance.js http://127.0.0.1:8196
+
+# LM Studio on this machine only. The script creates and deletes its own temporary database.
+python3 tools/round7_memory_live_acceptance.py --lm-url http://127.0.0.1:1234
 ```
 
-The live script refuses any non-loopback LM URL, reads the model id from `/api/v1/models`, and asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path.
+The UI script refuses a server whose `/qwen-cn/health` is not `demo: true`. It drives add, edit, search, pause, resume, delete, global off/on, 409 conflict, clear, refresh, message hints, and light/dark layouts at 1440×900, 1280×800, and 390×844.
+
+The live script refuses any non-loopback LM URL, reads the model id from `/api/v1/models`, and asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path. Running it requires a local LM; a remote or cloud model is out of scope. The synthetic demo replaces model streaming, so it does not record `used` ids. The hint still renders them when a real turn payload includes `used`.
 
 ## Risks / limits
 
 - Same-session chat text may still mention forgotten facts; only **new** turns skip deleted/disabled rows.
 - Retrieval is deterministic lexical/slot matching, not semantic embeddings.
 - Hostile text may be stored if manually added in settings. Recall drops some known injection markers and wraps the rest as untrusted user data under a fixed policy. That is not a security sandbox and not a perfect defense.
-- Phase A UI must send `collection_revision` / `preferences_version` / item `version` for mutating routes (fail-closed 409 until updated).
+- The memory manager sends `collection_revision`, `preferences_version`, and item `version`. A stale token is a visible 409, not a second write.
+- Synthetic demo answers are fixtures. They are not evidence that a local model used a memory.
