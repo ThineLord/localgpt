@@ -11,8 +11,8 @@
   const controllers = [];
 
   class Menu {
-    constructor(trigger, panel, render, anchor = trigger, width = 254) {
-      Object.assign(this, {trigger,panel,render,anchor,width});
+    constructor(trigger, panel, render, anchor = trigger, width = 254, gap = 8) {
+      Object.assign(this, {trigger,panel,render,anchor,width,gap});
       controllers.push(this);
       trigger.addEventListener("click", e => { e.preventDefault(); this.open ? this.close() : this.show(); });
       trigger.addEventListener("keydown", e => {
@@ -59,12 +59,13 @@
       const r=this.anchor.getBoundingClientRect(), p=this.panel;
       p.style.inset='auto';p.style.width=Math.min(typeof this.width==='function'?this.width():this.width,innerWidth-24)+'px';
       p.style.maxHeight=Math.max(100,innerHeight-24)+'px';
-      const b=p.getBoundingClientRect(), above=r.top-8, below=innerHeight-r.bottom-8;
+      const gap=this.gap ?? 8, b=p.getBoundingClientRect();
+      const aboveGap=r.top-gap, belowGap=innerHeight-r.bottom-gap;
       const horizontal=this.trigger.getBoundingClientRect();
       const left=this.trigger.id==='upload'?r.left:horizontal.right-b.width;
       p.style.left=Math.max(12,Math.min(left,innerWidth-b.width-12))+'px';
       // Use the whole composer edge so mobile menus never cover the text row.
-      p.style.top=Math.max(12,Math.min(below>=b.height?r.bottom+8:above-b.height,innerHeight-b.height-12))+'px';
+      p.style.top=Math.max(12,Math.min(belowGap>=b.height?r.bottom+gap:aboveGap-b.height,innerHeight-b.height-12))+'px';
     }
   }
   const mode=$('mode'), model=$('chatModel'), modelTrigger=$('modelMenuTrigger');
@@ -100,7 +101,7 @@
 
   const attachment=new Menu($('upload'),$('attachmentMenu'),()=>{
     const definitions=[
-      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M12 4v16M4 12h16"/>',()=>$('file').click()],
+      ['attach-upload',tr('添加参考图片','Add reference image'),'<path d="M8 8v9a4 4 0 0 0 8 0V6a3 3 0 0 0-6 0v10a1 1 0 0 0 2 0V8"/>',()=>$('file').click()],
       ['attach-image-mode',tr('创建图片','Create image'),'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/>',()=>{mode.value='image';changed(mode);focus($('prompt'));}],
       ['attach-generation',tr('生成与对话参数','Generation and chat settings'),'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',()=>window.LiquidLayers.openSettings()],
     ];
@@ -110,7 +111,7 @@
       b.innerHTML=glyph(path);const text=document.createElement('span');text.textContent=label;b.append(text);
       b.onclick=()=>{attachment.close();action();};$('attachmentMenu').append(b);
     }
-  },$('composerCard'),()=>$('composerCard').getBoundingClientRect().width);
+  },$('composerCard'),()=>$('composerCard').getBoundingClientRect().width,4);
   $('upload').onclick=null; // The original file input/change handler stays intact.
   const chatMenu=new Menu($('chatActions'),$('chatActionsMenu'),null,$('chatActions'),196);
   for(const id of ['renameChat','deleteCurrent'])$(id).addEventListener('click',()=>chatMenu.close(),{capture:true});

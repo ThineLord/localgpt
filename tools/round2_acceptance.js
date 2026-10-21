@@ -65,6 +65,7 @@ async (page) => {
   await page.keyboard.press("Escape");
   check(await page.locator("#modelMenuTrigger").evaluate(el=>el===document.activeElement),
     "Model menu focus return");
+  await page.locator("#prompt").fill("Synthetic options persistence draft");
   await mode("image");
   await page.waitForFunction(()=>document.querySelector("#saveState").textContent.includes("草稿已保存"));
   await page.reload();

@@ -11,6 +11,7 @@ async page => {
     await route.fulfill({response,json:data});
   });
   await page.reload();await page.locator('#newChat').click();await page.locator('#intro').waitFor({state:'visible'});
+  await page.locator('#prompt').fill('Synthetic review options draft');
   await page.locator('#modelMenuTrigger').click();await page.locator('[data-kind=mode][data-value=chat]').click();
   await page.locator('#modelMenuTrigger').click();await page.locator('[data-kind=model][data-value=review-alt]').click();
   check(await page.evaluate(()=>JSON.parse(localStorage.getItem('hanzagent-options')).model==='review-alt'),'Model options not persisted');
