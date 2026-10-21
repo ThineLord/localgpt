@@ -183,7 +183,12 @@ def install(app, backend, database, input_root, output_root):
     @routes.get('/qwen-cn/memory')
     async def get_memory(r):return reply(memory.snapshot())
     @routes.patch('/qwen-cn/memory/preferences')
-    async def preferences(r):mutate(r);return reply(memory.configure(await r.json()))
+    async def preferences(r):
+        mutate(r);data=await r.json()
+        version=data.get('preferences_version')
+        patch={k:data[k] for k in ('enabled','auto_capture') if k in data}
+        if not patch:raise ValueError('Invalid memory preferences')
+        return reply(memory.configure(patch,preferences_version=version))
     @routes.post('/qwen-cn/memory')
     async def add_memory(r):
         mutate(r);data=await r.json();return reply(memory.put(data.get('content'),data.get('category','preference')),201)
@@ -191,15 +196,16 @@ def install(app, backend, database, input_root, output_root):
     async def edit_memory(r):
         mutate(r);data=await r.json();memory_id=r.match_info['memory_id']
         if 'active' in data and data.get('content') is None and data.get('category') is None:
-            return reply(memory.set_active(memory_id,bool(data['active']),version=data.get('version')))
-        return reply(memory.put(data.get('content'),data.get('category','preference'),memory_id=memory_id,version=data.get('version')))
+            if type(data.get('active')) is not bool:raise ValueError('Invalid active flag')
+            return reply(memory.set_active(memory_id,data['active'],version=data.get('version')))
+        return reply(memory.put(data.get('content'),data.get('category','preference'),memory_id=memory_id,version=data.get('version'),allow_slot_replace=True))
     @routes.delete('/qwen-cn/memory/{memory_id}')
     async def forget(r):
         mutate(r);data=await r.json();memory.delete(r.match_info['memory_id'],version=data.get('version'));return reply({'deleted':True})
     @routes.delete('/qwen-cn/memory')
     async def clear(r):
         mutate(r);data=await r.json()
-        memory.clear(confirm=data.get('confirm') is True,version=data.get('version'),item_count=data.get('item_count'));return reply({'deleted':True})
+        memory.clear(confirm=data.get('confirm') is True,collection_revision=data.get('collection_revision'));return reply({'deleted':True})
 
     app.add_routes(routes)
     async def cleanup(app):

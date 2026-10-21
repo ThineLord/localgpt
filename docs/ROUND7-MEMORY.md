@@ -40,6 +40,7 @@ Returns:
   "items": [ { "id", "content", "category", "topic", "source", "version", "active", ... } ],
   "preferences": { "enabled", "auto_capture" },
   "preferences_version": 1,
+  "collection_revision": 1,
   "item_count": 0,
   "summary": {
     "counts": { "total", "active", "by_category" },
@@ -55,8 +56,9 @@ Returns:
 - `POST /qwen-cn/memory` — manual create (`put`)
 - `PATCH /qwen-cn/memory/{id}` — edit content **or** `{ "active": false, "version": N }` toggle
 - `DELETE /qwen-cn/memory/{id}` — optional `{ "version": N }` CAS
-- `DELETE /qwen-cn/memory` — `{ "confirm": true }`; optional `version` + `item_count` from last `GET` for stale-tab safety
-- `PATCH /qwen-cn/memory/preferences` — partial `{ "enabled" | "auto_capture" }`
+- `DELETE /qwen-cn/memory` — `{ "confirm": true, "collection_revision": N }` (required; from last `GET`)
+- `PATCH /qwen-cn/memory/preferences` — `{ "enabled" | "auto_capture", "preferences_version": N }` (required CAS)
+- `PATCH` / `DELETE` item — `version` required (409 if missing/stale)
 
 ### Chat message payload (`message.memory`)
 
@@ -73,7 +75,7 @@ After send / completion:
 }
 ```
 
-`used` is filled when the model request is assembled; IDs reflect rows actually injected (untrusted data block in system string).
+`used` is filled when the model request is assembled; IDs reflect rows actually injected. Recall text is sent as a separate **user** message (plus a short assistant ack), never appended to the system policy string.
 
 ## Runtime modules
 
@@ -114,4 +116,4 @@ python3 ../tools/round7_memory_live_acceptance.py --database /tmp/synthetic-memo
 - Same-session chat text may still mention forgotten facts; only **new** turns skip deleted/disabled rows.
 - Retrieval is deterministic lexical/slot matching, not semantic embeddings.
 - Hostile text may be stored if manually added in settings; recall filters common injection markers but is not a security sandbox.
-- Clear-all without `version`/`item_count` remains supported for legacy UI until Phase A sends snapshot fields.
+- Phase A UI must send `collection_revision` / `preferences_version` for mutating routes (fail-closed 409 until updated).

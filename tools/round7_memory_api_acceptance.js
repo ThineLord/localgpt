@@ -39,9 +39,11 @@ async function main() {
     throw new Error("GET /memory must include summary and preferences_version");
   }
 
+  let snap = await request("/qwen-cn/memory");
   await request("/qwen-cn/memory/preferences", "PATCH", {
     auto_capture: false,
     enabled: true,
+    preferences_version: snap.preferences_version,
   });
 
   const chat = await request("/qwen-cn/chats", "POST", {});
@@ -59,7 +61,11 @@ async function main() {
   const snap1 = await request("/qwen-cn/memory");
   if (snap1.item_count < 1) throw new Error("Memory item not persisted");
 
-  await request("/qwen-cn/memory/preferences", "PATCH", { enabled: false });
+  snap = await request("/qwen-cn/memory");
+  await request("/qwen-cn/memory/preferences", "PATCH", {
+    enabled: false,
+    preferences_version: snap.preferences_version,
+  });
   const chat2 = await request("/qwen-cn/chats", "POST", {});
   const blockedSend = await request(`/qwen-cn/chats/${chat2.id}/send`, "POST", {
     prompt: "记住：should not save while disabled",

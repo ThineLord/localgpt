@@ -14,7 +14,7 @@ _FORGET = re.compile(
     re.I | re.S,
 )
 _CORRECT_QUOTED = re.compile(
-    r"^将记忆[「\"“](.+?)[」\"”]修改为[「\"“](.+?)[」\"”][。.!！]?$",
+    r'^将记忆[「\"“](.+?)[」\"”]修改为[「\"“](.+?)[」\"”][。.!！]?$',
     re.I | re.S,
 )
 _CORRECT_ABOUT = re.compile(
@@ -31,11 +31,18 @@ _SECRET = re.compile(
     r"(密码|密钥|银行卡|身份证|password|api.?key|secret|credit.card|ssn)",
     re.I,
 )
+_UNSAFE = re.compile(
+    r"(ignore\s+all|system\s*:|你现在是|扮演|sudo\s+|role\s*:\s*assistant)",
+    re.I,
+)
 
 _STATEMENT_PATTERNS = [
     (re.compile(r"^(?:我的名字是|我叫|my name is)\s*([^。.!！\n]{1,60})[。.!！]?$", re.I), "profile", "name"),
     (
-        re.compile(r"^(?:我(?:更|比较)?喜欢|我偏好|我习惯|i prefer|i like|i usually)\s*[^？?\n]{1,150}[。.!！]?$", re.I),
+        re.compile(
+            r"^(?:我(?:更|比较)?喜欢|我偏好|我习惯|i prefer|i like|i usually)\s*[^？?\n]{1,150}[。.!！]?$",
+            re.I,
+        ),
         "preference",
         None,
     ),
@@ -43,8 +50,18 @@ _STATEMENT_PATTERNS = [
 ]
 
 
+def _group_value(match):
+    if not match:
+        return ""
+    return next((g.strip() for g in match.groups() if g), "")
+
+
 def _normalize_match(text):
     return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def _unsafe_payload(text):
+    return bool(_UNSAFE.search(text or ""))
 
 
 def _reject_capture_text(text):
@@ -56,9 +73,7 @@ def _reject_capture_text(text):
         return True
     if _SECRET.search(text):
         return True
-    if _REMEMBER.search(text.strip()) is None and re.search(
-        r"(ignore\s+all|system\s*:|你现在是|扮演|sudo\s+)", text, re.I
-    ):
+    if _unsafe_payload(text):
         return True
     return False
 
@@ -66,7 +81,7 @@ def _reject_capture_text(text):
 def _match_rows(store, needle, *, topic=None):
     needle_n = _normalize_match(needle)
     hits = []
-    for row in store.list_active():
+    for row in store.list():
         content_n = _normalize_match(row["content"])
         if needle_n and (needle_n in content_n or content_n in needle_n):
             hits.append(row)
@@ -74,7 +89,7 @@ def _match_rows(store, needle, *, topic=None):
         if topic and row.get("topic") == topic:
             hits.append(row)
     if topic:
-        topic_hits = [r for r in store.list_active() if r.get("topic") == topic]
+        topic_hits = [r for r in store.list() if r.get("topic") == topic]
         if topic_hits and not hits:
             hits = topic_hits
     return hits
@@ -95,31 +110,56 @@ class MemoryCommandProcessor:
         if not isinstance(text, str):
             return result
         raw = text.strip()
-        if not raw or _reject_capture_text(raw):
+        if not raw:
             return result
 
+        explicit_intent = bool(
+            _REMEMBER.match(raw)
+            or _FORGET.match(raw)
+            or _CORRECT_QUOTED.match(raw)
+            or _CORRECT_ABOUT.match(raw)
+            or _STYLE.match(raw)
+        )
+
         if not preferences.get("enabled"):
-            if _REMEMBER.search(raw) or _STYLE.search(raw) or _CORRECT_QUOTED.search(raw) or _CORRECT_ABOUT.search(raw):
-                result["notice"] = "记忆已暂停，聊天中不会保存或引用记忆。可在设置中重新开启。"
+            if explicit_intent:
+                result["notice"] = "记忆已暂停，聊天中不会保存、删除或引用记忆。可在设置中重新开启。"
                 result["status"] = "disabled"
+            return result
+
+        if not explicit_intent and _reject_capture_text(raw):
             return result
 
         forget = _FORGET.match(raw)
         if forget:
-            return self._forget(forget.group(1).strip(), result)
+            return self._forget(_group_value(forget), result)
 
         quoted = _CORRECT_QUOTED.match(raw)
         if quoted:
-            return self._correct_known(quoted.group(1).strip(), quoted.group(2).strip(), result)
+            return self._correct_known(
+                quoted.group(1).strip(),
+                quoted.group(2).strip(),
+                chat_id,
+                message_id,
+                result,
+            )
 
         about = _CORRECT_ABOUT.match(raw)
         if about:
-            return self._correct_known(about.group(1).strip(), about.group(2).strip(), result)
+            return self._correct_known(
+                about.group(1).strip(),
+                about.group(2).strip(),
+                chat_id,
+                message_id,
+                result,
+            )
 
         style = _STYLE.match(raw)
         if style:
-            value = style.group(1).strip()
-            if not value or len(value) > 800:
+            value = _group_value(style)
+            if not value or len(value) > 800 or _unsafe_payload(value):
+                result["notice"] = "无法保存该偏好表述。"
+                result["status"] = "rejected"
                 return result
             row = self.store.put(
                 value,
@@ -128,23 +168,37 @@ class MemoryCommandProcessor:
                 chat_id=chat_id,
                 message_id=message_id,
                 topic="answer_style",
+                allow_slot_replace=True,
             )
-            result["updated" if row.get("_deduped") else "saved"].append(row["id"])
-            result["status"] = "updated" if row.get("_deduped") else "saved"
+            if row is None:
+                result["notice"] = "已有冲突的记忆槽位，未自动覆盖。"
+                result["status"] = "rejected"
+                return result
+            key = "updated" if row.get("_deduped") else "saved"
+            result[key].append(row["id"])
+            result["status"] = key
             return result
 
         remember = _REMEMBER.match(raw)
         if remember:
-            value = remember.group(1).strip()
+            value = _group_value(remember)
+            if _unsafe_payload(value):
+                result["notice"] = "无法保存含系统或权限指令的内容。"
+                result["status"] = "rejected"
+                return result
             return self._save_explicit(value, chat_id, message_id, result)
 
         if not preferences.get("auto_capture"):
             return result
 
+        if _reject_capture_text(raw):
+            return result
         return self._auto_statement(raw, chat_id, message_id, result)
 
     def _save_explicit(self, value, chat_id, message_id, result):
-        if not value or len(value) > 800:
+        if not value or len(value) > 800 or _SECRET.search(value) or _unsafe_payload(value):
+            result["notice"] = "无法保存该内容。"
+            result["status"] = "rejected"
             return result
         category, topic = self._classify(value)
         row = self.store.put(
@@ -154,7 +208,12 @@ class MemoryCommandProcessor:
             chat_id=chat_id,
             message_id=message_id,
             topic=topic,
+            allow_slot_replace=True,
         )
+        if row is None:
+            result["notice"] = "已有相关记忆，请使用更正句式修改。"
+            result["status"] = "rejected"
+            return result
         key = "updated" if row.get("_deduped") else "saved"
         result[key].append(row["id"])
         result["status"] = key
@@ -176,6 +235,10 @@ class MemoryCommandProcessor:
             re.I,
         ):
             category, topic = "preference", "response_language"
+        if topic and self.store.slot_row(topic):
+            result["notice"] = "已有相关记忆，自动捕获不会覆盖。"
+            result["status"] = "rejected"
+            return result
         row = self.store.put(
             text.strip(),
             category,
@@ -183,7 +246,11 @@ class MemoryCommandProcessor:
             chat_id=chat_id,
             message_id=message_id,
             topic=topic,
+            allow_slot_replace=False,
         )
+        if row is None:
+            result["status"] = "rejected"
+            return result
         key = "updated" if row.get("_deduped") else "saved"
         result[key].append(row["id"])
         result["status"] = key
@@ -199,13 +266,14 @@ class MemoryCommandProcessor:
             result["notice"] = "有多条记忆与描述相近，请用「将记忆“…”修改为“…”」或到设置中指定删除。"
             result["status"] = "ambiguous"
             return result
-        self.store.delete(hits[0]["id"], version=hits[0]["version"])
-        result["forgotten"].append(hits[0]["id"])
+        row = hits[0]
+        self.store.delete(row["id"], version=row["version"])
+        result["forgotten"].append(row["id"])
         result["status"] = "forgotten"
         return result
 
-    def _correct_known(self, old_fragment, new_value, result):
-        if not new_value or len(new_value) > 800:
+    def _correct_known(self, old_fragment, new_value, chat_id, message_id, result):
+        if not new_value or len(new_value) > 800 or _unsafe_payload(new_value):
             result["notice"] = "更正内容无效。"
             result["status"] = "rejected"
             return result
@@ -226,9 +294,10 @@ class MemoryCommandProcessor:
                 memory_id=row["id"],
                 version=row["version"],
                 source="explicit",
-                chat_id=row.get("chat_id"),
-                message_id=row.get("message_id"),
+                chat_id=chat_id,
+                message_id=message_id,
                 topic=row.get("topic"),
+                allow_slot_replace=True,
             )
         except MemoryConflict as error:
             result["notice"] = str(error)
