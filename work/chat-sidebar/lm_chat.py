@@ -198,6 +198,12 @@ async def queue_image(core,session,message,settings,reference):
 async def run_turn(core,message,settings):
     mid=message['id'];answer='';reasoning=''
     try:
+        from memory_commands import command_reply
+        reply=command_reply(message.get('prompt') or '', message.get('memory') or {})
+        if reply:
+            # The send path already applied the command once. Do not call the model or mutate again.
+            core.STORE.update(mid,kind='chat',status='completed',answer=reply,phase='已完成',finished=time.time(),seconds=max(0,time.time()-(message.get('created') or time.time())))
+            return
         async with aiohttp.ClientSession() as session:
             previous=[m for m in core.STORE.chat(message['chat_id'])['messages'] if m['id']!=mid]
             last_image=next((m['image'] for m in reversed(previous) if m.get('image')),None)

@@ -110,11 +110,13 @@ All of those actions call `/qwen-cn/memory`. Item writes send `version`. Prefere
 - `window.HanzFeatures.remember(message)` opens the editor with that prompt.
 - `window.HanzFeatures.memorySignal(memory)` formats one message payload. `renderActions()` reads the open chat from the API and paints `.memory-turn-hint`.
 
+An explicit memory command is acknowledged in the message answer itself, from that stored status, without a model call. `saved` / `updated` / `forgotten` use a short fixed sentence. The other three statuses say the operation did not happen. The answer does not contain memory JSON. Ordinary questions still stream from the local model. The command is applied once on send.
+
 ## Local acceptance
 
 ```bash
 python3 work/chat-sidebar/build.py
-cd work/chat-sidebar && python3 -m unittest test_memory_runtime test_memory_round7
+(cd work/chat-sidebar && python3 -m unittest test_memory_runtime test_memory_round7)
 
 # Synthetic UI. demo.py uses a temporary database and does not call a model.
 python3 work/chat-sidebar/demo.py --port 8196
@@ -129,7 +131,7 @@ python3 tools/round7_memory_live_acceptance.py --lm-url http://127.0.0.1:1234
 
 The UI script refuses a server whose `/qwen-cn/health` is not `demo: true`. It drives add, edit, search, pause, resume, delete, global off/on, 409 conflict, clear, refresh, message hints, and light/dark layouts at 1440×900, 1280×800, and 390×844.
 
-The live script refuses any non-loopback LM URL, reads the model id from `/api/v1/models`, and asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path. Running it requires a local LM; a remote or cloud model is out of scope. The synthetic demo replaces model streaming, so it does not record `used` ids. The hint still renders them when a real turn payload includes `used`.
+The live script refuses any non-loopback LM URL, reads `/api/v1/models`, and prefers `lm_chat.clean_options({}).model` when that id is advertised. Otherwise it uses a loaded model, then any advertised local chat model. It logs the chosen id. It asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, a unique synthetic dietary canary, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path. Running this requires a local LM, not a cloud model. Synthetic demo answers are not real recall evidence.
 
 ## Risks / limits
 

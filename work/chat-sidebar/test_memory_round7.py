@@ -417,6 +417,41 @@ class Round7MemoryTests(unittest.TestCase):
         self.assertEqual(decoded[-1], answer)
         self.assertEqual(events[-1]["status"], "completed")
 
+    def test_command_reply_follows_status_and_language(self):
+        from memory_commands import command_reply
+
+        self.assertEqual(command_reply("记住：茶。", {"status": "saved"}), "已保存这条记忆。")
+        self.assertEqual(command_reply("remember: tea.", {"status": "saved"}), "Saved this memory.")
+        self.assertEqual(command_reply("忘记：茶", {"status": "forgotten"}), "已删除匹配的记忆。")
+        self.assertEqual(
+            command_reply("记住：秘密。", {"status": "disabled"}),
+            "记忆已暂停，这次没有保存、修改或删除。",
+        )
+        self.assertNotIn("已保存", command_reply("记住：秘密。", {"status": "rejected"}))
+        self.assertIsNone(command_reply("今天天气怎么样", {"status": "saved"}))
+        self.assertIsNone(command_reply("记住：茶。", {}))
+
+    def test_model_selection_prefers_app_default_without_inventing_one(self):
+        import importlib.util
+
+        from lm_chat import clean_options
+
+        path = Path(__file__).resolve().parents[2] / "tools" / "round7_memory_live_acceptance.py"
+        spec = importlib.util.spec_from_file_location("round7_memory_live_acceptance_select", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        default = clean_options({})["model"]
+        advertised = [
+            {"type": "llm", "key": "llama3.1-8b", "architecture": "llama", "loaded_instances": [{"id": "llama"}]},
+            {"type": "llm", "key": default, "architecture": "qwen3", "loaded_instances": []},
+            {"type": "llm", "key": "qwen-image", "architecture": "qwen_image", "loaded_instances": [{"id": "image"}]},
+        ]
+        self.assertEqual(module.select_model(advertised, default), default)
+        fallback = module.select_model(advertised[:1], default)
+        self.assertEqual(fallback, "llama3.1-8b")
+        self.assertIsNone(module.select_model([], default))
+        self.assertNotEqual(module.select_model(advertised[:1], default), default)
+
     def test_budget_cap(self):
         for i in range(10):
             self.mem.put(("长偏好内容" + str(i)) * 20, category="preference")

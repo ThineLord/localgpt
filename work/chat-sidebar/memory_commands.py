@@ -139,6 +139,41 @@ def _explicit_command(text):
     )
 
 
+_COMMAND_REPLY = {
+    "zh": {
+        "saved": "已保存这条记忆。",
+        "updated": "已更新这条记忆。",
+        "forgotten": "已删除匹配的记忆。",
+        "ambiguous": "没有执行：匹配到的记忆不唯一。",
+        "rejected": "没有保存、修改或删除记忆。",
+        "disabled": "记忆已暂停，这次没有保存、修改或删除。",
+    },
+    "en": {
+        "saved": "Saved this memory.",
+        "updated": "Updated this memory.",
+        "forgotten": "Deleted the matching memory.",
+        "ambiguous": "Not done: more than one memory matched.",
+        "rejected": "Did not save, change, or delete a memory.",
+        "disabled": "Memory is paused, so this was not saved, changed, or deleted.",
+    },
+}
+
+
+def command_reply(prompt, outcome):
+    """Fixed confirmation for an explicit command. None means the turn still needs the model."""
+    if not _explicit_command(prompt or ""):
+        return None
+    status = (outcome or {}).get("status")
+    if status not in _COMMAND_REPLY["zh"]:
+        return None
+    english = re.match(
+        r"(?is)^\s*(?:please\s+)?(?:remember|forget|correct|change|update)\b|"
+        r"^\s*(?:from\s+now\s+on|going\s+forward)\b",
+        prompt or "",
+    )
+    return _COMMAND_REPLY["en" if english else "zh"][status]
+
+
 def _splice_fragment(content, old, new):
     """Replace one occurrence. 'ambiguous' if the fragment repeats; 'missing' if absent."""
     if not old:
