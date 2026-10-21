@@ -1151,7 +1151,7 @@ function syncSidebar() {
   $('homeNav').setAttribute('aria-expanded', String(visible));
   $('sidebarToggle').setAttribute('aria-expanded', String(pinned));
   $('sidebarToggle').setAttribute('aria-pressed', String(pinned));
-  $('sidebarToggle').title = $('sidebarToggle').ariaLabel = t(pinned ? '收起侧边栏' : '固定侧边栏');
+  $('sidebarToggle').ariaLabel = t(pinned ? '收起侧边栏' : '固定侧边栏');
   $('mobileMenu').setAttribute('aria-expanded', String(pinned));
   $('mainContent').inert = pinned && innerWidth <= 760;
   $('sidebar').inert = !visible && innerWidth <= 760;
@@ -1481,6 +1481,7 @@ async function loadGallery(more = false) {
     return;
   }
   galleryLoading = true;
+  $("galleryRetry").hidden = true;
   const q = $("gallerySearch").value.trim(),
     offset = more ? galleryNext : 0;
   if (more && offset === null) {
@@ -1517,6 +1518,7 @@ async function loadGallery(more = false) {
     }
     renderGallery();
   } catch (e) {
+    $("galleryRetry").hidden = false;
     if (!galleryItems.length) {
       $("galleryEmpty").textContent = t("加载失败，请重试。");
       $("galleryEmpty").hidden = false;
@@ -1532,6 +1534,7 @@ async function loadGallery(more = false) {
     }
   }
 }
+$("galleryRetry").onclick = () => loadGallery().catch(e => setStatus(e.message, true));
 function renderGallery(force = false) {
   $("galleryEmpty").hidden = !!galleryItems.length;
   $("galleryEmpty").textContent = t(
@@ -1556,42 +1559,16 @@ function renderGallery(force = false) {
     galleryQuery ? "没有匹配的图片" : "暂无图片",
   );
   $("loadMore").hidden = galleryNext === null;
-  for (const item of galleryItems) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "gallery-card";
-    card.setAttribute(
-      "aria-label",
-      (language === "en" ? "Preview: " : "预览：") + item.prompt,
-    );
-    const img = document.createElement("img");
-    img.src = imageURL(item.image);
-    img.alt = item.prompt;
-    img.loading = "lazy";
-    img.width = item.image.metadata?.width || item.width;
-    img.height = item.image.metadata?.height || item.height;
-    const text = document.createElement("span");
-    const caption = document.createElement("span");
-    caption.textContent = item.prompt;
-    text.append(caption);
-    card.append(img, text);
-    card.onclick = () => {
+  window.HanzGallery.render(root, galleryItems, {
+    imageURL, language,
+    onOpen(item, trigger) {
       gallerySelection = item;
       renderGallerySelection();
-      LiquidLayers.open($("imageDialog"));
-    };
-    const tile = document.createElement("div");
-    tile.className = "gallery-tile";
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "gallery-remove glass-control chrome-button";
-    remove.innerHTML = icon("trash");
-    remove.title = t("删除图片");
-    remove.setAttribute("aria-label", t("删除图片"));
-    remove.onclick = () => window.HanzFeatures?.deleteImage(item, remove);
-    tile.append(card, remove);
-    root.append(tile);
-  }
+      $('imageDialog').querySelector('.image-info').open = false;
+      LiquidLayers.open($("imageDialog"), trigger);
+    },
+    onTrash(item, trigger) { window.HanzFeatures?.deleteImage(item, trigger); },
+  });
 }
 function renderGallerySelection() {
   const item = gallerySelection;
@@ -2026,14 +2003,6 @@ async function copyText(text, button) {
 function renderAnswer(entry, m) {
   const answer = document.createElement("div");
   answer.className = "assistant-message";
-  const meta = document.createElement("div");
-  meta.className = "assistant-meta";
-  meta.textContent =
-    "HanzAgent · " +
-    (modelCatalog.find((x) => x.key === m.model)?.display_name ||
-      m.model ||
-      "Local");
-  answer.append(meta);
   if (m.reasoning) {
     const details = document.createElement("details");
     details.className = "reasoning";
@@ -2132,7 +2101,8 @@ $("chatScroll").addEventListener("scroll", updateJumpButton, { passive: true });
 $("jumpLatest").onclick = () => {
   $("chatScroll").scrollTo({
     top: $("chatScroll").scrollHeight,
-    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+    // Streaming renders would interrupt a smooth scroll before it reaches the bottom.
+    behavior: busy || matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "instant"
       : "smooth",
   });
