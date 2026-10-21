@@ -21,7 +21,7 @@ Image inference requires the existing ComfyUI nodes and model files named in `ge
 
 Before enabling Round 4 permanent deletion, back up the existing store, update the installed extension’s `storage.py`, `generation.py` and `backend.py` (as `__init__.py`), and restart ComfyUI with an idle queue. All writers must use the deletion journal guards. Upgraded databases reject legacy deletion routes on 8188; use 8190 for lifecycle controls. No model configuration changes are needed.
 
-Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation rename/trash/restore, gallery, explicit memory management, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
+Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation pin/unpin/rename/trash/restore, gallery, controlled local memory, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
 
 The current interface follows measured signed-in navigation: a 52px rail, independent 288px pinned/temporary history panel, avatar menu and full-page settings. See [Round 4 reference and lifecycle contract](docs/ROUND4-REFERENCE.md). Earlier [design measurements](docs/DESIGN.md) and [acceptance](docs/ACCEPTANCE.md) are historical; [agent/review boundaries](docs/COLLABORATION.md) still apply.
 
@@ -55,7 +55,7 @@ reference captures must remain outside version control.
 
 Run `Start LocalGPT.command` after creating the project `.venv` and installing
 `requirements.txt`. The existing address remains `/qwen-cn/` on port 8190.
-The profile menu → **Change avatar**, or Settings → **Profile**, supports a local
+Settings → **Profile** supports a local
 PNG/JPEG/WebP preview, Cancel, Save and Reset. Originals and metadata are discarded;
 only a normalized 256px PNG is kept beside the existing database in
 `.localgpt-profile/avatar.png`. Nothing is uploaded to a cloud service. Reset is a
@@ -69,3 +69,17 @@ The half-knot logo is retained; this is an independent local application.
 See [Round 6 delivery contract](docs/ROUND6.md) for the direct Cloud API workflow,
 reference measurements and validation boundaries. Earlier round documents are
 historical evidence and retain their original names.
+
+## Round 7 navigation and memory
+
+Chat, Gallery and Settings reuse the same live navigation rail and surface rules.
+Pinned chats are separate from Recent and persist across refresh; the first-level
+avatar menu contains Settings and About. Avatar, appearance and memory controls
+remain available inside Settings.
+
+Memory stays on this device. Explicit remember/correct/forget commands operate on
+the current input; automatic capture is optional and defaults off for new settings.
+Disabling recall preserves saved rows, while deleting a memory removes it from
+future recall without rewriting earlier messages. No past-chat scan or cloud
+memory extraction is performed. See [shell contract](docs/ROUND7-SHELL.md) and
+[memory contract and limitations](docs/ROUND7-MEMORY.md).
