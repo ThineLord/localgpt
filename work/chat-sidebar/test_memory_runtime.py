@@ -216,10 +216,14 @@ def synthetic_answer(messages):
         return SENTINEL
     if "最喜欢的颜色" in last:
         if "琥珀色" in memory:
-            return "你最喜欢的颜色是琥珀色。"
+            return '你最喜欢的颜色是"琥珀色"。\n这是更正后的偏好。'
         if "钴蓝色" in memory:
             return "你最喜欢的颜色是钴蓝色。"
         return "我没有保存颜色偏好。"
+    if "饮食偏好" in last:
+        if "花生" in memory or "花生" in system:
+            return "你不吃花生。"
+        return "我没有饮食偏好记录。"
     if "1+1" in last or "等于几" in last:
         if "花生" in memory or "花生" in system:
             return "2，你不吃花生。"

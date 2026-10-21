@@ -1,6 +1,7 @@
 """Deterministic explicit memory commands (current user turn only)."""
 import re
 
+from memory_retrieval import unsafe_for_recall
 from memory_store import MemoryConflict
 
 _REMEMBER = re.compile(
@@ -40,6 +41,9 @@ _STYLE = re.compile(
     r"^(?:from\s+now\s+on|going\s+forward),?\s+please\s+(.+)$",
     re.I | re.S,
 )
+_LANGUAGE_HINT = re.compile(r"中文|汉语|英文|英语|Chinese|English", re.I)
+_VERBOSITY_HINT = re.compile(r"简洁|简短|精简|详细|详尽|concise|brief|verbose|detailed", re.I)
+_TONE_HINT = re.compile(r"正式|随意|口语|formal|casual", re.I)
 
 _SECRET = re.compile(
     r"(密码|密钥|银行卡|身份证|password|api.?key|secret|credit.card|ssn)",
@@ -75,7 +79,7 @@ def _normalize_match(text):
 
 
 def _unsafe_payload(text):
-    return bool(_UNSAFE.search(text or ""))
+    return bool(_UNSAFE.search(text or "")) or unsafe_for_recall(text)
 
 
 def _reject_capture_text(text):
@@ -253,25 +257,7 @@ class MemoryCommandProcessor:
 
         style = _STYLE.match(raw)
         if style:
-            value = _group_value(style)
-            if not value or len(value) > 800 or _unsafe_payload(value):
-                result["notice"] = "无法保存该偏好表述。"
-                result["status"] = "rejected"
-                return result
-            row = self.store.put(
-                value,
-                "preference",
-                source="explicit",
-                chat_id=chat_id,
-                message_id=message_id,
-                topic="answer_style",
-                allow_slot_replace=True,
-            )
-            if row is None:
-                result["notice"] = "已有冲突的记忆槽位，未自动覆盖。"
-                result["status"] = "rejected"
-                return result
-            return self._record_write(row, result)
+            return self._save_style(_group_value(style), chat_id, message_id, result)
 
         remember = _REMEMBER.match(raw)
         if remember:
@@ -288,6 +274,76 @@ class MemoryCommandProcessor:
         if _reject_capture_text(raw):
             return result
         return self._auto_statement(raw, chat_id, message_id, result)
+
+    def _style_assignments(self, value):
+        """Map a style sentence onto separate slots. Unknown text gets no slot."""
+        language = verbosity = tone = None
+        if re.search(r"中文|汉语|Chinese", value, re.I):
+            language = "用中文回答。"
+        elif re.search(r"英文|英语|English", value, re.I):
+            language = "Answer in English."
+        if re.search(r"简洁|简短|精简|concise|brief", value, re.I):
+            verbosity = "请简洁回答。"
+        elif re.search(r"详细|详尽|verbose|detailed", value, re.I):
+            verbosity = "请详细回答。"
+        if re.search(r"正式|formal", value, re.I):
+            tone = "请用正式语气。"
+        elif re.search(r"随意|口语|casual", value, re.I):
+            tone = "请用随意语气。"
+        slots = []
+        if language and _LANGUAGE_HINT.search(value):
+            slots.append(("response_language", language))
+        if verbosity and _VERBOSITY_HINT.search(value):
+            slots.append(("answer_style", verbosity))
+        if tone and _TONE_HINT.search(value):
+            slots.append(("tone", tone))
+        return slots
+
+    def _save_style(self, value, chat_id, message_id, result):
+        if not value or len(value) > 800 or _unsafe_payload(value):
+            result["notice"] = "无法保存该偏好表述。"
+            result["status"] = "rejected"
+            return result
+        slots = self._style_assignments(value)
+        if not slots:
+            row = self.store.put(
+                value,
+                "preference",
+                source="explicit",
+                chat_id=chat_id,
+                message_id=message_id,
+                topic=None,
+                allow_slot_replace=False,
+            )
+            if row is None:
+                result["notice"] = "无法保存该偏好表述。"
+                result["status"] = "rejected"
+                return result
+            return self._record_write(row, result)
+        written = []
+        for topic, normalized in slots:
+            content = value if len(slots) == 1 else normalized
+            row = self.store.put(
+                content,
+                "preference",
+                source="explicit",
+                chat_id=chat_id,
+                message_id=message_id,
+                topic=topic,
+                allow_slot_replace=True,
+            )
+            if row is None:
+                result["notice"] = "已有冲突的记忆槽位，未自动覆盖。"
+                result["status"] = "rejected"
+                return result
+            written.append(row)
+        for row in written:
+            key = "updated" if row.get("_deduped") or row.get("_replaced") else "saved"
+            result[key].append(row["id"])
+        result["status"] = "updated" if result["updated"] else "saved"
+        if any(not row.get("active", True) for row in written):
+            result["notice"] = "已写入该记忆，但它当前处于停用状态，不会被引用。可在设置中重新启用。"
+        return result
 
     def _record_write(self, row, result):
         key = "updated" if row.get("_deduped") or row.get("_replaced") else "saved"
