@@ -853,6 +853,7 @@ dialog button.primary, #saveMemory {
   .sidebar-open .sidebar { transform:none; visibility:visible; }
   .history-panel { width:calc(min(var(--sidebar-mobile-width), 100vw - 40px) - var(--rail)); }
   .sidebar-open .sidebar-shade { display:block; position:fixed; inset:0; z-index:25; background:var(--backdrop); }
+  body.settings-surface-open:not(.sidebar-open) .sidebar-shade { display:none; pointer-events:none; }
   .sidebar-open #headerNewChat { display:grid; }
   #sidebarToggle { opacity:1; }
   #galleryView { padding:68px 16px 24px; }

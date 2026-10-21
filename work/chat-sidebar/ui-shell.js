@@ -180,9 +180,12 @@
   }
   addEventListener('hanzlanguage',title);
   section('general');responsive();addEventListener('resize',responsive,{passive:true});
-  const resetSettingsChrome=()=>{drawer(false);responsive();};
+  const resetSettingsChrome=()=>{if(dialog.open)return;drawer(false);responsive();};
   dialog.addEventListener('close',resetSettingsChrome);
-  dialog.addEventListener('beforetoggle',event=>{if(event.newState==='closed')resetSettingsChrome();});
+  dialog.addEventListener('beforetoggle',event=>{
+    if(event.newState!=='closed')return;
+    queueMicrotask(resetSettingsChrome);
+  });
 })();
 
 /* Shared top-layer tooltips. Native title bubbles are removed for these controls. */

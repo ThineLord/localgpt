@@ -5,6 +5,7 @@
   let settingsOrigin = null;
   let memoryOpener = window.AppShellRegistrations?.openMemory || null;
   let closing = null;
+  let generation = 0;
 
   function visible(el) {
     return !!(
@@ -45,27 +46,53 @@
     restoreFocus(origin);
   }
 
+  function dismissMobileDrawer() {
+    if (innerWidth > 760) return;
+    document.body.classList.remove("sidebar-open", "sidebar-temporary");
+  }
+
   function closeSettings() {
     if (closing) return closing;
-    const open = !!(prefs?.open);
-    const marked = document.body.classList.contains("settings-surface-open");
+    const token = generation;
+    const open = !!prefs?.open;
+    const marked =
+      document.body.classList.contains("settings-surface-open") || !!settingsOrigin;
     if (!open && !marked) return Promise.resolve();
     let resolve;
-    closing = new Promise((done) => {
+    const finished = new Promise((done) => {
       resolve = done;
     });
-    const finished = closing;
-    if (open) prefs.close();
-    else applyClosed();
-    resolve();
-    queueMicrotask(() => {
+    closing = finished;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      prefs?.removeEventListener("beforetoggle", onDismiss);
+      prefs?.removeEventListener("close", onDismiss);
+      if (token === generation) applyClosed();
       if (closing === finished) closing = null;
-    });
+      resolve();
+    };
+    function onDismiss(event) {
+      if (event.type === "beforetoggle" && event.newState !== "closed") return;
+      finish();
+    }
+    if (!open) {
+      finish();
+      return finished;
+    }
+    prefs.addEventListener("beforetoggle", onDismiss);
+    prefs.addEventListener("close", onDismiss);
+    prefs.close();
+    if (!prefs.open) finish();
     return finished;
   }
 
   function openSettings(section = "general", origin = $("appSettings")) {
+    generation += 1;
+    closing = null;
     window.LiquidLayers?.closeSettings({ focus: false });
+    dismissMobileDrawer();
     if (origin instanceof Element) settingsOrigin = origin;
     if (prefs && !prefs.open) prefs.show();
     document.body.classList.add("settings-surface-open");
@@ -106,8 +133,12 @@
   if (memoryOpener) registerOpenMemory(memoryOpener);
 
   function noteSettingsClosed() {
-    if (!document.body.classList.contains("settings-surface-open") && !settingsOrigin) return;
-    applyClosed();
+    const token = generation;
+    queueMicrotask(() => {
+      if (token !== generation || closing || prefs?.open) return;
+      if (!document.body.classList.contains("settings-surface-open") && !settingsOrigin) return;
+      applyClosed();
+    });
   }
   // Chrome 156 fires beforetoggle and does not fire close for dialog.close().
   prefs?.addEventListener("close", noteSettingsClosed);

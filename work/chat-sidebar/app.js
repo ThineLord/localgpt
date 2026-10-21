@@ -2247,7 +2247,8 @@ addEventListener("appshell-surface", () => {
   if (
     document.body.classList.contains("settings-surface-open") &&
     innerWidth <= 760 &&
-    document.body.classList.contains("sidebar-open")
+    (document.body.classList.contains("sidebar-open") ||
+      document.body.classList.contains("sidebar-temporary"))
   ) {
     setSidebar(false, { focus: false });
     return;

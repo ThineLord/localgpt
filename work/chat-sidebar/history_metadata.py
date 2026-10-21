@@ -1,6 +1,6 @@
 """Independent chat pin metadata (Round 7). Pin state does not touch chat.version/draft_version."""
 import time
-from storage import Conflict, _ensure_pin_schema, _pin_row
+from storage import Conflict, _pin_row
 
 
 def _expected_pin_version(value):
@@ -15,7 +15,6 @@ def set_pin(store, chat_id, pinned, expected_version):
     expected_version = _expected_pin_version(expected_version)
     with store.connect() as db:
         db.execute("BEGIN IMMEDIATE")
-        _ensure_pin_schema(db)
         chat = db.execute(
             "SELECT id, deleted_at FROM chats WHERE id=?", (chat_id,)
         ).fetchone()

@@ -1,6 +1,7 @@
-import importlib.util
 import pathlib
 import sys
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,15 +12,12 @@ from aiohttp.test_utils import TestClient, TestServer
 ROOT = pathlib.Path(__file__).parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-for name in ("storage", "runtime"):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-Store = sys.modules["storage"].Store
-Conflict = sys.modules["storage"].Conflict
-install = sys.modules["runtime"].install
-errors = sys.modules["runtime"].errors
+
+import runtime
+import storage
+from history_metadata import set_pin
+from runtime import errors, install
+from storage import Conflict, Store
 
 
 class PinMetadataTests(unittest.TestCase):
@@ -45,7 +43,6 @@ class PinMetadataTests(unittest.TestCase):
             self.assertEqual(after["draft_version"], version["draft_version"])
 
     def test_reads_do_not_initialize_pin_schema(self):
-        storage = sys.modules["storage"]
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp) / "ready.sqlite3")
             chat = store.create("Ready")
@@ -61,6 +58,80 @@ class PinMetadataTests(unittest.TestCase):
             self.assertIs(listed[0]["pinned"], False)
             self.assertIs(full["pinned"], False)
             self.assertEqual(full["pin_version"], 0)
+
+    def test_set_pin_does_not_initialize_schema_inside_the_transaction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "atomic.sqlite3")
+            chat = store.create("Atomic")
+
+            class Guard:
+                def __init__(self, db):
+                    self._db = db
+
+                def executescript(self, *_args, **_kwargs):
+                    raise AssertionError("schema script must not run inside pin mutation")
+
+                def __getattr__(self, name):
+                    return getattr(self._db, name)
+
+            real_connect = store.connect
+
+            @contextmanager
+            def guarded_connect(*args, **kwargs):
+                with real_connect(*args, **kwargs) as db:
+                    yield Guard(db)
+
+            store.connect = guarded_connect
+            try:
+                pinned = set_pin(store, chat["id"], True, 0)
+            finally:
+                store.connect = real_connect
+            self.assertTrue(pinned["pinned"])
+            self.assertEqual(pinned["pin_version"], 1)
+
+    def _race_pin(self, store, chat_id, pinned, expected):
+        barrier = threading.Barrier(2, timeout=5)
+        outcomes = []
+
+        def writer():
+            barrier.wait()
+            try:
+                outcomes.append(("ok", set_pin(store, chat_id, pinned, expected)))
+            except Conflict:
+                outcomes.append(("conflict", None))
+            except Exception as exc:
+                outcomes.append(("error", exc))
+
+        threads = [threading.Thread(target=writer) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(10)
+            self.assertFalse(thread.is_alive(), "pin writer did not finish")
+        kinds = [kind for kind, _ in outcomes]
+        self.assertEqual(sorted(kinds), ["conflict", "ok"], outcomes)
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT pinned, pin_version FROM chat_pin WHERE chat_id=?", (chat_id,)
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(int(row["pin_version"]), expected + 1)
+        self.assertEqual(bool(row["pinned"]), pinned)
+        return row
+
+    def test_simultaneous_writers_one_success_one_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "race.sqlite3")
+            for _ in range(8):
+                chat = store.create("Initial pin race")
+                self._race_pin(store, chat["id"], True, 0)
+            existing = store.create("Existing pin race")
+            self.assertEqual(set_pin(store, existing["id"], True, 0)["pin_version"], 1)
+            for _ in range(8):
+                current = store.chat(existing["id"])["pin_version"]
+                self._race_pin(store, existing["id"], False, current)
+                current = store.chat(existing["id"])["pin_version"]
+                self._race_pin(store, existing["id"], True, current)
 
 
 class PinAPITests(unittest.IsolatedAsyncioTestCase):
