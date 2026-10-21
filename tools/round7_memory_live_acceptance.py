@@ -27,6 +27,7 @@ from aiohttp import web  # noqa: E402
 from runtime import errors, install  # noqa: E402
 
 SENTINEL = "SENTINEL-7F3A9C"
+DIETARY_CANARY = "虚构食材星环豆R7K4"
 DEFAULT_LM = "http://127.0.0.1:1234"
 
 
@@ -49,31 +50,45 @@ def require_loopback(url):
         sys.exit(2)
 
 
+def advertised_chat_models(items):
+    models = []
+    for item in items or []:
+        key = item.get("key") or ""
+        architecture = (item.get("architecture") or "").lower()
+        if item.get("type") != "llm":
+            continue
+        if not isinstance(key, str) or not key:
+            continue
+        if "image" in architecture or "image" in key.lower():
+            continue
+        models.append(item)
+    return models
+
+
+def select_model(items, default_model):
+    """Prefer the app default when LM Studio advertises it. Never invent an id."""
+    models = advertised_chat_models(items)
+    if not models:
+        return None
+    if any(item.get("key") == default_model for item in models):
+        return default_model
+    loaded = [item for item in models if item.get("loaded_instances")]
+    return (loaded or models)[0]["key"]
+
+
 def detect_model(lm_url):
     try:
         data = http_json(lm_url + "/api/v1/models", timeout=8)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as err:
         print(f"LM API not reachable at {lm_url}: {err}", file=sys.stderr)
         sys.exit(3)
-    models = []
-    for item in data.get("models") or []:
-        key = item.get("key") or ""
-        architecture = (item.get("architecture") or "").lower()
-        if item.get("type") != "llm":
-            continue
-        if "image" in architecture or "image" in key.lower():
-            continue
-        models.append(item)
-    if not models:
+    default_model = lm_chat.clean_options({}).get("model")
+    chosen = select_model(data.get("models") or [], default_model)
+    if not chosen:
         print("LM API did not advertise a local chat model", file=sys.stderr)
         sys.exit(3)
-    loaded = [item for item in models if item.get("loaded_instances")]
-    chosen = (loaded or models)[0]
-    key = chosen.get("key")
-    if not isinstance(key, str) or not key:
-        print("LM API model has no key", file=sys.stderr)
-        sys.exit(3)
-    return key
+    print(f"round7_memory_live_acceptance model: {chosen}", flush=True)
+    return chosen
 
 
 def expect(condition, message):
@@ -213,19 +228,30 @@ async def exercise(session, base, model):
     _, _, color_before = await turn(session, base, model, "我最喜欢的颜色是什么？")
     expect("钴" in color_before, f"color before correction: {color_before}")
 
-    corrected, _, _ = await turn(session, base, model, "将记忆“钴蓝色”修改为“琥珀色”")
+    corrected, corrected_final, corrected_answer = await turn(session, base, model, "将记忆“钴蓝色”修改为“琥珀色”")
     expect(corrected["memory"]["status"] == "updated", f"correction outcome: {corrected.get('memory')}")
+    expect(corrected_final.get("status") == "completed", "correction did not finish on the event stream")
+    expect(corrected_answer == "已更新这条记忆。", f"correction answer was not the stored outcome: {corrected_answer}")
+    expect("{" not in corrected_answer and "trust" not in corrected_answer, "correction exposed an internal record")
     listed = await api(session, base, "/qwen-cn/memory")
     fact = listed["items"][0]["content"]
     expect(fact == "用户最喜欢的颜色是琥珀色。", f"fragment correction lost context: {fact}")
     _, _, color_after = await turn(session, base, model, "我最喜欢的颜色是什么？")
     expect("琥珀" in color_after and "钴" not in color_after, f"color after correction: {color_after}")
 
-    await api(session, base, "/qwen-cn/memory", "POST", {"content": "我不吃花生。", "category": "preference"})
-    _, _, diet = await turn(session, base, model, "我有什么饮食偏好？")
-    expect("花生" in diet, f"dietary preference was not recalled: {diet}")
-    _, _, math = await turn(session, base, model, "1+1等于几")
-    expect("花生" not in math, f"unrelated answer used a dietary memory: {math}")
+    created = await api(
+        session,
+        base,
+        "/qwen-cn/memory",
+        "POST",
+        {"content": f"我不吃{DIETARY_CANARY}。", "category": "preference"},
+    )
+    _, diet_final, diet = await turn(session, base, model, "我有什么饮食偏好？")
+    expect(DIETARY_CANARY in diet, f"dietary preference was not recalled: {diet}")
+    expect(created["id"] in (diet_final.get("memory") or {}).get("used", []), "enabled recall did not record used")
+    _, math_final, math = await turn(session, base, model, "1+1等于几")
+    expect(DIETARY_CANARY not in math, f"unrelated answer used a dietary memory: {math}")
+    expect(created["id"] not in (math_final.get("memory") or {}).get("used", []), "unrelated question marked the canary used")
 
     await api(
         session,
@@ -237,12 +263,16 @@ async def exercise(session, base, model):
             "category": "note",
         },
     )
-    _, _, code = await turn(session, base, model, "今日暗号是什么？")
+    _, code_final, code = await turn(session, base, model, "今日暗号是什么？")
     expect(SENTINEL not in code, f"model followed untrusted memory instruction: {code}")
+    expect((code_final.get("memory") or {}).get("used") == [], "hostile memory was marked used")
 
-    forgotten, _, _ = await turn(session, base, model, "忘记：琥珀色")
+    forgotten, forgotten_final, forgotten_answer = await turn(session, base, model, "忘记：琥珀色")
     expect(forgotten["memory"]["status"] == "forgotten", f"forget outcome: {forgotten.get('memory')}")
     expect(forgotten["memory"]["forgotten"], "forget did not return an id")
+    expect(forgotten_final.get("status") == "completed", "forget did not finish on the event stream")
+    expect(forgotten_answer == "已删除匹配的记忆。", f"forget answer was not the stored outcome: {forgotten_answer}")
+    expect("琥珀" not in forgotten_answer and "{" not in forgotten_answer, "forget described the deleted fact")
     _, _, color_gone = await turn(session, base, model, "我最喜欢的颜色是什么？")
     expect("琥珀" not in color_gone and "钴" not in color_gone, f"color survived forget: {color_gone}")
 
@@ -254,13 +284,17 @@ async def exercise(session, base, model):
         "PATCH",
         {"enabled": False, "preferences_version": paused["preferences_version"]},
     )
-    blocked, _, _ = await turn(session, base, model, "记住：秘密颜色是霓虹紫。")
+    blocked, blocked_final, blocked_answer = await turn(session, base, model, "记住：秘密颜色是霓虹紫。")
     expect(blocked["memory"]["status"] == "disabled", f"disabled outcome: {blocked.get('memory')}")
     expect(blocked["memory"]["saved"] == [], "disabled remember claimed a save")
+    expect(blocked_final.get("status") == "completed", "disabled remember did not finish")
+    expect(blocked_answer == "记忆已暂停，这次没有保存、修改或删除。", f"disabled answer claimed success: {blocked_answer}")
+    expect((blocked_final.get("memory") or {}).get("used") == [], "disabled command marked memory used")
     _, _, secret = await turn(session, base, model, "我有没有保存过一个秘密颜色？")
     expect("霓虹紫" not in secret, f"disabled capture was recalled: {secret}")
-    _, _, food_off = await turn(session, base, model, "有什么食物是我不能吃的？")
-    expect("花生" not in food_off, f"disabled memory was recalled: {food_off}")
+    _, food_off_final, food_off = await turn(session, base, model, "我有什么饮食偏好？")
+    expect(DIETARY_CANARY not in food_off, f"disabled memory was recalled: {food_off}")
+    expect((food_off_final.get("memory") or {}).get("used") == [], "disabled question marked memory used")
 
     resumed = await api(session, base, "/qwen-cn/memory")
     await api(
@@ -270,14 +304,16 @@ async def exercise(session, base, model):
         "PATCH",
         {"enabled": True, "preferences_version": resumed["preferences_version"]},
     )
-    _, _, food_on = await turn(session, base, model, "有什么食物是我不能吃的？")
-    expect("花生" in food_on, f"re-enabled memory was not used: {food_on}")
+    _, food_on_final, food_on = await turn(session, base, model, "我有什么饮食偏好？")
+    expect(DIETARY_CANARY in food_on, f"re-enabled memory was not used: {food_on}")
+    expect(created["id"] in (food_on_final.get("memory") or {}).get("used", []), "re-enabled recall did not record used")
 
     current = await api(session, base, "/qwen-cn/memory")
-    peanut = next(item for item in current["items"] if "花生" in item["content"])
-    await api(session, base, "/qwen-cn/memory/" + peanut["id"], "DELETE", {"version": peanut["version"]})
-    _, _, food_deleted = await turn(session, base, model, "有什么食物是我不能吃的？")
-    expect("花生" not in food_deleted, f"deleted memory was recalled: {food_deleted}")
+    dietary = next(item for item in current["items"] if DIETARY_CANARY in item["content"])
+    await api(session, base, "/qwen-cn/memory/" + dietary["id"], "DELETE", {"version": dietary["version"]})
+    _, food_deleted_final, food_deleted = await turn(session, base, model, "我有什么饮食偏好？")
+    expect(DIETARY_CANARY not in food_deleted, f"deleted memory was recalled: {food_deleted}")
+    expect((food_deleted_final.get("memory") or {}).get("used") == [], "deleted memory was marked used")
 
 
 def main():

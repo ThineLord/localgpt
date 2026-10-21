@@ -113,6 +113,8 @@ Writes:
 
 `message.memory.status` is the command result (`saved`, `updated`, `forgotten`, `ambiguous`, `rejected`, `disabled`). Do not show a success hint when status is `disabled`, `rejected`, or `ambiguous`. `used` is recall only and is empty while memory is disabled. `notice` is a short explanation for the UI.
 
+An explicit memory command is acknowledged in the message answer itself, from that stored status, without a model call. `saved` / `updated` / `forgotten` use a short fixed sentence. The other three statuses say the operation did not happen. The answer does not contain memory JSON. Ordinary questions still stream from the local model. The command is applied once on send.
+
 Summary, search, add, edit, inactive, source, use/pause, and compare-and-swap belong in the next UI pass, together with Settings and usage hints. A list of rows alone is not the memory surface.
 
 ## JS hooks (next phase)
@@ -135,7 +137,7 @@ node ../tools/round7_memory_api_acceptance.js
 python3 ../tools/round7_memory_live_acceptance.py --lm-url http://127.0.0.1:1234
 ```
 
-The live script refuses any non-loopback LM URL, reads the model id from `/api/v1/models`, and asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path.
+The live script refuses any non-loopback LM URL, reads `/api/v1/models`, and prefers `lm_chat.clean_options({}).model` when that id is advertised. Otherwise it uses a loaded model, then any advertised local chat model. It logs the chosen id. It asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, a unique synthetic dietary canary, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path.
 
 ## Risks / limits
 
