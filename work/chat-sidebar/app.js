@@ -304,6 +304,7 @@ Object.assign(EN, {
   记为全局记忆: "Save as personal memory",
   回到最新消息: "Latest message",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
+  记忆: "Memory", 外观模式: "Mode",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
   返回对话: "Back to chat", 打开设置导航: "Open settings navigation", 关闭设置导航: "Close settings navigation",
   打开生成与对话参数: "Open generation and chat settings", 打开回收站: "Open trash",
@@ -557,16 +558,23 @@ function showDraft(d) {
   showOptions(n);
   resizePrompt();
 }
+const transientDraftKey = "hanz-transient-draft";
+function stashTransientDraft() {
+  try {
+    if (!current || sessionStorage.getItem(transientDraftKey))
+      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, draft: draft()}));
+  } catch {}
+}
 function scheduleSave() {
   resizePrompt();
   updateSendButton();
-  if (!current) return;
   dirty = true;
+  stashTransientDraft();
   setSave("正在保存…");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(
     () => saveDraft().catch((e) => setStatus(e.message, true)),
-    450,
+    current ? 450 : 0,
   );
 }
 async function saveDraft() {
@@ -576,7 +584,20 @@ async function saveDraft() {
     if (dirty && !conflict) return saveDraft();
     return !dirty;
   }
-  if (!dirty || !current) return true;
+  if (!dirty) return true;
+  // An untouched new-chat page is transient. Materialize it only when saving
+  // an edited draft, preserving the existing durable draft/conflict protocol.
+  if (!current) {
+    saving = request("/qwen-cn/chats", json("POST", {})).then(fresh => {
+      current = fresh;
+      stashTransientDraft();
+      baseDraft = normalized(fresh.draft);
+      history.replaceState(null, "", "#chat=" + encodeURIComponent(fresh.id));
+      setChatTitle();
+    }).finally(() => { saving = null; });
+    await saving;
+    return saveDraft();
+  }
   if (conflict) return false;
   const id = current.id,
     snapshot = draft(),
@@ -609,7 +630,10 @@ async function saveDraft() {
       if (current?.id === id) {
         current = fresh;
         baseDraft = normalized(fresh.draft);
-        if (same(draft(), snapshot)) dirty = false;
+        if (same(draft(), snapshot)) {
+          dirty = false;
+          try { sessionStorage.removeItem(transientDraftKey); } catch {}
+        }
         setSave(dirty ? "正在保存…" : "草稿已保存");
       }
       return true;
@@ -992,9 +1016,23 @@ async function newChat() {
   $("newChat").disabled = true;
   try {
     if (!(await saveDraft())) return;
-    const chat = await request("/qwen-cn/chats", json("POST", {}));
-    chats = await request("/qwen-cn/chats");
-    await selectChat(chat.id);
+    ++navigationVersion;
+    current = null;
+    dirty = false;
+    conflict = null;
+    baseDraft = normalized({});
+    $("draftConflict").hidden = true;
+    showDraft({});
+    setSave("");
+    setStatus("");
+    view = "chat";
+    showView();
+    history.replaceState(null, "", location.pathname + location.search);
+    setChatTitle();
+    renderSidebar(true);
+    updateActivity();
+    render(true);
+    if (innerWidth < 761) setSidebar(false);
     $("prompt").focus();
   } finally {
     creatingChat = false;
@@ -1213,6 +1251,7 @@ $("cancel").onclick = async () => {
   }
 };
 window.addEventListener("pagehide", () => {
+  if (dirty) stashTransientDraft();
   if (dirty && current && !conflict) {
     const body = JSON.stringify({
       version: current.draft_version,
@@ -1577,12 +1616,20 @@ async function init() {
     const health = await request("/qwen-cn/health");
     $("databasePath").title = health.database || "";
     chats = await request("/qwen-cn/chats");
-    if (!chats.length)
-      chats = [await request("/qwen-cn/chats", json("POST", {}))];
     const id = new URLSearchParams(location.hash.slice(1)).get("chat");
     if (location.hash === "#gallery") await setView("gallery");
     else if (location.hash === "#trash") await setView("trash");
-    else await selectChat(chats.some((c) => c.id === id) ? id : chats[0].id);
+    else {
+      let pendingDraft;
+      try { pendingDraft = JSON.parse(sessionStorage.getItem(transientDraftKey)); } catch {}
+      const existing = chats.some(c => c.id === id);
+      if (existing) await selectChat(id);
+      else await newChat();
+      if (pendingDraft?.draft && pendingDraft.chatId === (existing ? id : null)) {
+        showDraft(pendingDraft.draft);
+        scheduleSave();
+      }
+    }
     setConnection("本地已连接");
     loadModels();
     setInterval(() => {
@@ -1768,8 +1815,8 @@ async function sendTurn(overrides) {
   submitting = true;
   updateSendButton();
   try {
+    if (!current) dirty = true;
     if (!(await saveDraft())) return;
-    if (!current) await newChat();
     const payload = {
       ...draft(),
       ...overrides,
@@ -2100,6 +2147,7 @@ window.addEventListener("hashchange", () => {
   else {
     const id = new URLSearchParams(hash.slice(1)).get("chat");
     if (id) selectChat(id).catch((e) => setStatus(e.message, true));
+    else newChat().catch((e) => setStatus(e.message, true));
   }
 });
 init();
