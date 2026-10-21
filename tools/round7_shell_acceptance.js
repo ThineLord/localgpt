@@ -181,12 +181,24 @@ async (page) => {
         await page.locator("#sidebarToggle").click();
         await state("collapsed");
       } else {
-        check(
-          await page.evaluate(
-            () => document.getElementById("mobileMenu").closest(".settings-layout-header") !== null,
-          ),
-          "Mobile settings hid the shared menu button",
-        );
+        const layer = await page.evaluate(() => {
+          const close = document.getElementById("closePreferences");
+          const box = close.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          const shade = getComputedStyle(document.getElementById("sidebarShade"));
+          return {
+            sidebarOpen: document.body.classList.contains("sidebar-open"),
+            shadeDisplay: shade.display,
+            shadePointer: shade.pointerEvents,
+            hitClose: !!hit?.closest("#closePreferences"),
+            menuInHeader: document.getElementById("mobileMenu").closest(".settings-layout-header") !== null,
+          };
+        });
+        check(!layer.sidebarOpen, "Opening settings left the mobile sidebar open");
+        check(layer.shadeDisplay === "none", "Opening settings left #sidebarShade displayed");
+        check(layer.shadePointer === "none", "Opening settings left #sidebarShade intercepting clicks");
+        check(layer.hitClose, "#sidebarShade intercepts #closePreferences");
+        check(layer.menuInHeader, "Mobile settings hid the shared menu button");
         await page.locator("#settingsBack").click();
         await page.locator(".settings-nav-open").waitFor();
         const nav = await page.locator("#settingsNav").boundingBox();
@@ -198,10 +210,30 @@ async (page) => {
         await page.waitForFunction(
           () => !document.getElementById("preferencesDialog").classList.contains("settings-nav-open"),
         );
+        await page.locator("#closePreferences").click();
+        await page.waitForFunction(() => !document.getElementById("preferencesDialog").open);
+        check(
+          !(await page.evaluate(() => document.body.classList.contains("settings-surface-open"))),
+          "Close left the settings surface class",
+        );
+        await page.locator("#mobileMenu").click();
+        await page.locator("#profileButton").click();
+        await page.locator("#appSettings").click();
+        await page.waitForSelector("#preferencesDialog[open]");
         await page.locator("#mobileMenu").click();
         await state("mobile-overlay");
         const mobileRail = await railIdentity();
         check(mobileRail.one && !mobileRail.inert, "Mobile drawer rail is not the shared node");
+        await page.locator("#galleryNav").click();
+        await page.waitForSelector("#galleryView:not([hidden])");
+        await state("mobile-closed");
+        check((await page.locator("#preferencesDialog[open]").count()) === 0, "Mobile gallery left settings open");
+        await page.locator("#mobileMenu").click();
+        await page.locator("#profileButton").click();
+        await page.locator("#appSettings").click();
+        await page.waitForSelector("#preferencesDialog[open]");
+        await page.locator("#mobileMenu").click();
+        await state("mobile-overlay");
         await page.locator("#homeNav").click();
         await page.locator("#intro").waitFor({ state: "visible" });
         await state("mobile-closed");
@@ -230,16 +262,53 @@ async (page) => {
   check(await page.locator("#preferencesDialog[open]").count(), "Escape closed the parent settings page");
   const lifecycle = await page.evaluate(async () => {
     const dialog = document.getElementById("preferencesDialog");
-    const pending = window.AppShell.closeSettings();
+    const selected = (name) =>
+      document.querySelector(`[data-settings-section="${name}"]`)?.getAttribute("aria-selected");
+    const marked = () => document.body.classList.contains("settings-surface-open");
+    window.AppShell.openSettings("general");
+    let settled = null;
+    const pending = window.AppShell.closeSettings().then(() => {
+      settled = { open: dialog.open, marked: marked() };
+    });
     const isPromise = pending instanceof Promise;
     await pending;
+    window.AppShell.openSettings("general");
+    const first = window.AppShell.closeSettings();
+    window.AppShell.openSettings("appearance");
+    await first;
+    dialog.dispatchEvent(new ToggleEvent("beforetoggle", { oldState: "open", newState: "closed" }));
+    dialog.dispatchEvent(new Event("close"));
+    await Promise.resolve();
+    const reopened = { open: dialog.open, marked: marked(), selected: selected("appearance") };
+    const nav = window.AppShell.leaveSettingsForNavigation();
+    window.AppShell.openSettings("general");
+    await nav;
+    dialog.dispatchEvent(new ToggleEvent("beforetoggle", { oldState: "open", newState: "closed" }));
+    await Promise.resolve();
+    const afterNav = { open: dialog.open, marked: marked(), selected: selected("general") };
+    await window.AppShell.closeSettings();
     return {
       isPromise,
-      closed: !dialog.open && !document.body.classList.contains("settings-surface-open"),
+      settledClosed: !!settled && !settled.open && !settled.marked,
+      reopened,
+      afterNav,
+      closed: !dialog.open && !marked(),
       registered: typeof window.AppShellRegistrations.openMemory === "function",
     };
   });
-  check(lifecycle.isPromise && lifecycle.closed && lifecycle.registered, "closeSettings lifecycle broke");
+  check(
+    lifecycle.isPromise &&
+      lifecycle.settledClosed &&
+      lifecycle.reopened.open &&
+      lifecycle.reopened.marked &&
+      lifecycle.reopened.selected === "true" &&
+      lifecycle.afterNav.open &&
+      lifecycle.afterNav.marked &&
+      lifecycle.afterNav.selected === "true" &&
+      lifecycle.closed &&
+      lifecycle.registered,
+    "closeSettings lifecycle broke " + JSON.stringify(lifecycle),
+  );
   await page.evaluate(() => window.AppShell.openMemory(document.getElementById("memoryNav")));
   await page.waitForSelector("#memoryDialog[open]");
   await page.keyboard.press("Escape");
