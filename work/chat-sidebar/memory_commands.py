@@ -13,12 +13,26 @@ _FORGET = re.compile(
     r"^(?:please\s+)?forget(?:\s+about)?[：:,\s]+(.+)$",
     re.I | re.S,
 )
-_CORRECT_QUOTED = re.compile(
+# Fragment form keeps the rest of the fact. About form replaces the whole fact.
+_CORRECT_QUOTED_ZH = re.compile(
     r'^将记忆[「\"“](.+?)[」\"”]修改为[「\"“](.+?)[」\"”][。.!！]?$',
+    re.S,
+)
+_CORRECT_QUOTED_EN = re.compile(
+    r'^(?:please\s+)?(?:correct|change|update)(?:\s+the)?\s+memory\s+'
+    r'["“「](.+?)["”」]\s+to\s+["“「](.+?)["”」][.!]?$',
     re.I | re.S,
 )
-_CORRECT_ABOUT = re.compile(
-    r"^修改我之前关于[「\"“]?(.+?)[」\"”]?的记忆[：:,，\s]*(.+)$",
+_CORRECT_ABOUT_ZH = re.compile(
+    r'^修改我之前关于[「\"“](.+?)[」\"”]的记忆[：:,，\s]+(.+)$'
+    r'|^修改我之前关于([^「\"“].*?)的记忆[：:,，\s]+(.+)$',
+    re.S,
+)
+_CORRECT_ABOUT_EN = re.compile(
+    r'^(?:please\s+)?(?:correct|change|update)\s+my\s+memory\s+about\s+'
+    r'["“「](.+?)["”」]\s*(?:to|:)\s+(.+)$'
+    r'|^(?:please\s+)?(?:correct|change|update)\s+my\s+memory\s+about\s+'
+    r'([^"“「].*?)\s*(?:to|:)\s+(.+)$',
     re.I | re.S,
 )
 _STYLE = re.compile(
@@ -78,6 +92,104 @@ def _reject_capture_text(text):
     return False
 
 
+def _strip_wrapping_quotes(text):
+    value = (text or "").strip()
+    for left, right in (('"', '"'), ("“", "”"), ("「", "」"), ("'", "'")):
+        if len(value) >= 2 and value.startswith(left) and value.endswith(right):
+            return value[1:-1].strip()
+    return value
+
+
+def _paired_groups(match):
+    groups = [g for g in match.groups() if g is not None]
+    if len(groups) < 2:
+        return "", ""
+    return groups[0].strip(), _strip_wrapping_quotes(groups[1])
+
+
+def _quoted_correction(text):
+    for pattern in (_CORRECT_QUOTED_ZH, _CORRECT_QUOTED_EN):
+        match = pattern.match(text)
+        if match:
+            old, new = _paired_groups(match)
+            return old, new
+    return None
+
+
+def _about_correction(text):
+    for pattern in (_CORRECT_ABOUT_ZH, _CORRECT_ABOUT_EN):
+        match = pattern.match(text)
+        if match:
+            old, new = _paired_groups(match)
+            return old, new
+    return None
+
+
+def _explicit_command(text):
+    return bool(
+        _REMEMBER.match(text)
+        or _FORGET.match(text)
+        or _quoted_correction(text)
+        or _about_correction(text)
+        or _STYLE.match(text)
+    )
+
+
+def _splice_fragment(content, old, new):
+    """Replace one occurrence. 'ambiguous' if the fragment repeats; 'missing' if absent."""
+    if not old:
+        return "missing"
+    exact = content.count(old)
+    if exact > 1:
+        return "ambiguous"
+    if exact == 1:
+        return content.replace(old, new, 1)
+    matches = list(re.finditer(re.escape(old), content, flags=re.IGNORECASE))
+    if len(matches) > 1:
+        return "ambiguous"
+    if len(matches) == 1:
+        found = matches[0]
+        return content[: found.start()] + new + content[found.end() :]
+    return "missing"
+
+
+def _rows_with_fragment(store, fragment):
+    exact, folded = [], []
+    needle = fragment.casefold()
+    for row in store.list():
+        content = row["content"]
+        if fragment in content:
+            exact.append(row)
+        elif needle and needle in content.casefold():
+            folded.append(row)
+    return exact or folded
+
+
+def _rows_about(store, selector):
+    needle = selector.casefold()
+    if len(needle) < 2:
+        return None
+    return [row for row in store.list() if needle in (row.get("content") or "").casefold()]
+
+
+def _truthful(result):
+    status = result.get("status")
+    if status in ("disabled", "rejected", "ambiguous"):
+        result["saved"] = []
+        result["updated"] = []
+        result["forgotten"] = []
+    if status == "saved" and not result.get("saved"):
+        result["status"] = "rejected"
+        result["notice"] = result.get("notice") or "未保存记忆。"
+    elif status == "updated" and not result.get("updated"):
+        result["status"] = "rejected"
+        result["notice"] = result.get("notice") or "未更新记忆。"
+    elif status == "forgotten" and not result.get("forgotten"):
+        result["status"] = "rejected"
+        result["notice"] = result.get("notice") or "未删除记忆。"
+    return result
+
+
 def _match_rows(store, needle, *, topic=None):
     needle_n = _normalize_match(needle)
     hits = []
@@ -100,6 +212,9 @@ class MemoryCommandProcessor:
         self.store = store
 
     def process(self, text, chat_id, message_id, preferences):
+        return _truthful(self._process(text, chat_id, message_id, preferences))
+
+    def _process(self, text, chat_id, message_id, preferences):
         result = {
             "saved": [],
             "updated": [],
@@ -113,13 +228,7 @@ class MemoryCommandProcessor:
         if not raw:
             return result
 
-        explicit_intent = bool(
-            _REMEMBER.match(raw)
-            or _FORGET.match(raw)
-            or _CORRECT_QUOTED.match(raw)
-            or _CORRECT_ABOUT.match(raw)
-            or _STYLE.match(raw)
-        )
+        explicit_intent = _explicit_command(raw)
 
         if not preferences.get("enabled"):
             if explicit_intent:
@@ -134,25 +243,13 @@ class MemoryCommandProcessor:
         if forget:
             return self._forget(_group_value(forget), result)
 
-        quoted = _CORRECT_QUOTED.match(raw)
+        quoted = _quoted_correction(raw)
         if quoted:
-            return self._correct_known(
-                quoted.group(1).strip(),
-                quoted.group(2).strip(),
-                chat_id,
-                message_id,
-                result,
-            )
+            return self._correct_fragment(quoted[0], quoted[1], chat_id, message_id, result)
 
-        about = _CORRECT_ABOUT.match(raw)
+        about = _about_correction(raw)
         if about:
-            return self._correct_known(
-                about.group(1).strip(),
-                about.group(2).strip(),
-                chat_id,
-                message_id,
-                result,
-            )
+            return self._correct_full(about[0], about[1], chat_id, message_id, result)
 
         style = _STYLE.match(raw)
         if style:
@@ -174,10 +271,7 @@ class MemoryCommandProcessor:
                 result["notice"] = "已有冲突的记忆槽位，未自动覆盖。"
                 result["status"] = "rejected"
                 return result
-            key = "updated" if row.get("_deduped") else "saved"
-            result[key].append(row["id"])
-            result["status"] = key
-            return result
+            return self._record_write(row, result)
 
         remember = _REMEMBER.match(raw)
         if remember:
@@ -194,6 +288,14 @@ class MemoryCommandProcessor:
         if _reject_capture_text(raw):
             return result
         return self._auto_statement(raw, chat_id, message_id, result)
+
+    def _record_write(self, row, result):
+        key = "updated" if row.get("_deduped") or row.get("_replaced") else "saved"
+        result[key].append(row["id"])
+        result["status"] = key
+        if not row.get("active", True):
+            result["notice"] = "已写入该记忆，但它当前处于停用状态，不会被引用。可在设置中重新启用。"
+        return result
 
     def _save_explicit(self, value, chat_id, message_id, result):
         if not value or len(value) > 800 or _SECRET.search(value) or _unsafe_payload(value):
@@ -214,10 +316,7 @@ class MemoryCommandProcessor:
             result["notice"] = "已有相关记忆，请使用更正句式修改。"
             result["status"] = "rejected"
             return result
-        key = "updated" if row.get("_deduped") else "saved"
-        result[key].append(row["id"])
-        result["status"] = key
-        return result
+        return self._record_write(row, result)
 
     def _auto_statement(self, text, chat_id, message_id, result):
         category = "note"
@@ -251,10 +350,7 @@ class MemoryCommandProcessor:
         if row is None:
             result["status"] = "rejected"
             return result
-        key = "updated" if row.get("_deduped") else "saved"
-        result[key].append(row["id"])
-        result["status"] = key
-        return result
+        return self._record_write(row, result)
 
     def _forget(self, needle, result):
         hits = _match_rows(self.store, needle)
@@ -272,24 +368,26 @@ class MemoryCommandProcessor:
         result["status"] = "forgotten"
         return result
 
-    def _correct_known(self, old_fragment, new_value, chat_id, message_id, result):
-        if not new_value or len(new_value) > 800 or _unsafe_payload(new_value):
+    def _reject_replacement(self, new_value, result):
+        if (
+            not new_value
+            or len(new_value) > 800
+            or _unsafe_payload(new_value)
+            or _SECRET.search(new_value)
+        ):
             result["notice"] = "更正内容无效。"
             result["status"] = "rejected"
-            return result
-        hits = _match_rows(self.store, old_fragment)
-        if not hits:
-            result["notice"] = "未找到要修改的记忆。"
+            return True
+        return False
+
+    def _write_correction(self, row, content, chat_id, message_id, result):
+        if not content or len(content) > 800 or _unsafe_payload(content) or _SECRET.search(content):
+            result["notice"] = "更正后的记忆无效，未修改。"
             result["status"] = "rejected"
             return result
-        if len(hits) > 1:
-            result["notice"] = "匹配到多条记忆，请提供更精确的原文片段。"
-            result["status"] = "ambiguous"
-            return result
-        row = hits[0]
         try:
             updated = self.store.put(
-                new_value,
+                content,
                 row["category"],
                 memory_id=row["id"],
                 version=row["version"],
@@ -305,7 +403,51 @@ class MemoryCommandProcessor:
             return result
         result["updated"].append(updated["id"])
         result["status"] = "updated"
+        if not updated.get("active", True):
+            result["notice"] = "已修改该记忆，但它当前处于停用状态，不会被引用。可在设置中重新启用。"
         return result
+
+    def _correct_fragment(self, old_fragment, new_value, chat_id, message_id, result):
+        if self._reject_replacement(new_value, result):
+            return result
+        hits = _rows_with_fragment(self.store, old_fragment)
+        if not hits:
+            result["notice"] = "未找到要修改的记忆。"
+            result["status"] = "rejected"
+            return result
+        if len(hits) > 1:
+            result["notice"] = "匹配到多条记忆，请提供更精确的原文片段。"
+            result["status"] = "ambiguous"
+            return result
+        row = hits[0]
+        spliced = _splice_fragment(row["content"], old_fragment, new_value)
+        if spliced == "ambiguous":
+            result["notice"] = "原文片段在这条记忆中出现多次，未修改。请改用「修改我之前关于…的记忆」。"
+            result["status"] = "ambiguous"
+            return result
+        if spliced == "missing" or not isinstance(spliced, str):
+            result["notice"] = "未找到可替换的原文片段，未整段覆盖。"
+            result["status"] = "rejected"
+            return result
+        return self._write_correction(row, spliced, chat_id, message_id, result)
+
+    def _correct_full(self, selector, new_value, chat_id, message_id, result):
+        if self._reject_replacement(new_value, result):
+            return result
+        hits = _rows_about(self.store, selector)
+        if hits is None:
+            result["notice"] = "修改范围太宽，请写明要改的是哪一条记忆。"
+            result["status"] = "ambiguous"
+            return result
+        if not hits:
+            result["notice"] = "未找到要修改的记忆。"
+            result["status"] = "rejected"
+            return result
+        if len(hits) > 1:
+            result["notice"] = "匹配到多条记忆，请提供更精确的原文片段。"
+            result["status"] = "ambiguous"
+            return result
+        return self._write_correction(hits[0], new_value, chat_id, message_id, result)
 
     def _classify(self, value):
         category = "note"

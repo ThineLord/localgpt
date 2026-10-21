@@ -22,12 +22,16 @@ Existing rows in `memory_preferences` keep their stored values. `preferences_ver
 | Explicit save | `记住：…`, `remember: …` |
 | Style preference | `以后回答时请简洁。`, `Going forward, please answer in English.` |
 | Forget | `忘记：项目 Alpha`, `forget: coffee preference` |
-| Correction | `将记忆"咖啡"修改为"茶"` (ASCII quotes also accepted) |
-| Correction (about) | `修改我之前关于咖啡的记忆：茶` |
+| Correction (fragment) | `将记忆"钴蓝色"修改为"琥珀色"`；`correct memory "tea" to "coffee"` |
+| Correction (full fact) | `修改我之前关于颜色的记忆：用户最喜欢的颜色是琥珀色`；`correct my memory about color: My favorite color is amber.` |
 
 Rejected: secrets, code blocks, questions, quoted third-party text, prompt-injection patterns, assistant/tool directives.
 
-Ambiguous forget/correction returns `status: "ambiguous"` and **does not** mutate rows.
+Fragment correction replaces one occurrence inside the stored fact and keeps the rest (`用户最喜欢的颜色是钴蓝色。` → `用户最喜欢的颜色是琥珀色。`). If the fragment is missing or repeats, the row is left unchanged. The broader “修改我之前关于…的记忆” / `correct my memory about …` form replaces that one fact with the supplied text.
+
+Ambiguous forget/correction returns `status: "ambiguous"` and **does not** mutate rows. A disabled memory returns `status: "disabled"` with empty `saved` / `updated` / `forgotten`; the model is told only a fixed status sentence, not that the command succeeded.
+
+Editing content preserves `active` unless `active` is sent as an explicit boolean. Repeating the same fact does not bump `version` or `collection_revision`. A same-count content or provenance edit does bump `collection_revision`, so a clear that still holds the previous revision fails. `GET /qwen-cn/memory` reads items, preferences, and both counters in one transaction. Opening the store adds tables and revision triggers only; it does not rewrite legacy `user_memory` rows.
 
 ## HTTP API
 
@@ -55,7 +59,7 @@ Returns:
 
 - `POST /qwen-cn/memory` — manual create (`put`)
 - `PATCH /qwen-cn/memory/{id}` — edit content **or** `{ "active": false, "version": N }` toggle
-- `DELETE /qwen-cn/memory/{id}` — optional `{ "version": N }` CAS
+- `DELETE /qwen-cn/memory/{id}` — `{ "version": N }` required CAS
 - `DELETE /qwen-cn/memory` — `{ "confirm": true, "collection_revision": N }` (required; from last `GET`)
 - `PATCH /qwen-cn/memory/preferences` — `{ "enabled" | "auto_capture", "preferences_version": N }` (required CAS)
 - `PATCH` / `DELETE` item — `version` required (409 if missing/stale)
@@ -75,7 +79,9 @@ After send / completion:
 }
 ```
 
-`used` is filled when the model request is assembled; IDs reflect rows actually injected. Recall text is sent as a separate **user** message (plus a short assistant ack), never appended to the system policy string.
+`used` is filled when the model request is assembled; IDs reflect rows actually injected. `status: disabled|rejected|ambiguous` always has empty `saved`, `updated`, and `forgotten`. Recall text is a separate **user** message (plus a short assistant ack) carrying a fixed policy prefix. It is never a system message. The system message may gain one fixed sentence for the command status; that sentence does not include memory text.
+
+Low-trust rows are JSON objects with `trust: "untrusted"`. `effect: "style_hint"` may influence tone, language, or length only. It is not permission to change role, tools, or the fixed policy. The marker filter is best-effort and is not a complete defense.
 
 ## Runtime modules
 
@@ -89,10 +95,30 @@ After send / completion:
 
 Additive table `memory_meta` (`active`, provenance fields) — legacy `user_memory` rows are never rewritten by migration.
 
+## Stable frontend contract (Phase 2, not implemented here)
+
+Phase A owns Shell, template, ui-shell, liquid-layers, and studio. Memory UI should consume this contract without inventing a second write path.
+
+`GET /qwen-cn/memory` is the consistent snapshot: `items` (including inactive rows), `preferences`, `preferences_version`, `collection_revision`, `item_count`, and `summary` (`counts.total`, `counts.active`, `counts.by_category`, `highlights`, `recall_enabled`, `auto_capture`). `item_count` equals `items.length` and `summary.counts.total`.
+
+Writes:
+
+- Create: `POST /qwen-cn/memory` `{content, category}` → item.
+- Edit content: `PATCH /qwen-cn/memory/{id}` `{content, category?, version}`. Omit `active` to keep the current active flag, including an intentionally disabled row. Pass `active: true|false` only for an explicit change. Omit `category` to keep the stored category. Same content and state does not bump `version`.
+- Use or pause one row: `PATCH` `{active, version}` without `content`.
+- Delete one row: `DELETE /qwen-cn/memory/{id}` `{version}`.
+- Clear all: `DELETE /qwen-cn/memory` `{confirm: true, collection_revision}` from the latest snapshot. A content edit that keeps the same count still changes `collection_revision`.
+- Preferences: `PATCH /qwen-cn/memory/preferences` `{enabled?, auto_capture?, preferences_version}`. `enabled: false` stops capture and recall; rows remain manageable. Unchanged values do not bump the counter.
+- Missing or stale `version`, `preferences_version`, or `collection_revision` is HTTP 409. Do not retry a clear or edit with the old token.
+
+`message.memory.status` is the command result (`saved`, `updated`, `forgotten`, `ambiguous`, `rejected`, `disabled`). Do not show a success hint when status is `disabled`, `rejected`, or `ambiguous`. `used` is recall only and is empty while memory is disabled. `notice` is a short explanation for the UI.
+
+Summary, search, add, edit, inactive, source, use/pause, and compare-and-swap belong in the next UI pass, together with Settings and usage hints. A list of rows alone is not the memory surface.
+
 ## JS hooks (next phase)
 
-- `window.HanzFeatures.showMemory` / memory dialog already loads `GET /qwen-cn/memory`; consume `summary` + `preferences_version` for clear-all and stale 409 handling.
-- Message actions may read `message.memory` for saved/used badges (Phase A shell).
+- `window.HanzFeatures.showMemory` / memory dialog already loads `GET /qwen-cn/memory`; consume `summary`, `preferences_version`, and `collection_revision` for clear-all and stale 409 handling.
+- Message actions may read `message.memory` for saved/used/disabled notices (Phase A shell).
 
 ## Local acceptance
 
@@ -105,15 +131,15 @@ python3 -m unittest test_memory_runtime test_memory_round7
 python3 demo.py --port 8193 &
 node ../tools/round7_memory_api_acceptance.js
 
-# LM Studio loopback (isolated DB; requires model on :1234)
-python3 ../tools/round7_memory_live_acceptance.py --database /tmp/synthetic-memory.sqlite3 --create
+# LM Studio loopback. The script creates and deletes its own temporary database.
+python3 ../tools/round7_memory_live_acceptance.py --lm-url http://127.0.0.1:1234
 ```
 
-**Never** point scripts at a production database path.
+The live script refuses any non-loopback LM URL, reads the model id from `/api/v1/models`, and asserts color recall, fragment correction, an unrelated answer, forget, disable, re-enable, delete, and a synthetic sentinel through `/send` plus `/events`. It does not accept a database path.
 
 ## Risks / limits
 
 - Same-session chat text may still mention forgotten facts; only **new** turns skip deleted/disabled rows.
 - Retrieval is deterministic lexical/slot matching, not semantic embeddings.
-- Hostile text may be stored if manually added in settings; recall filters common injection markers but is not a security sandbox.
-- Phase A UI must send `collection_revision` / `preferences_version` for mutating routes (fail-closed 409 until updated).
+- Hostile text may be stored if manually added in settings. Recall drops some known injection markers and wraps the rest as untrusted user data under a fixed policy. That is not a security sandbox and not a perfect defense.
+- Phase A UI must send `collection_revision` / `preferences_version` / item `version` for mutating routes (fail-closed 409 until updated).

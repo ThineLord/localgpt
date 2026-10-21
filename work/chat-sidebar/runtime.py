@@ -195,10 +195,21 @@ def install(app, backend, database, input_root, output_root):
     @routes.patch('/qwen-cn/memory/{memory_id}')
     async def edit_memory(r):
         mutate(r);data=await r.json();memory_id=r.match_info['memory_id']
-        if 'active' in data and data.get('content') is None and data.get('category') is None:
+        if 'active' in data and 'content' not in data and 'category' not in data:
             if type(data.get('active')) is not bool:raise ValueError('Invalid active flag')
             return reply(memory.set_active(memory_id,data['active'],version=data.get('version')))
-        return reply(memory.put(data.get('content'),data.get('category','preference'),memory_id=memory_id,version=data.get('version'),allow_slot_replace=True))
+        if 'content' not in data or not isinstance(data.get('content'),str):
+            raise ValueError('Invalid memory edit')
+        if 'active' in data and type(data.get('active')) is not bool:
+            raise ValueError('Invalid active flag')
+        return reply(memory.put(
+            data.get('content'),
+            data['category'] if 'category' in data else None,
+            memory_id=memory_id,
+            version=data.get('version'),
+            active=data['active'] if 'active' in data else None,
+            allow_slot_replace=True,
+        ))
     @routes.delete('/qwen-cn/memory/{memory_id}')
     async def forget(r):
         mutate(r);data=await r.json();memory.delete(r.match_info['memory_id'],version=data.get('version'));return reply({'deleted':True})
