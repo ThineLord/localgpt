@@ -13,6 +13,7 @@ import aiohttp
 from storage import Store, Conflict
 from memory_store import MemoryStore, MemoryConflict
 from media_lifecycle import MediaLifecycle
+from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
 
@@ -28,6 +29,7 @@ def backup_before_migration(database):
 
 def install(app, backend, database, input_root, output_root):
     path=Path(database)
+    install_profile(app, path.parent / '.localgpt-profile')
     store=Store(path);memory=MemoryStore(path);media=MediaLifecycle(store,input_root,output_root);routes=web.RouteTableDef()
     active_uploads=set()
     def reply(data,status=200):return web.json_response(data,status=status,headers={'Cache-Control':'no-store'})

@@ -143,6 +143,7 @@
   $('profileAppearance').addEventListener('keydown',e=>{if(e.key==='ArrowRight'){e.preventDefault();appearance.show();}});
   $('appSettings').addEventListener('click',()=>profile.close(false),{capture:true});
   $('profileMemory').onclick=()=>{profile.close(false);$('memoryNav').click();};
+  $('profileAvatar').onclick=()=>{profile.close(false);$('appSettings').click();section('profile');};
   $('profileAbout').onclick=()=>{profile.close(false);$('appSettings').click();if(tabs.some(b=>b.dataset.settingsSection==='about'))section('about');};
   const dialog=$('preferencesDialog'), nav=$('settingsNav'), toggle=$('settingsBack');
   const panels=[...dialog.querySelectorAll('[data-settings-panel]')];

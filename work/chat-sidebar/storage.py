@@ -263,7 +263,7 @@ class Store:
 
     def _check_legacy_deletion(self, db):
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('media_trash','media_deletions') LIMIT 1").fetchone():
-            raise Conflict('数据已升级，请在 8190 端口的 HanzAgent 新版界面执行删除。')
+            raise Conflict('数据已升级，请在 8190 端口的 LocalGPT 新版界面执行删除。')
 
     def delete_gallery(self, message_id):
         with self.connect() as db:

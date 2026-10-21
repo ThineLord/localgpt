@@ -38,3 +38,6 @@ data/
 *before*
 work/chat-sidebar/index.html
 work/liquid-memory/
+
+# Local avatar data (never source).
+.localgpt-profile/

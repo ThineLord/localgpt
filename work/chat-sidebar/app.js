@@ -303,7 +303,8 @@ Object.assign(EN, {
   已停止: "Stopped",
   记为全局记忆: "Save as personal memory",
   回到最新消息: "Latest message",
-  "HanzAgent · 本机数据":"HanzAgent · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 HanzAgent":"About HanzAgent", "仅在此设备":"On this device",
+  个人资料:"Profile", 更换头像:"Change avatar", 头像预览:"Avatar preview", 上传图片:"Upload image", 恢复默认头像:"Reset avatar", "头像仅保存在本机，不会上传到外部服务。":"Your avatar stays on this device. It is never uploaded to external services.", "PNG、JPEG 或 WebP，最大 5 MB。":"PNG, JPEG or WebP, up to 5 MB.",
+  "LocalGPT · 本机数据":"LocalGPT · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 LocalGPT":"About LocalGPT", "仅在此设备":"On this device",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
   记忆: "Memory", 外观模式: "Mode",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
@@ -345,7 +346,7 @@ function captureLanguage(root = document.body) {
 function applyLanguage(next, persist = true) {
   language = next === "en" ? "en" : "zh";
   document.documentElement.lang = language === "en" ? "en" : "zh-CN";
-  document.title = "HanzAgent";
+  document.title = "LocalGPT";
   staticText.forEach(({ n, key }) => (n.nodeValue = t(key)));
   staticAttrs.forEach(({ el, a, key }) => el.setAttribute(a, t(key)));
   $("language").textContent = language === "en" ? "中" : "EN";
@@ -421,7 +422,7 @@ async function request(url, options = {}) {
     signal: AbortSignal.timeout(30000),
     ...options,
   }); } catch (cause) {
-    const e = Error("HanzAgent 本地服务未连接。请启动应用，然后重试；模型服务状态与数据库连接无关。");
+    const e = Error("LocalGPT 本地服务未连接。请启动应用，然后重试；模型服务状态与数据库连接无关。");
     e.code = "service_offline"; e.cause = cause; throw e;
   }
   const txt = await r.text();
@@ -691,8 +692,9 @@ function setChatTitle() {
         : current
           ? t(current.title)
           : t("新对话");
-  document.title = view === 'chat' && !current ? 'HanzAgent' : $('chatTitle').textContent + ' · HanzAgent';
+  document.title = view === 'chat' && !current ? 'LocalGPT' : $('chatTitle').textContent + ' · LocalGPT';
   $('chatTitle').hidden = view === 'chat' && !current;
+  $('headerNewChat').hidden = view !== 'chat' || !(current?.messages?.length);
   $("renameChat").disabled = view !== "chat" || !current;
   $("deleteCurrent").hidden = view !== "chat" || !current;
 }
@@ -871,6 +873,7 @@ function render(force = false) {
   );
   let position = 0;
   $("intro").hidden = records.length > 0;
+  $('headerNewChat').hidden = records.length === 0;
   $("history").hidden = true;
   for (const m of records) {
     const key = JSON.stringify(m) + language;
@@ -1176,11 +1179,7 @@ function setSidebar(open) {
     else if (wasOpen) $('mobileMenu').focus();
   }
 }
-$('homeNav').onclick = () => {
-  if (innerWidth <= 760) setSidebar(false);
-  else if (document.body.classList.contains('sidebar-open')) setSidebar(false);
-  else temporarySidebar(true);
-};
+$('homeNav').onclick = () => newChat().catch(e => setStatus(e.message, true));
 $('homeNav').addEventListener('pointerenter', e => {
   if (e.pointerType === 'mouse') temporarySidebar(true);
 });

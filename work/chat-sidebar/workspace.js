@@ -47,8 +47,8 @@
       aboutPanel.innerHTML = `<h3 class="settings-panel-title">${tr("关于", "About")}</h3>
         <div class="settings-group">
           <p class="settings-about-copy">${tr(
-            "HanzAgent 是一款在本机运行的创作与对话工具。数据保存在你的设备上，不会上传到第三方云服务。",
-            "HanzAgent is a local creative and chat workspace. Your data stays on this device and is not uploaded to third-party clouds.",
+            "LocalGPT 是一款在本机运行的创作与对话工具。数据保存在你的设备上，不会上传到第三方云服务。",
+            "LocalGPT is a local creative and chat workspace. Your data stays on this device and is not uploaded to third-party clouds.",
           )}</p>
           <p class="settings-about-copy">${tr(
             "本项目为社区/个人作品，与任何商业聊天或 AI 产品无官方隶属或背书关系。界面布局仅作体验参考，不代表合作或授权。",
