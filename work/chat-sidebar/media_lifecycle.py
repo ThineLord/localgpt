@@ -5,6 +5,7 @@ commit failure; retrying the same operation accepts an already missing file.
 Writers must reject references found in media_deletions (all states), inside their
 write transaction. This is not secure erasure of filesystem snapshots or backups.
 """
+import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -71,7 +72,7 @@ class MediaLifecycle:
         if not stat.S_ISREG(mode): raise ValueError('图片目标不是普通文件。')
         return path
 
-    def _unlink(self, image, *, owned_input=False, expected_fingerprint=None):
+    def _unlink(self, image, *, owned_input=False, expected_fingerprint=None, expected_digest=None):
         """Open each directory without following symlinks, avoiding a path-swap race."""
         image = canonical(image)
         self._path(image, owned_input=owned_input)
@@ -85,9 +86,21 @@ class MediaLifecycle:
             try: info = os.stat(image['filename'], dir_fd=fd, follow_symlinks=False)
             except FileNotFoundError: return False
             if not stat.S_ISREG(info.st_mode): raise ValueError('图片目标不是普通文件。')
-            if expected_fingerprint is not None and self._fingerprint(info) != expected_fingerprint:
-                raise Conflict('上传文件已变化，未自动清理。')
-            os.unlink(image['filename'], dir_fd=fd)
+            if expected_fingerprint is not None:
+                if not expected_digest: raise Conflict('上传收据缺少内容校验，未自动删除。')
+                file_fd = os.open(image['filename'], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+                try:
+                    current, digest = self._digest_identity(file_fd)
+                    if current != expected_fingerprint or digest != expected_digest:
+                        raise Conflict('上传文件已变化，未自动清理。')
+                    # Verify the directory entry still names the descriptor just hashed.
+                    linked = os.stat(image['filename'], dir_fd=fd, follow_symlinks=False)
+                    if not stat.S_ISREG(linked.st_mode) or self._fingerprint(linked) != current:
+                        raise Conflict('上传文件已变化，未自动清理。')
+                    os.unlink(image['filename'], dir_fd=fd)
+                finally: os.close(file_fd)
+            else:
+                os.unlink(image['filename'], dir_fd=fd)
             return True
         finally: os.close(fd)
 
@@ -129,6 +142,39 @@ class MediaLifecycle:
     @staticmethod
     def _fingerprint(info):
         return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]
+
+    def _digest_identity(self, file_fd):
+        before = os.fstat(file_fd)
+        if not stat.S_ISREG(before.st_mode): raise ValueError('上传文件不是普通文件。')
+        digest = hashlib.sha256()
+        while True:
+            chunk = os.read(file_fd, 1024 * 1024)
+            if not chunk: break
+            digest.update(chunk)
+        after = os.fstat(file_fd)
+        if self._fingerprint(before) != self._fingerprint(after) or before.st_ctime_ns != after.st_ctime_ns:
+            raise Conflict('读取期间上传文件已变化，请重试。')
+        return self._fingerprint(after), digest.hexdigest()
+
+    def _upload_identity(self, image):
+        image = canonical(image)
+        if image['type'] != 'input': raise ValueError('上传文件描述无效。')
+        self._path(image, owned_input=True)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory = os.open(self.input_root, flags)
+        try:
+            for part in PurePosixPath(image['subfolder']).parts:
+                next_fd = os.open(part, flags, dir_fd=directory)
+                os.close(directory); directory = next_fd
+            file_fd = os.open(image['filename'], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            try:
+                identity, digest = self._digest_identity(file_fd)
+                linked = os.stat(image['filename'], dir_fd=directory, follow_symlinks=False)
+                if not stat.S_ISREG(linked.st_mode) or self._fingerprint(linked) != identity:
+                    raise Conflict('上传文件已变化，请重试。')
+                return identity, digest
+            finally: os.close(file_fd)
+        finally: os.close(directory)
 
     def _receipt_path(self, receipt_id):
         if not isinstance(receipt_id, str) or len(receipt_id) != 32 or any(c not in '0123456789abcdef' for c in receipt_id):
@@ -180,10 +226,8 @@ class MediaLifecycle:
         receipt = self._read_upload_receipt(receipt_id)
         if canonical(image) != receipt['image']:
             raise Conflict('上传服务返回的文件名不符，未自动登记或删除。')
-        path = self._path(receipt['image'], owned_input=True)
-        info = path.lstat()
-        if not stat.S_ISREG(info.st_mode): raise ValueError('上传文件不是普通文件。')
-        receipt.update(state='received', fingerprint=self._fingerprint(info))
+        identity, digest = self._upload_identity(receipt['image'])
+        receipt.update(state='received', fingerprint=identity, sha256=digest)
         self._write_upload_receipt(receipt)
 
     def note_upload_failure(self, receipt_id, state):
@@ -210,8 +254,17 @@ class MediaLifecycle:
         receipt = self._read_upload_receipt(receipt_id)
         path = self._path(receipt['image'], owned_input=True)
         if not path.is_file(): raise Conflict('上传文件尚不存在，结果仍未确认；请稍后重试登记。')
-        if receipt.get('fingerprint') and self._fingerprint(path.lstat()) != receipt['fingerprint']:
-            raise Conflict('上传文件已变化，未登记其他文件。')
+        identity, digest = self._upload_identity(receipt['image'])
+        if receipt.get('fingerprint'):
+            if not receipt.get('sha256'):
+                raise Conflict('旧上传收据缺少内容校验，未自动登记其他文件。')
+            if identity != receipt['fingerprint'] or digest != receipt['sha256']:
+                raise Conflict('上传文件已变化，未登记其他文件。')
+        else:
+            # An explicitly recovered uncertain upload obtains its content identity
+            # before registration, so any later retry checks the same bytes.
+            receipt.update(fingerprint=identity, sha256=digest)
+            self._write_upload_receipt(receipt)
         registered = self.register_upload(receipt['image'])
         retained = False
         try: self._receipt_path(receipt_id).unlink()
@@ -221,7 +274,7 @@ class MediaLifecycle:
     def rollback_upload(self, receipt_id):
         """Rollback only a confirmed, unchanged UUID file owned by this request."""
         receipt = self._read_upload_receipt(receipt_id)
-        if receipt.get('state') != 'received' or not receipt.get('fingerprint'):
+        if receipt.get('state') != 'received' or not receipt.get('fingerprint') or not receipt.get('sha256'):
             raise Conflict('上传结果尚未确认，未自动删除文件。')
         image = receipt['image']
         with self.store.connect() as db:
@@ -229,7 +282,7 @@ class MediaLifecycle:
             if self._refs(db, image): raise Conflict('上传文件已有引用，未自动删除。')
             for row in db.execute('SELECT payload FROM owned_uploads'):
                 if key(json.loads(row['payload'])) == key(image): raise Conflict('上传文件已登记，未自动删除。')
-            removed = self._unlink(image, owned_input=True, expected_fingerprint=receipt['fingerprint'])
+            removed = self._unlink(image, owned_input=True, expected_fingerprint=receipt['fingerprint'], expected_digest=receipt['sha256'])
         self._receipt_path(receipt_id).unlink()
         return {'rolled_back': True, 'deleted_files': int(removed)}
 

@@ -55,7 +55,7 @@ usage UNKNOWN. PR#8 head5293bf7e22706da8de532d6f2babe00c7c415233 supplied
 Settings/Memory. Codex integrated it and repaired search focus, menu disposal,
 viewport bounds, close guards and local diagnostics before acceptance.
 
-Synthetic checks:59 Python tests; navigation/theme/error recovery browser matrix;
+Synthetic checks:60 Python tests; navigation/theme/error recovery browser matrix;
 Memory add/edit/search/confirmation; Gallery Trash/restore/shared-file rejection/
 permanent404; upload registration/reference guard/permanent404. Screenshots and
 private-service receipts stay under ignored output/. New SVG is original vector
@@ -102,3 +102,9 @@ in Local services → uploaded references with explicit registration retry. Eigh
 isolated tests include real SQLite locking and filesystem failure injection. Late
 Settings/Memory controls now participate in language switching, including English
 startup → Chinese and recovery action browser checks.
+
+Mason review5598405409 caught same-size upload replacement with unchanged stat
+metadata. Confirm/recover/rollback now verify SHA-256 content through no-follow
+file descriptors as well as stat identity; stat-only legacy receipts cannot
+authorize rollback/adoption. The deterministic regression preserves inode, size
+and mtime while changing bytes, and confirms that the replacement is retained.

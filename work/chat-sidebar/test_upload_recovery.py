@@ -1,6 +1,8 @@
 """Synthetic upstream and temporary files only: upload transaction failure recovery."""
 from contextlib import contextmanager
+import hashlib
 import json
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -151,13 +153,31 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_replacement_file_is_not_rolled_back_or_adopted(self):
         receipt = self.core.MEDIA.begin_upload('.png')
         image = receipt['image']; target = self.input / image['subfolder'] / image['filename']
-        target.parent.mkdir(exist_ok=True); target.write_bytes(b'original synthetic upload')
+        original, replacement = b'A' * 32, b'B' * 32
+        target.parent.mkdir(exist_ok=True); target.write_bytes(original)
+        before = target.stat()
         self.core.MEDIA.confirm_upload(receipt['id'], image)
-        target.write_bytes(b'replaced file must remain')
+        recorded = self.core.MEDIA._read_upload_receipt(receipt['id'])
+        self.assertEqual(recorded['sha256'], hashlib.sha256(original).hexdigest())
+        with target.open('r+b') as file: file.write(replacement)
+        os.utime(target, ns=(before.st_atime_ns, before.st_mtime_ns))
+        # Force the old guard's entire tuple equal; no clock/filesystem luck involved.
+        self.assertEqual(self.core.MEDIA._fingerprint(target.stat()), recorded['fingerprint'])
         with self.assertRaises(Conflict): self.core.MEDIA.rollback_upload(receipt['id'])
         with self.assertRaises(Conflict): self.core.MEDIA.recover_upload(receipt['id'])
-        self.assertEqual(target.read_bytes(), b'replaced file must remain')
+        self.assertEqual(target.read_bytes(), replacement)
         self.assertEqual(len(await self.recovery()), 1)
+
+    async def test_stat_only_legacy_receipt_cannot_authorize_rollback_or_adoption(self):
+        receipt = self.core.MEDIA.begin_upload('.png')
+        image = receipt['image']; target = self.input / image['subfolder'] / image['filename']
+        target.parent.mkdir(exist_ok=True); target.write_bytes(b'synthetic unchanged upload')
+        self.core.MEDIA.confirm_upload(receipt['id'], image)
+        legacy = self.core.MEDIA._read_upload_receipt(receipt['id']); legacy.pop('sha256')
+        self.core.MEDIA._write_upload_receipt(legacy)
+        with self.assertRaises(Conflict): self.core.MEDIA.rollback_upload(receipt['id'])
+        with self.assertRaises(Conflict): self.core.MEDIA.recover_upload(receipt['id'])
+        self.assertTrue(target.exists())
 
 
 if __name__ == '__main__': unittest.main()
