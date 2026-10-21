@@ -584,19 +584,37 @@ svg {
   color: var(--ink);
   box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
 }
+#attachmentMenu {
+  padding: 7px;
+  border-radius: 20px;
+  background: var(--surface-elevated);
+}
 .attachment-menu-item,
 .model-menu-item {
   display: flex;
   align-items: center;
   width: 100%;
   min-height: 36px;
-  gap: 12px; padding: 0 12px;
+  gap: 12px;
+  padding: 0 12px;
   border-radius: 10px;
   font-size: 14px;
   line-height: 20px;
   text-align: left;
 }
-.attachment-menu-item:hover,
+#attachmentMenu .attachment-menu-item {
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: 12px;
+}
+#attachmentMenu .attachment-menu-item:focus,
+#attachmentMenu .attachment-menu-item:hover,
+#attachmentMenu .attachment-menu-item:focus-visible {
+  background: #383838;
+}
+#attachmentMenu .attachment-menu-item:focus-visible {
+  outline: none;
+}
 .model-menu-item:hover,
 .model-menu-item[aria-checked="true"] {
   background: var(--row-hover);
