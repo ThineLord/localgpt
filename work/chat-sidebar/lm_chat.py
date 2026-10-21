@@ -162,7 +162,11 @@ async def run_turn(core,message,settings):
             if memory:
                 recalled,ids=memory.context(message['prompt'])
                 system+=recalled
-                core.STORE.update(mid,memory_json=json.dumps({'used':ids,'saved':message.get('memory',{}).get('saved',[])},ensure_ascii=False))
+                prior=core.STORE.message(mid).get('memory') or {}
+                payload={'used':ids,'saved':prior.get('saved',[]),'updated':prior.get('updated',[]),'forgotten':prior.get('forgotten',[])}
+                if prior.get('notice'):payload['notice']=prior['notice']
+                if prior.get('status'):payload['status']=prior['status']
+                core.STORE.update(mid,memory_json=json.dumps(payload,ensure_ascii=False))
             system_cost=sum(2 if ord(ch)>127 else .35 for ch in system)
             remaining=max(0,8192-settings['max_tokens']-500-int(system_cost))
             prompt_cost=sum(2 if ord(ch)>127 else .35 for ch in message['prompt'])
@@ -256,10 +260,10 @@ def install(core):
                 memory=getattr(core,'MEMORY',None)
                 if memory:
                     try:
-                        saved=memory.capture(prompt,chat_id,message['id'])
-                        message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':saved,'used':[]}))
+                        outcome=memory.process_turn(prompt,chat_id,message['id'])
+                        message=core.STORE.update(message['id'],memory_json=json.dumps({**outcome,'used':[]},ensure_ascii=False))
                     except (ValueError,sqlite3.Error) as error:
-                        message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':[],'used':[],'notice':str(error)},ensure_ascii=False))
+                        message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':[],'updated':[],'forgotten':[],'used':[],'notice':str(error),'status':'rejected'},ensure_ascii=False))
                 task=asyncio.create_task(run_turn(core,message,settings));CHAT_TASKS[message['id']]=task
                 task.add_done_callback(lambda done:CHAT_TASKS.pop(message['id'],None))
             return core.reply(message,202)

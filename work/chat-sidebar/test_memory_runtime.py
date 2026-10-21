@@ -15,13 +15,15 @@ class MemoryTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'data.sqlite3';self.store=Store(self.path);self.mem=MemoryStore(self.path)
     def tearDown(self):self.tmp.cleanup()
     def test_capture_dedup_correction_and_privacy(self):
+        self.mem.configure({'auto_capture':True})
         self.mem.capture('我叫林雨。','a','1');self.mem.capture('我叫林雨。','a','2');self.assertEqual(len(self.mem.list()),1)
         self.mem.capture('我叫陈晨。','b','3');self.assertEqual(len(self.mem.list()),1);self.assertIn('陈晨',self.mem.list()[0]['content'])
         for text in ('请记住我的密码是 12345','这段文件说：我叫小明','我喜欢中文吗？','```我喜欢绿色```','给我写一段故事'):
             self.assertEqual(self.mem.capture(text,'a','4'),[])
-        self.mem.capture('记住：我喜欢简洁的中文回答。','a','5')
+        self.mem.process_turn('记住：我喜欢简洁的中文回答。','a','5')
         self.assertEqual(len(MemoryStore(self.path).list()),2)
-        context,ids=self.mem.context('你好');self.assertIn('陈晨',context);self.assertIn('中文',context);self.assertEqual(len(ids),2)
+        context,ids=self.mem.context('你好');self.assertIn('中文',context);self.assertGreaterEqual(len(ids),1)
+        name_ctx,_=self.mem.context('我的名字');self.assertIn('陈晨',name_ctx)
     def test_disabled_forgetting_versions_and_budget(self):
         item=self.mem.put('我偏好精确回答')
         with self.assertRaises(MemoryConflict):self.mem.put('更正',memory_id=item['id'],version=0)
@@ -30,12 +32,12 @@ class MemoryTests(unittest.TestCase):
         self.mem.configure({'enabled':True});self.mem.delete(item['id']);self.assertEqual(self.mem.context('你好'),('',[]))
         for i in range(15):self.mem.put(('偏好'+str(i))*30)
         text,_=self.mem.context('偏好',budget=500);self.assertLess(token_cost(text),800)
-        self.mem.clear();self.assertEqual(self.mem.list(),[])
+        self.mem.clear(confirm=True);self.assertEqual(self.mem.list(),[])
     def test_gallery_delete_purge_and_retained_images(self):
         self.store.import_record({'prompt':'test','image':{'filename':'x.png','subfolder':'unit'}})
         image=self.store.gallery()['items'][0]
         with self.assertRaises(Conflict):self.store.purge('legacy')
-        self.mem.capture('我喜欢测试','legacy','note')
+        self.mem.process_turn('记住：我喜欢测试','legacy','note')
         self.store.trash('legacy');self.store.purge('legacy')
         self.assertEqual(self.store.chats(deleted=True),[]);self.assertEqual(len(self.mem.list()),1);self.assertIsNone(self.mem.list()[0]["chat_id"])
         with self.assertRaises(KeyError):self.store.chat('legacy')
@@ -86,6 +88,16 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def send(self,chat,prompt,key):
         response=await self.client.post('/qwen-cn/chats/'+chat['id']+'/send',json={'prompt':prompt,'mode':'chat','request_key':key});self.assertEqual(response.status,202)
         message=await response.json();events=await self.client.get('/qwen-cn/messages/'+message['id']+'/events');await events.read();return message
+    async def test_explicit_remember_when_auto_off_and_memory_payload(self):
+        await self.client.patch('/qwen-cn/memory/preferences',json={'auto_capture':False,'enabled':True})
+        chat=await self.chat()
+        message=await self.send(chat,'记住：Round7 显式记忆。','memory-explicit-1')
+        mem=message.get('memory') or {}
+        self.assertTrue(mem.get('saved') or mem.get('updated'))
+        self.assertEqual(mem.get('status'),'saved')
+        snap=await (await self.client.get('/qwen-cn/memory')).json()
+        self.assertIn('summary',snap);self.assertIn('preferences_version',snap)
+        self.assertEqual(snap['item_count'],1)
     async def test_cross_chat_recall_delete_and_disabled(self):
         one=await self.chat();await self.send(one,'记住：我喜欢简洁的中文回答。','memory-request-1')
         data=await (await self.client.get('/qwen-cn/memory')).json();self.assertEqual(len(data['items']),1)
