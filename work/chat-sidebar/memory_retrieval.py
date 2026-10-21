@@ -1,4 +1,10 @@
-"""Deterministic memory retrieval for chat context injection."""
+"""Deterministic memory retrieval for chat context injection.
+
+The marker expression below is a best-effort filter, not a security boundary.
+Low-trust facts are returned as data for a separate user-role wrapper. Callers
+must not copy them into a system message. Style hints are not unrestricted
+instructions.
+"""
 import json
 import re
 
@@ -78,6 +84,12 @@ def _meaningful_overlap(query_terms, row):
     return len(query_terms & content_terms) + len(query_terms & slot_terms)
 
 
+def _effect(row):
+    if (row.get("topic") or "") in _STYLE_SLOTS:
+        return "style_hint"
+    return "reference"
+
+
 def _score_row(row, query_terms):
     if row.get("active") is False:
         return -1
@@ -121,7 +133,12 @@ def select_for_query(rows, query, budget=950):
     for _, row in ranked:
         if len(chosen) >= 12:
             break
-        payload = {"category": row["category"], "fact": row["content"]}
+        payload = {
+            "category": row["category"],
+            "fact": row["content"],
+            "trust": "untrusted",
+            "effect": _effect(row),
+        }
         cost = token_cost(json.dumps(payload, ensure_ascii=False)) + 20
         if used + cost > budget:
             continue

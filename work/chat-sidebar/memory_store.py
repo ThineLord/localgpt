@@ -51,6 +51,33 @@ class MemoryStore:
                     db.execute(
                         "INSERT INTO memory_settings(key,value) VALUES(?,?)", (key, value)
                     )
+            # One collection bump per changed row, including provenance edits made
+            # outside this class. Creating the trigger does not rewrite legacy rows.
+            db.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS memory_revision_insert
+                AFTER INSERT ON user_memory
+                BEGIN
+                  UPDATE memory_settings
+                  SET value=CAST(value AS INTEGER)+1
+                  WHERE key='collection_revision';
+                END;
+                CREATE TRIGGER IF NOT EXISTS memory_revision_update
+                AFTER UPDATE ON user_memory
+                BEGIN
+                  UPDATE memory_settings
+                  SET value=CAST(value AS INTEGER)+1
+                  WHERE key='collection_revision';
+                END;
+                CREATE TRIGGER IF NOT EXISTS memory_revision_delete
+                AFTER DELETE ON user_memory
+                BEGIN
+                  UPDATE memory_settings
+                  SET value=CAST(value AS INTEGER)+1
+                  WHERE key='collection_revision';
+                END;
+                """
+            )
 
     @contextmanager
     def connect(self, *, create=False):
@@ -113,10 +140,9 @@ class MemoryStore:
         with self.connect() as db:
             return self._setting(db, "collection_revision")
 
-    def preferences(self):
+    def _preferences_from(self, db):
         defaults = {"enabled": True, "auto_capture": False}
-        with self.connect() as db:
-            data = dict(db.execute("SELECT key,value FROM memory_preferences"))
+        data = dict(db.execute("SELECT key,value FROM memory_preferences"))
         out = {}
         for key in ("enabled", "auto_capture"):
             if key in data:
@@ -124,6 +150,10 @@ class MemoryStore:
             else:
                 out[key] = defaults[key]
         return out
+
+    def preferences(self):
+        with self.connect() as db:
+            return self._preferences_from(db)
 
     def configure(self, data, *, preferences_version):
         if preferences_version is None:
@@ -138,28 +168,33 @@ class MemoryStore:
             db.execute("BEGIN IMMEDIATE")
             if self._setting(db, "preferences_version") != int(preferences_version):
                 raise MemoryConflict("记忆设置已变更，请刷新后重试。")
+            current = self._preferences_from(db)
+            if all(current[key] == value for key, value in data.items()):
+                return current
             db.executemany(
                 "INSERT INTO memory_preferences VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 [(k, str(v).lower()) for k, v in data.items()],
             )
             self._bump_preferences(db)
-            self._bump_collection(db)
-        return self.preferences()
+            current = self._preferences_from(db)
+        return current
 
-    def list(self):
-        with self.connect() as db:
-            rows = [
-                self._hydrate(dict(r))
-                for r in db.execute(
-                    """
+    def _list(self, db):
+        return [
+            self._hydrate(dict(r))
+            for r in db.execute(
+                """
                 SELECT m.*, COALESCE(meta.active,1) AS active
                 FROM user_memory m
                 LEFT JOIN memory_meta meta ON meta.memory_id = m.id
                 ORDER BY m.updated DESC, m.id
                 """
-                )
-            ]
-        return rows
+            )
+        ]
+
+    def list(self):
+        with self.connect() as db:
+            return self._list(db)
 
     def list_active(self):
         return [r for r in self.list() if r.get("active", True)]
@@ -169,27 +204,80 @@ class MemoryStore:
             return None
         with self.connect() as db:
             row = db.execute(
-                "SELECT * FROM user_memory WHERE topic IS NOT NULL AND topic=?",
+                """
+                SELECT m.*, COALESCE(meta.active,1) AS active
+                FROM user_memory m
+                LEFT JOIN memory_meta meta ON meta.memory_id = m.id
+                WHERE m.topic IS NOT NULL AND m.topic=?
+                """,
                 (topic,),
             ).fetchone()
         return self._hydrate(dict(row)) if row else None
 
     def snapshot(self):
-        items = self.list()
-        prefs = self.preferences()
+        with self.connect() as db:
+            db.execute("BEGIN")
+            items = self._list(db)
+            prefs = self._preferences_from(db)
+            preferences_version = self._setting(db, "preferences_version")
+            collection_revision = self._setting(db, "collection_revision")
         return {
             "items": items,
             "preferences": prefs,
-            "preferences_version": self.preferences_version(),
-            "collection_revision": self.collection_revision(),
+            "preferences_version": preferences_version,
+            "collection_revision": collection_revision,
             "item_count": len(items),
             "summary": build_summary(items, prefs),
         }
 
+    def _prior_active(self, db, memory_id):
+        meta = db.execute(
+            "SELECT active FROM memory_meta WHERE memory_id=?", (memory_id,)
+        ).fetchone()
+        return bool(meta["active"]) if meta else True
+
+    def _write_meta(self, db, memory_id, active, source, topic):
+        db.execute(
+            """
+            INSERT INTO memory_meta(memory_id,active,confidence,provenance,semantic_key)
+            VALUES(?,?,?,?,?)
+            ON CONFLICT(memory_id) DO UPDATE SET
+              provenance=COALESCE(excluded.provenance, memory_meta.provenance),
+              semantic_key=COALESCE(excluded.semantic_key, memory_meta.semantic_key),
+              active=excluded.active
+            """,
+            (memory_id, 1 if active else 0, 1.0, source, topic),
+        )
+
+    def _next_active(self, prior, active):
+        if active is None:
+            return prior
+        if type(active) is not bool:
+            raise ValueError("Invalid active flag")
+        return active
+
+    def _mark(self, db, memory_id, *, deduped=False, replaced=False):
+        item = self._hydrate(self._row(db, memory_id))
+        item["_deduped"] = deduped
+        item["_replaced"] = replaced
+        return item
+
+    def _update_row(self, db, memory_id, content, category, topic, source, chat_id, message_id, active):
+        db.execute(
+            """
+            UPDATE user_memory
+            SET content=?,category=?,topic=?,source=?,chat_id=?,message_id=?,updated=?,version=version+1
+            WHERE id=?
+            """,
+            (content, category, topic, source, chat_id, message_id, time.time(), memory_id),
+        )
+        self._write_meta(db, memory_id, active, source, topic)
+        return self._mark(db, memory_id, replaced=True)
+
     def put(
         self,
         content,
-        category="preference",
+        category=None,
         *,
         memory_id=None,
         version=None,
@@ -197,18 +285,16 @@ class MemoryStore:
         chat_id=None,
         message_id=None,
         topic=None,
-        active=True,
+        active=None,
         allow_slot_replace=False,
     ):
-        if (
-            not isinstance(content, str)
-            or not 1 <= len(content.strip()) <= 800
-            or category not in ("profile", "preference", "project", "note")
-        ):
+        if not isinstance(content, str) or not 1 <= len(content.strip()) <= 800:
             raise ValueError("记忆需为 1–800 字，且类别有效。")
+        if category is not None and category not in ("profile", "preference", "project", "note"):
+            raise ValueError("记忆需为 1–800 字，且类别有效。")
+        if active is not None and type(active) is not bool:
+            raise ValueError("Invalid active flag")
         content = content.strip()
-        now = time.time()
-        deduped = False
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             if memory_id:
@@ -219,138 +305,67 @@ class MemoryStore:
                     raise KeyError(memory_id)
                 if version != row["version"]:
                     raise MemoryConflict("记忆已在其他页面更新，请刷新后重试。")
-                meta = db.execute(
-                    "SELECT active FROM memory_meta WHERE memory_id=?", (memory_id,)
-                ).fetchone()
-                prior_active = bool(meta["active"]) if meta else True
-                if content == row["content"] and category == row["category"]:
-                    deduped = True
-                    existing = self._hydrate(self._row(db, memory_id))
-                    existing["_deduped"] = True
-                    return existing
-                keep_topic = topic if topic is not None else row["topic"]
-                db.execute(
-                    """
-                    UPDATE user_memory SET content=?,category=?,topic=?,source=?,chat_id=?,message_id=?,updated=?,version=version+1
-                    WHERE id=?
-                    """,
-                    (content, category, keep_topic, source, chat_id, message_id, now, memory_id),
+                category = row["category"] if category is None else category
+                keep_topic = row["topic"] if topic is None else topic
+                prior_active = self._prior_active(db, memory_id)
+                next_active = self._next_active(prior_active, active)
+                if (
+                    content == row["content"]
+                    and category == row["category"]
+                    and keep_topic == row["topic"]
+                    and next_active == prior_active
+                ):
+                    return self._mark(db, memory_id, deduped=True)
+                return self._update_row(
+                    db, memory_id, content, category, keep_topic, source, chat_id, message_id, next_active
                 )
-                db.execute(
-                    """
-                    INSERT INTO memory_meta(memory_id,active,confidence,provenance,semantic_key)
-                    VALUES(?,?,?,?,?)
-                    ON CONFLICT(memory_id) DO UPDATE SET
-                      provenance=excluded.provenance,
-                      semantic_key=COALESCE(excluded.semantic_key, memory_meta.semantic_key),
-                      active=?
-                    """,
-                    (memory_id, 1 if prior_active else 0, 1.0, source, keep_topic, 1 if prior_active else 0),
+            category = "preference" if category is None else category
+            exact = db.execute(
+                "SELECT * FROM user_memory WHERE lower(trim(content))=lower(trim(?))",
+                (content,),
+            ).fetchone()
+            if exact:
+                prior_active = self._prior_active(db, exact["id"])
+                next_active = self._next_active(prior_active, active)
+                same_fact = exact["content"].casefold() == content.casefold() and exact["category"] == category
+                if same_fact and next_active == prior_active:
+                    return self._mark(db, exact["id"], deduped=True)
+                return self._update_row(
+                    db,
+                    exact["id"],
+                    content,
+                    category,
+                    exact["topic"],
+                    source,
+                    chat_id,
+                    message_id,
+                    next_active,
                 )
-                self._bump_collection(db)
-                item = self._hydrate(self._row(db, memory_id))
-                item["_deduped"] = False
-                return item
-            else:
-                exact = db.execute(
-                    "SELECT * FROM user_memory WHERE lower(trim(content))=lower(trim(?))",
-                    (content,),
+            if topic:
+                slot = db.execute(
+                    "SELECT * FROM user_memory WHERE topic IS NOT NULL AND topic=?",
+                    (topic,),
                 ).fetchone()
-                if exact:
-                    memory_id = exact["id"]
-                    deduped = True
-                    meta = db.execute(
-                        "SELECT active FROM memory_meta WHERE memory_id=?", (memory_id,)
-                    ).fetchone()
-                    prior_active = bool(meta["active"]) if meta else True
-                    if exact["content"] != content or exact["category"] != category:
-                        db.execute(
-                            """
-                            UPDATE user_memory SET content=?,category=?,source=?,chat_id=?,message_id=?,updated=?,version=version+1
-                            WHERE id=?
-                            """,
-                            (content, category, source, chat_id, message_id, now, memory_id),
-                        )
-                        self._bump_collection(db)
-                    item = self._hydrate(self._row(db, memory_id))
-                    item["_deduped"] = deduped
-                    item["active"] = prior_active
-                    return item
-                elif topic:
-                    slot = db.execute(
-                        "SELECT * FROM user_memory WHERE topic IS NOT NULL AND topic=?",
-                        (topic,),
-                    ).fetchone()
-                    if slot:
-                        if not allow_slot_replace:
-                            return None
-                        memory_id = slot["id"]
-                        db.execute(
-                            """
-                            UPDATE user_memory SET content=?,category=?,source=?,chat_id=?,message_id=?,updated=?,version=version+1
-                            WHERE id=?
-                            """,
-                            (content, category, source, chat_id, message_id, now, memory_id),
-                        )
-                        self._bump_collection(db)
-                    else:
-                        if (
-                            db.execute("SELECT count(*) FROM user_memory").fetchone()[0]
-                            >= self.MAX_ITEMS
-                        ):
-                            raise ValueError("全局记忆已满，请整理后再添加。")
-                        memory_id = str(uuid.uuid4())
-                        db.execute(
-                            "INSERT INTO user_memory VALUES(?,?,?,?,?,?,?,?,?,1)",
-                            (
-                                memory_id,
-                                content,
-                                category,
-                                topic,
-                                source,
-                                chat_id,
-                                message_id,
-                                now,
-                                now,
-                            ),
-                        )
-                        self._bump_collection(db)
-                else:
-                    if (
-                        db.execute("SELECT count(*) FROM user_memory").fetchone()[0]
-                        >= self.MAX_ITEMS
-                    ):
-                        raise ValueError("全局记忆已满，请整理后再添加。")
-                    memory_id = str(uuid.uuid4())
-                    db.execute(
-                        "INSERT INTO user_memory VALUES(?,?,?,?,?,?,?,?,?,1)",
-                        (
-                            memory_id,
-                            content,
-                            category,
-                            topic,
-                            source,
-                            chat_id,
-                            message_id,
-                            now,
-                            now,
-                        ),
+                if slot:
+                    if not allow_slot_replace:
+                        return None
+                    prior_active = self._prior_active(db, slot["id"])
+                    next_active = self._next_active(prior_active, active)
+                    if slot["content"] == content and slot["category"] == category and next_active == prior_active:
+                        return self._mark(db, slot["id"], deduped=True)
+                    return self._update_row(
+                        db, slot["id"], content, category, slot["topic"], source, chat_id, message_id, next_active
                     )
-                    self._bump_collection(db)
+            if db.execute("SELECT count(*) FROM user_memory").fetchone()[0] >= self.MAX_ITEMS:
+                raise ValueError("全局记忆已满，请整理后再添加。")
+            memory_id = str(uuid.uuid4())
+            now = time.time()
             db.execute(
-                """
-                INSERT INTO memory_meta(memory_id,active,confidence,provenance,semantic_key)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(memory_id) DO UPDATE SET
-                  provenance=COALESCE(excluded.provenance, memory_meta.provenance),
-                  semantic_key=COALESCE(excluded.semantic_key, memory_meta.semantic_key),
-                  active=memory_meta.active
-                """,
-                (memory_id, 1 if active else 0, 1.0, source, topic),
+                "INSERT INTO user_memory VALUES(?,?,?,?,?,?,?,?,?,1)",
+                (memory_id, content, category, topic, source, chat_id, message_id, now, now),
             )
-            item = self._hydrate(self._row(db, memory_id))
-            item["_deduped"] = deduped
-            return item
+            self._write_meta(db, memory_id, True if active is None else active, source, topic)
+            return self._mark(db, memory_id)
 
     def set_active(self, memory_id, active, *, version):
         if version is None:
@@ -364,10 +379,11 @@ class MemoryStore:
                 raise KeyError(memory_id)
             if version != row["version"]:
                 raise MemoryConflict("记忆已在其他页面更新，请刷新后重试。")
-            now = time.time()
+            if self._prior_active(db, memory_id) == active:
+                return self._mark(db, memory_id, deduped=True)
             db.execute(
                 "UPDATE user_memory SET updated=?,version=version+1 WHERE id=?",
-                (now, memory_id),
+                (time.time(), memory_id),
             )
             db.execute(
                 """
@@ -377,7 +393,6 @@ class MemoryStore:
                 """,
                 (memory_id, 1 if active else 0, row["source"], row["topic"]),
             )
-            self._bump_collection(db)
             return self._hydrate(self._row(db, memory_id))
 
     def delete(self, memory_id, *, version):
@@ -393,7 +408,6 @@ class MemoryStore:
             db.execute("DELETE FROM memory_meta WHERE memory_id=?", (memory_id,))
             if db.execute("DELETE FROM user_memory WHERE id=?", (memory_id,)).rowcount == 0:
                 raise KeyError(memory_id)
-            self._bump_collection(db)
 
     def clear(self, *, confirm=False, collection_revision=None):
         if not confirm:
@@ -406,7 +420,6 @@ class MemoryStore:
                 raise MemoryConflict("记忆列表已变更，请刷新后重试。")
             db.execute("DELETE FROM memory_meta")
             db.execute("DELETE FROM user_memory")
-            self._bump_collection(db)
             self._bump_preferences(db)
 
     def forget_chat(self, chat_id):
@@ -421,8 +434,6 @@ class MemoryStore:
             for mid in ids:
                 db.execute("DELETE FROM memory_meta WHERE memory_id=?", (mid,))
             db.execute("DELETE FROM user_memory WHERE chat_id=?", (chat_id,))
-            if ids:
-                self._bump_collection(db)
 
     def process_turn(self, text, chat_id, message_id):
         from memory_commands import MemoryCommandProcessor
