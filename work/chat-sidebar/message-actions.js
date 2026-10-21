@@ -16,6 +16,7 @@
       '<path d="M12 4v11"/><path d="m8.5 11.5 3.5 3.5 3.5-3.5"/><path d="M5 18h14"/>',
     copy:
       '<rect x="8" y="8" width="11" height="13" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/>',
+    memory: '<path d="M6 3h12v18l-6-4-6 4V3Z"/>',
     retry:
       '<path d="M20 7v4h-4"/><path d="M4 17v-4h4"/><path d="M6.5 7A7.5 7.5 0 0 1 17 5.5l1.5 2"/><path d="M4 16l1.5 2A7.5 7.5 0 0 0 15.5 19"/>',
     check: '<path d="m6 12.5 3.5 3.5L18 7.5"/>',
@@ -32,20 +33,17 @@
     );
   }
 
-  function srOnly(label) {
-    return '<span class="sr-only">' + label + "</span>";
-  }
-
   const boundActions = new WeakSet();
 
   function bindAction(button) {
     if (boundActions.has(button)) return;
     boundActions.add(button);
-    button.addEventListener("mouseover", () => {
+    button.addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "mouse") return;
       clearTimeout(pointerTimer);
       pointerTimer = setTimeout(() => showTooltip(button), POINTER_DELAY);
     });
-    button.addEventListener("mouseout", (e) => {
+    button.addEventListener("pointerleave", (e) => {
       if (button.contains(e.relatedTarget)) return;
       hideTooltip();
     });
@@ -60,7 +58,8 @@
     button.dataset.actionIcon = name;
     button.removeAttribute("title");
     button.setAttribute("aria-label", label);
-    button.innerHTML = iconMarkup(name) + srOnly(label);
+    button.innerHTML = iconMarkup(name);
+    const text = document.createElement("span"); text.className = "sr-only"; text.textContent = label; button.append(text);
     mountTooltips();
     bindAction(button);
   }
@@ -116,9 +115,9 @@
 
   function showTooltip(button) {
     if (
-      button.disabled ||
+      !button.isConnected || !button.getClientRects().length || button.disabled ||
       button.getAttribute("aria-disabled") === "true" ||
-      document.querySelector("dialog[open]")
+      [...document.querySelectorAll("dialog[open]")].some(dialog => !dialog.contains(button))
     ) {
       return;
     }
@@ -152,7 +151,7 @@
     );
     const scrollRoot = document.getElementById("chatScroll");
     if (scrollRoot)
-      scrollRoot.addEventListener("scroll", () => hideTooltip(false), {
+      scrollRoot.addEventListener("scroll", () => hideTooltip(), {
         passive: true,
       });
     addEventListener("resize", hideTooltip);

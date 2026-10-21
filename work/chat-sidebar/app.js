@@ -915,10 +915,7 @@ function render(force = false) {
       const remember = document.createElement("button");
       remember.type = "button";
       remember.className = "remember-message action";
-      remember.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>';
-      remember.title = t("记为全局记忆");
-      remember.setAttribute("aria-label", t("记为全局记忆"));
+      messageAction(remember, "memory", "记为全局记忆");
       remember.onclick = () => window.HanzFeatures?.remember(m);
       entry.append(remember);
     }
@@ -1602,6 +1599,8 @@ function renderGallerySelection() {
       subfolder: item.image.subfolder || "",
     });
   $("galleryDownload").download = item.image.filename;
+  messageAction($("galleryDownload"), "download", "保存图片");
+  messageAction($("galleryEdit"), "edit", "继续修改");
   $("galleryOpenChat").hidden = !!item.chat_deleted;
   $("galleryRestore").hidden = !item.chat_deleted || !!item.chat_purged;
 }

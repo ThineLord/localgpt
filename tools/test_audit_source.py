@@ -37,6 +37,21 @@ class SourceAuditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("Reviewed unique path/blob pairs: 1", result.stdout)
 
+    def test_only_named_launcher_is_allowed_and_still_scanned(self):
+        launcher = self.root / "Start LocalGPT.command"
+        launcher.write_text("#!/bin/zsh\nexec python3 work/chat-sidebar/launch.py\n")
+        self.git("add", launcher.name)
+        self.assertEqual(self.audit().returncode, 0)
+        marker = "SYNTHETIC" + "_LAUNCHER_CREDENTIAL"
+        launcher.write_text("password = " + repr(marker))
+        self.git("add", launcher.name)
+        result = self.audit()
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn(marker, result.stdout)
+        (self.root / "other.command").write_text("#!/bin/zsh")
+        self.git("add", "other.command")
+        self.assertIn("other.command not approved", self.audit().stdout)
+
     def test_symlink_is_rejected_without_reading_its_target(self):
         marker = "SYNTHETIC_PRIVATE_RUNTIME_CONTENT"
         (self.root / "runtime.py").write_text(marker)

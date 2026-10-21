@@ -50,3 +50,22 @@ The signed-in reference contract, measured geometry and known differences are in
 [collaboration receipts](docs/ROUND2-COLLABORATION.md).
 Use the synthetic demo for the round-two browser scripts; real history and
 reference captures must remain outside version control.
+
+## LocalGPT (Round 6)
+
+Run `Start LocalGPT.command` after creating the project `.venv` and installing
+`requirements.txt`. The existing address remains `/qwen-cn/` on port 8190.
+The profile menu → **Change avatar**, or Settings → **Profile**, supports a local
+PNG/JPEG/WebP preview, Cancel, Save and Reset. Originals and metadata are discarded;
+only a normalized 256px PNG is kept beside the existing database in
+`.localgpt-profile/avatar.png`. Nothing is uploaded to a cloud service. Reset is a
+preview until Save. A stale browser cannot overwrite a newer avatar silently.
+
+Visible branding is now LocalGPT. Repository slug, checkout directory, API paths,
+SQLite paths, browser storage keys, LM Studio instance ownership IDs and the
+`HanzAgent` application-support directory intentionally remain legacy identifiers.
+This avoids losing drafts, cached paths, backups, model ownership or saved links.
+The half-knot logo is retained; this is an independent local application.
+See [Round 6 delivery contract](docs/ROUND6.md) for the direct Cloud API workflow,
+reference measurements and validation boundaries. Earlier round documents are
+historical evidence and retain their original names.
