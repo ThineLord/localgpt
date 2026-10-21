@@ -64,3 +64,18 @@ Mason must independently review the integration PR. Merge requires Codex's
 exact-head local acceptance, including real chat/image verification. No CI is
 configured; local tests are the alternative evidence. Production remains the
 previous baseline until that gate is satisfied.
+
+## Independent-review corrections
+
+Mason's initial COMMENT review requested changes for two reproduced MEDIUM
+issues: option-only edits created empty rows, and recovery adopted a newer
+server version without detecting divergent content. Empty prompt/no-reference
+drafts now skip materialization; ordinary 450ms debounce permits immediate
+clear-before-save. Recovery records its original base draft, compares the fresh
+server draft, and displays the existing conflict UI instead of overwriting it.
+Both explicit keep-local and use-remote choices are regression-tested. Deleting
+the last chat returns to the blank chat page, while the soft-delete/restore
+behavior is unchanged. Existing option-persistence tests now enter a real draft
+before asserting server persistence; a blank option change is intentionally not
+a conversation. A duplicated tab can carry its own unsaved sessionStorage copy;
+there is no cross-tab POST deduplication claim for independent unsent drafts.

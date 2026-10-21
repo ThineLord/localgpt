@@ -562,7 +562,7 @@ const transientDraftKey = "hanz-transient-draft";
 function stashTransientDraft() {
   try {
     if (!current || sessionStorage.getItem(transientDraftKey))
-      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, draft: draft()}));
+      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, baseDraft: normalized(baseDraft), draft: draft()}));
   } catch {}
 }
 function scheduleSave() {
@@ -574,7 +574,7 @@ function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(
     () => saveDraft().catch((e) => setStatus(e.message, true)),
-    current ? 450 : 0,
+    450,
   );
 }
 async function saveDraft() {
@@ -588,10 +588,19 @@ async function saveDraft() {
   // An untouched new-chat page is transient. Materialize it only when saving
   // an edited draft, preserving the existing durable draft/conflict protocol.
   if (!current) {
+    if (!$("prompt").value.trim() && !reference) {
+      dirty = false;
+      setSave("");
+      try {
+        const pending = JSON.parse(sessionStorage.getItem(transientDraftKey));
+        if (pending?.chatId === null) sessionStorage.removeItem(transientDraftKey);
+      } catch {}
+      return true;
+    }
     saving = request("/qwen-cn/chats", json("POST", {})).then(fresh => {
       current = fresh;
-      stashTransientDraft();
       baseDraft = normalized(fresh.draft);
+      stashTransientDraft();
       history.replaceState(null, "", "#chat=" + encodeURIComponent(fresh.id));
       setChatTitle();
     }).finally(() => { saving = null; });
@@ -659,6 +668,7 @@ async function resolveConflict(keep) {
     if (await saveDraft()) setStatus("");
   } else {
     dirty = false;
+    try { sessionStorage.removeItem(transientDraftKey); } catch {}
     showDraft(remote.draft);
     setStatus("");
     setSave("草稿已保存");
@@ -1074,7 +1084,7 @@ async function refresh() {
         showDraft({});
         if (view === "chat") {
           if (chats.length) await selectChat(chats[0].id);
-          else await setView("trash");
+          else await newChat();
         }
       } else {
         if (
@@ -1355,7 +1365,7 @@ async function deleteChat(id) {
     setBusy(false);
     if (view === "chat") {
       if (chats.length) await selectChat(chats[0].id);
-      else await setView("trash");
+      else await newChat();
     }
   }
   renderSidebar(true);
@@ -1626,8 +1636,19 @@ async function init() {
       if (existing) await selectChat(id);
       else await newChat();
       if (pendingDraft?.draft && pendingDraft.chatId === (existing ? id : null)) {
-        showDraft(pendingDraft.draft);
-        scheduleSave();
+        if (existing && same(current.draft, pendingDraft.draft)) {
+          try { sessionStorage.removeItem(transientDraftKey); } catch {}
+        } else {
+          showDraft(pendingDraft.draft);
+          if (existing && (!pendingDraft.baseDraft || !same(current.draft, pendingDraft.baseDraft))) {
+            // Recovery must compare against the original base, not silently
+            // adopt a newer server version and overwrite another tab's edits.
+            dirty = true;
+            conflict = current;
+            $("draftConflict").hidden = false;
+            setStatus("其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。", true);
+          } else scheduleSave();
+        }
       }
     }
     setConnection("本地已连接");
