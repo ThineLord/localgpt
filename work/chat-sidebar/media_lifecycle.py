@@ -71,7 +71,7 @@ class MediaLifecycle:
         if not stat.S_ISREG(mode): raise ValueError('图片目标不是普通文件。')
         return path
 
-    def _unlink(self, image, *, owned_input=False):
+    def _unlink(self, image, *, owned_input=False, expected_fingerprint=None):
         """Open each directory without following symlinks, avoiding a path-swap race."""
         image = canonical(image)
         self._path(image, owned_input=owned_input)
@@ -85,6 +85,8 @@ class MediaLifecycle:
             try: info = os.stat(image['filename'], dir_fd=fd, follow_symlinks=False)
             except FileNotFoundError: return False
             if not stat.S_ISREG(info.st_mode): raise ValueError('图片目标不是普通文件。')
+            if expected_fingerprint is not None and self._fingerprint(info) != expected_fingerprint:
+                raise Conflict('上传文件已变化，未自动清理。')
             os.unlink(image['filename'], dir_fd=fd)
             return True
         finally: os.close(fd)
@@ -119,6 +121,117 @@ class MediaLifecycle:
         row = db.execute('SELECT payload FROM gallery_archive WHERE id=?', (message_id,)).fetchone()
         if row: return json.loads(row['payload'])
         raise KeyError(message_id)
+
+    @property
+    def upload_receipt_dir(self):
+        return self.store.path.parent / 'hanzagent-upload-recovery'
+
+    @staticmethod
+    def _fingerprint(info):
+        return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns]
+
+    def _receipt_path(self, receipt_id):
+        if not isinstance(receipt_id, str) or len(receipt_id) != 32 or any(c not in '0123456789abcdef' for c in receipt_id):
+            raise ValueError('上传恢复标识无效。')
+        folder = self.upload_receipt_dir
+        if folder.is_symlink(): raise ValueError('上传恢复目录不能是符号链接。')
+        return folder / (receipt_id + '.json')
+
+    def _write_upload_receipt(self, receipt):
+        path = self._receipt_path(receipt['id'])
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary = path.parent / (receipt['id'] + '.' + uuid.uuid4().hex + '.tmp')
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        try:
+            with os.fdopen(fd, 'w') as file:
+                json.dump(receipt, file, ensure_ascii=False); file.flush(); os.fsync(file.fileno())
+            os.replace(temporary, path)
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try: os.fsync(directory)
+            finally: os.close(directory)
+        finally:
+            if temporary.exists(): temporary.unlink()
+
+    def _read_upload_receipt(self, receipt_id):
+        path = self._receipt_path(receipt_id)
+        try: fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError: raise KeyError(receipt_id)
+        with os.fdopen(fd) as file:
+            if os.fstat(file.fileno()).st_size > 8192: raise ValueError('上传恢复收据无效。')
+            receipt = json.load(file)
+        image = canonical(receipt['image'])
+        expected = 'hanz-ref-' + receipt_id
+        if receipt.get('id') != receipt_id or image['type'] != 'input' or image['subfolder'] != 'hanzagent' or image['filename'] not in [expected + ext for ext in ('.png', '.jpg', '.jpeg', '.webp')]:
+            raise ValueError('上传恢复收据无效。')
+        return receipt
+
+    def begin_upload(self, extension):
+        """Persist intent outside SQLite BEFORE ComfyUI can create the new file."""
+        if extension not in ('.png', '.jpg', '.jpeg', '.webp'): raise ValueError('不支持的图片格式。')
+        receipt_id = uuid.uuid4().hex
+        image = {'type': 'input', 'subfolder': 'hanzagent', 'filename': 'hanz-ref-' + receipt_id + extension}
+        path = self._path(image, owned_input=True)
+        if path.exists(): raise Conflict('上传文件名冲突，未发送上传请求。')
+        receipt = {'id': receipt_id, 'image': image, 'created': time.time(), 'state': 'pending'}
+        self._write_upload_receipt(receipt)
+        return receipt
+
+    def confirm_upload(self, receipt_id, image):
+        receipt = self._read_upload_receipt(receipt_id)
+        if canonical(image) != receipt['image']:
+            raise Conflict('上传服务返回的文件名不符，未自动登记或删除。')
+        path = self._path(receipt['image'], owned_input=True)
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode): raise ValueError('上传文件不是普通文件。')
+        receipt.update(state='received', fingerprint=self._fingerprint(info))
+        self._write_upload_receipt(receipt)
+
+    def note_upload_failure(self, receipt_id, state):
+        # The original pending receipt already survives if a later disk write fails.
+        try:
+            receipt = self._read_upload_receipt(receipt_id)
+            receipt['state'] = state
+            self._write_upload_receipt(receipt)
+        except OSError: pass
+
+    def upload_recovery_list(self):
+        items = []
+        if not self.upload_receipt_dir.exists(): return {'items': items}
+        if self.upload_receipt_dir.is_symlink(): raise ValueError('上传恢复目录不能是符号链接。')
+        for path in sorted(self.upload_receipt_dir.glob('*.json')):
+            receipt = self._read_upload_receipt(path.stem)
+            try: present = self._path(receipt['image'], owned_input=True).is_file()
+            except (OSError, ValueError): present = None
+            items.append({k: receipt[k] for k in ('id', 'image', 'created', 'state')} | {'file_present': present})
+        return {'items': items}
+
+    def recover_upload(self, receipt_id):
+        """Explicit action only. No remote request, content scan, or automatic retry."""
+        receipt = self._read_upload_receipt(receipt_id)
+        path = self._path(receipt['image'], owned_input=True)
+        if not path.is_file(): raise Conflict('上传文件尚不存在，结果仍未确认；请稍后重试登记。')
+        if receipt.get('fingerprint') and self._fingerprint(path.lstat()) != receipt['fingerprint']:
+            raise Conflict('上传文件已变化，未登记其他文件。')
+        registered = self.register_upload(receipt['image'])
+        retained = False
+        try: self._receipt_path(receipt_id).unlink()
+        except OSError: retained = True  # Registration succeeded; receipt cleanup can be retried safely.
+        return {**registered, 'receipt_retained': retained}
+
+    def rollback_upload(self, receipt_id):
+        """Rollback only a confirmed, unchanged UUID file owned by this request."""
+        receipt = self._read_upload_receipt(receipt_id)
+        if receipt.get('state') != 'received' or not receipt.get('fingerprint'):
+            raise Conflict('上传结果尚未确认，未自动删除文件。')
+        image = receipt['image']
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if self._refs(db, image): raise Conflict('上传文件已有引用，未自动删除。')
+            for row in db.execute('SELECT payload FROM owned_uploads'):
+                if key(json.loads(row['payload'])) == key(image): raise Conflict('上传文件已登记，未自动删除。')
+            removed = self._unlink(image, owned_input=True, expected_fingerprint=receipt['fingerprint'])
+        self._receipt_path(receipt_id).unlink()
+        return {'rolled_back': True, 'deleted_files': int(removed)}
 
     def register_upload(self, image):
         """Called only by the successful HanzAgent upload pipeline, never a scan."""

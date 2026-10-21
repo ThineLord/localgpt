@@ -1,6 +1,6 @@
 /* Explicit lifecycle controls; no operation runs without a user action. */
 (() => {
-  const $=id=>document.getElementById(id), tr=(zh,en)=>language==='en'?en:zh;
+  const $=id=>document.getElementById(id), tr=(zh,en)=>{EN[zh]=en;return language==='en'?en:zh;};
   let trashSignature='',filePending=false;
   const button=(text,action,danger=false)=>{const b=document.createElement('button');b.type='button';b.className='action'+(danger?' danger-link':'');b.textContent=text;b.onclick=()=>Promise.resolve(action()).catch(e=>setStatus(e.message,true));return b;};
   async function renderMediaTrash(){
@@ -46,6 +46,17 @@
         const del=button(tr('永久删除原文件','Delete original permanently'),()=>HanzFeatures.confirm(tr('永久删除上传文件？','Permanently delete uploaded file?'),tr('仅删除此应用登记的原文件。仍有引用时会拒绝删除，失败时保留登记记录供重试。','Only this registered original is deleted. References block deletion; failed operations remain retryable.'),async()=>{await request('/qwen-cn/uploads/'+item.id,json('DELETE',{confirm:true}));await showFiles();}),true);
         row.append(label,del);fileList.append(row);
       }
+      const recovery=await request('/qwen-cn/uploads/recovery');
+      if(recovery.items.length){
+        const heading=document.createElement('h4');heading.textContent=tr('未完成的上传','Incomplete uploads');fileList.append(heading);
+        for(const item of recovery.items){
+          const row=document.createElement('article');row.className='trash-row';row.dataset.recoveryId=item.id;
+          const label=document.createElement('div');label.textContent=item.image.filename;
+          const detail=document.createElement('small');detail.textContent=item.file_present?tr('文件保留在本机，尚未登记。完成登记后可在此管理或永久删除。','The local file is retained but unregistered. Register it to manage or permanently delete it here.'):tr('上传结果待确认，尚未发现文件。可稍后重试登记。','Upload outcome is unresolved; no file found yet. Retry registration later.');label.append(detail);
+          const retry=button(tr('重试登记','Retry registration'),async()=>{await request('/qwen-cn/uploads/recovery/'+item.id+'/register',json('POST',{}));await showFiles();});
+          row.append(label,retry);fileList.append(row);
+        }
+      }
     } catch(e){fileList.textContent=e.message;}finally{filePending=false;}
   }
   async function diagnostics(){
@@ -61,4 +72,10 @@
   const about=$('settingsPanelAbout');
   if(about){const mark=document.createElement('span');mark.className='about-mark';mark.ariaLabel='HanzAgent';mark.style.maskImage=`url("${document.querySelector('link[rel="icon"]').href}")`;about.prepend(mark);}
   $('galleryDelete').textContent=tr('移至图片回收站','Move image to Trash');
+  captureLanguage(diag);
+  addEventListener('hanzlanguage',()=>{
+    $('galleryDelete').textContent=tr('移至图片回收站','Move image to Trash');
+    if(view==='trash')renderMediaTrash().catch(e=>setStatus(e.message,true));
+    if(!filesView.hidden)showFiles();
+  });
 })();

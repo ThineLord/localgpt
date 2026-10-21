@@ -1,7 +1,7 @@
 /* Low-frequency controls and real, server-backed personal data operations. */
 (() => {
   const el = (id) => document.getElementById(id);
-  const tr = (zh, en) => (language === "en" ? en : zh);
+  const tr = (zh, en) => { EN[zh] = en; return language === "en" ? en : zh; };
   const glyph = (path) =>
     `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
 
@@ -741,12 +741,15 @@
       const check=document.createElement('input');check.type='checkbox';check.id='purgeMedia';label.append(check,document.createTextNode(tr('同时删除未被其他记录引用的生成原文件','Also delete generated files without other references')));el('confirmBody').append(label);
     },
   };
+  captureLanguage(prefs);
+  captureLanguage(memory);
   window.addEventListener("hanzlanguage", () => {
     el("backMemory").setAttribute(
       "aria-label",
       tr("返回设置", "Back to settings"),
     );
     if (memory.open) {
+      setMemoryView(el("memoryEditorView").hidden ? "list" : "editor");
       renderMemories();
       el("memorySearch")?.setAttribute(
         "placeholder",

@@ -55,7 +55,7 @@ usage UNKNOWN. PR#8 head5293bf7e22706da8de532d6f2babe00c7c415233 supplied
 Settings/Memory. Codex integrated it and repaired search focus, menu disposal,
 viewport bounds, close guards and local diagnostics before acceptance.
 
-Synthetic checks:51 Python tests; navigation/theme/error recovery browser matrix;
+Synthetic checks:59 Python tests; navigation/theme/error recovery browser matrix;
 Memory add/edit/search/confirmation; Gallery Trash/restore/shared-file rejection/
 permanent404; upload registration/reference guard/permanent404. Screenshots and
 private-service receipts stay under ignored output/. New SVG is original vector
@@ -94,3 +94,11 @@ server runs. Health/chat/Memory return503 without creating an empty replacement;
 restoring that file recovers the original record. Store and MemoryStore permit
 creation only during explicit initialization and use SQLite mode=rw thereafter.
 No real database file was moved for this test.
+
+Final automatic review follow-up: uploads persist a local recovery receipt before
+ComfyUI writes a file. Registration failure rolls back only the new, unchanged,
+unreferenced UUID file; failed cleanup or uncertain upstream results remain visible
+in Local services → uploaded references with explicit registration retry. Eight
+isolated tests include real SQLite locking and filesystem failure injection. Late
+Settings/Memory controls now participate in language switching, including English
+startup → Chinese and recovery action browser checks.

@@ -6,7 +6,6 @@ import json
 import shutil
 import sqlite3
 import time
-import uuid
 from pathlib import Path
 from types import SimpleNamespace
 from aiohttp import web
@@ -30,6 +29,7 @@ def backup_before_migration(database):
 def install(app, backend, database, input_root, output_root):
     path=Path(database)
     store=Store(path);memory=MemoryStore(path);media=MediaLifecycle(store,input_root,output_root);routes=web.RouteTableDef()
+    active_uploads=set()
     def reply(data,status=200):return web.json_response(data,status=status,headers={'Cache-Control':'no-store'})
     def mutate(request):
         if request.content_type!='application/json':raise web.HTTPUnsupportedMediaType()
@@ -113,15 +113,44 @@ def install(app, backend, database, input_root, output_root):
         if ext not in ('.png','.jpg','.jpeg','.webp'):raise ValueError('仅支持 PNG、JPEG、WebP 参考图。')
         content=await part.read()
         if len(content)>20*1024**2:raise ValueError('图片不能超过 20 MB。')
-        form=aiohttp.FormData();form.add_field('image',content,filename='hanz-ref-'+uuid.uuid4().hex+ext,content_type=part.headers.get('Content-Type','application/octet-stream'))
+        receipt=media.begin_upload(ext)
+        form=aiohttp.FormData();form.add_field('image',content,filename=receipt['image']['filename'],content_type=part.headers.get('Content-Type','application/octet-stream'))
         form.add_field('type','input');form.add_field('subfolder','hanzagent');form.add_field('overwrite','false')
-        async with aiohttp.ClientSession() as session:
-            async with session.post(backend+'/upload/image',data=form) as upstream:
-                if upstream.status>=400:raise ValueError('参考图上传失败，请重试。')
-                result=await upstream.json()
-        image={'filename':result['name'],'subfolder':result.get('subfolder',''),'type':'input'}
-        registered=media.register_upload(image)
+        active_uploads.add(receipt['id'])
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(backend+'/upload/image',data=form) as upstream:
+                    if upstream.status>=400:raise ValueError('上传服务未确认成功。')
+                    result=await upstream.json()
+            image={'filename':result['name'],'subfolder':result.get('subfolder',''),'type':'input'}
+            media.confirm_upload(receipt['id'],image)
+        except (aiohttp.ClientError, TimeoutError, OSError, ValueError, KeyError, TypeError, Conflict):
+            media.note_upload_failure(receipt['id'],'uncertain')
+            return reply({'error':'上传结果未确认，原文件可能已保留。请在设置的上传文件管理中重试登记；不要重复上传。',
+                          'code':'upload_recovery_required','recovery_id':receipt['id'],'file_retained':None},503)
+        finally:
+            active_uploads.discard(receipt['id'])
+        try:
+            registered=media.recover_upload(receipt['id'])
+        except (sqlite3.Error, OSError, ValueError, KeyError, Conflict):
+            try:
+                media.rollback_upload(receipt['id'])
+            except (sqlite3.Error, OSError, ValueError, KeyError, Conflict):
+                media.note_upload_failure(receipt['id'],'retained')
+                return reply({'error':'上传登记失败，未能安全清理原文件。恢复收据已保留，请在设置的上传文件管理中重试登记。',
+                              'code':'upload_recovery_required','recovery_id':receipt['id'],'file_retained':True},503)
+            return reply({'error':'上传登记失败；本次新文件已安全回滚，未留下未登记原文件。请重试上传。',
+                          'code':'upload_registration_failed','rolled_back':True},503)
         return reply({**result,'upload_id':registered['id']})
+    @routes.get('/qwen-cn/uploads/recovery')
+    async def upload_recovery(r):return reply(media.upload_recovery_list())
+    @routes.post('/qwen-cn/uploads/recovery/{receipt_id}/register')
+    async def recover_upload(r):
+        mutate(r)
+        if r.match_info['receipt_id'] in active_uploads:raise Conflict('此上传请求仍在执行，请等待结果后重试。')
+        registered=media.recover_upload(r.match_info['receipt_id'])
+        return reply({'registered':True,'upload_id':registered['id'],'image':registered['image'],
+                      'receipt_retained':registered['receipt_retained']})
     @routes.delete('/qwen-cn/uploads/{upload_id}')
     async def purge_upload(r):
         mutate(r);data=await r.json()

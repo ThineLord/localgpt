@@ -303,6 +303,7 @@ Object.assign(EN, {
   已停止: "Stopped",
   记为全局记忆: "Save as personal memory",
   回到最新消息: "Latest message",
+  "HanzAgent · 本机数据":"HanzAgent · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 HanzAgent":"About HanzAgent", "仅在此设备":"On this device",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
   记忆: "Memory", 外观模式: "Mode",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
@@ -321,21 +322,23 @@ function translate(text) {
   return text;
 }
 const staticText = [],
-  staticAttrs = [];
-function captureLanguage() {
-  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  staticAttrs = [], capturedText = new WeakSet(), capturedAttrs = new WeakMap();
+function captureLanguage(root = document.body) {
+  const translationKey = text => EN[text] ? text : Object.keys(EN).find(key => EN[key] === text);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let n;
   while ((n = w.nextNode())) {
     if (n.parentElement.closest("script,style,.ambient")) continue;
-    const key = n.nodeValue.trim();
-    if (EN[key]) staticText.push({ n, key });
+    const key = translationKey(n.nodeValue.trim());
+    if (key && !capturedText.has(n)) { staticText.push({ n, key }); capturedText.add(n); }
   }
-  document
+  root
     .querySelectorAll("[aria-label],[title],[placeholder],[alt]")
     .forEach((el) => {
       for (const a of ["aria-label", "title", "placeholder", "alt"]) {
-        const key = el.getAttribute(a);
-        if (EN[key]) staticAttrs.push({ el, a, key });
+        const key = translationKey(el.getAttribute(a));
+        const seen = capturedAttrs.get(el) || new Set();
+        if (key && !seen.has(a)) { staticAttrs.push({ el, a, key }); seen.add(a); capturedAttrs.set(el, seen); }
       }
     });
 }
