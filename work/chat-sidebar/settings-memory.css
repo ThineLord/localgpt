@@ -295,6 +295,79 @@
   margin-top: 0;
 }
 
+.memory-settings-summary,
+.memory-summary {
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.memory-highlights {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.memory-highlights:empty { display: none; }
+
+.memory-highlights li {
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.memory-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.memory-dialog--round4 .memory-item {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.memory-item.is-inactive p { color: var(--ink-secondary); }
+
+.memory-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.memory-badge,
+.memory-item small { overflow-wrap: anywhere; }
+
+.memory-turn-hint {
+  margin: 6px 0 0;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.memory-dialog--round4:has(#memoryEditorView:not([hidden])) .memory-dialog--footer {
+  display: none;
+}
+
+#memoryConflict { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .memory-dialog.memory-dialog--round4 {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .memory-list-scroll { max-height: min(46dvh, 320px); }
+
+  .memory-dialog--body { padding: 0 12px 12px; }
+}
+
 @media (max-width: 390px) {
   .memory-dialog.memory-dialog--round4 {
     width: calc(100vw - 16px);
