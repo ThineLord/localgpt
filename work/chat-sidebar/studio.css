@@ -128,7 +128,7 @@ svg {
 }
 .skip-link:focus { top: 8px; }
 
-/* Rail and history are independent surfaces: pinned changes layout, temporary overlays it. */
+/* Pinned history shares the rail navigation plane (--sidebar). Temporary history overlays that plane as an elevated card. */
 .sidebar { position:fixed; z-index:40; inset:0 auto 0 0; width:var(--rail); overflow:visible; }
 .sidebar-open .sidebar, .sidebar-temporary .sidebar { width:var(--sidebar-width); }
 .app-rail { position:absolute; inset:0 auto 0 0; width:var(--rail); background:var(--sidebar); display:flex; flex-direction:column; align-items:center; gap:16px; padding:8px; }
@@ -140,8 +140,8 @@ svg {
 .profile-button { margin-top:auto; }
 .local-avatar { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; background:var(--selected); font-size:12px; }
 .local-avatar svg { width:18px; height:18px; }
-.history-panel { position:absolute; inset:0 auto 0 var(--rail); width:288px; display:flex; flex-direction:column; background:var(--surface); border-radius:16px 0 0 16px; overflow:hidden; visibility:hidden; transform:translateX(-8px); opacity:0; transition:transform 140ms ease,opacity 140ms ease; }
-.sidebar-open .history-panel { background:var(--surface); }
+.history-panel { position:absolute; inset:0 auto 0 var(--rail); width:288px; display:flex; flex-direction:column; background:var(--sidebar); border-radius:16px 0 0 16px; overflow:hidden; visibility:hidden; transform:translateX(-8px); opacity:0; transition:transform 140ms ease,opacity 140ms ease; }
+.sidebar-open .history-panel { background:var(--sidebar); }
 .sidebar-open .history-panel, .sidebar-temporary .history-panel { visibility:visible; transform:none; opacity:1; }
 .sidebar-temporary .history-panel { inset:4px auto 4px calc(var(--rail) + 4px); width:284px; border-radius:var(--panel-radius); background:var(--surface-elevated); box-shadow:var(--floating-shadow); }
 .sidebar-top { display:flex; align-items:center; gap:8px; min-height:52px; padding:8px 10px 8px 16px; }

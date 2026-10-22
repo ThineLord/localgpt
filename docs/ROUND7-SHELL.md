@@ -5,6 +5,7 @@
 - **Single rail:** `#sidebar .app-rail` is the only application navigation rail. Settings no longer renders a duplicate `.settings-rail`.
 - **Settings surface:** `#preferencesDialog` is a page layer on the main surface (`inset: 0 0 0 var(--main-inset)`), opened with `dialog.show()` so the shared rail stays active. It is not a modal. Nested Memory and confirm dialogs stay modal. The same `#sidebar .app-rail` node is used on every page.
 - **Corners:** collapsed/temporary clip is `inset(0 round 16px)`. Pinned radius is `0 16px 0 0` (square left, 16px top-right, square bottom-right). Mobile is square. Temporary sidebar does not change `--main-inset`.
+- **Pinned history plane:** `#historyPanel` uses the same `--sidebar` token as `.app-rail` (light `#f9f9f9`, dark `#000000`). `#mainContent` stays `--canvas` (light `#fcfcfc`, dark `#0e0e0e`). Temporary history stays `--surface-elevated` with `--floating-shadow`.
 - **AppShell API** (`app-shell.js`, `window.AppShell`):
   - `openSettings(section?, origin?)` — opens the settings page and optionally selects a tab (`general`, `profile`, `appearance`, `memory`, `about`, …).
   - `closeSettings()` — returns a Promise that resolves after the page is closed and focus is restored.
