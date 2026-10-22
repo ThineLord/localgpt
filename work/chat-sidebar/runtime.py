@@ -21,6 +21,11 @@ from history_metadata import install as install_history_metadata
 
 
 MANAGED_IMAGE_TYPES = ('input', 'output')
+MANAGED_IMAGE_MIME = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp',
+    '.avif': 'image/avif', '.tif': 'image/tiff', '.tiff': 'image/tiff',
+}
 
 
 def _attachment_disposition(filename):
@@ -53,6 +58,12 @@ def serve_managed_image(request, input_root, output_root, *, download=False):
     except ValueError as error:
         status = 404 if str(error) == 'Image file is missing' else 400
         return web.json_response({'error': str(error)}, status=status, headers=headers)
+    # A managed directory can also contain non-image files. Never expose active
+    # documents (including SVG/HTML) on the application's own origin.
+    mime = MANAGED_IMAGE_MIME.get(target.suffix.lower())
+    if mime is None:
+        return web.json_response({'error': 'Unsupported image format'}, status=415, headers=headers)
+    headers.update({'Content-Type': mime, 'X-Content-Type-Options': 'nosniff'})
     if download:
         headers['Content-Disposition'] = _attachment_disposition(target.name)
     return web.FileResponse(target, headers=headers)

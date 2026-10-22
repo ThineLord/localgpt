@@ -91,6 +91,23 @@ class OfflineManagedMediaTests(unittest.IsolatedAsyncioTestCase):
             directory = await self.client.get(self.url(route, filename='not-a-file.png', type='output'))
             self.assertEqual(directory.status, 404, route)
 
+    async def test_active_documents_and_non_images_are_not_served(self):
+        payload = b'<script>window.untrustedMediaExecuted=true</script>'
+        for name in ('note.html', 'vector.svg', 'settings.json', 'no-extension'):
+            (self.output / name).write_bytes(payload)
+            for route in ('/view', '/qwen-cn/download'):
+                for method in (self.client.get, self.client.head):
+                    response = await method(self.url(route, filename=name, type='output'))
+                    self.assertEqual(response.status, 415, (route, name))
+                    self.assertNotIn(payload, await response.read())
+        # Even misleading contents cannot select an active document MIME type.
+        (self.output / 'misleading.PNG').write_bytes(payload)
+        for route in ('/view', '/qwen-cn/download'):
+            response = await self.client.get(self.url(route, filename='misleading.PNG'))
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers['Content-Type'], 'image/png')
+            self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+
     async def test_traversal_and_symlink_escape_rejected(self):
         attacks = [
             {'filename': '../secret.png', 'type': 'output'},
