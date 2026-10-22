@@ -24,7 +24,7 @@
     chevron: '<path d="m9 6 6 6-6 6"/>',
     file: '<path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10l-7-7Zm0 0v7h7M8 15h8m-8 3h5"/>',
     search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
-    pin: '<path d="m8 3 8 0-1 6 4 4v2h-6v7m-2-7H5v-2l4-4-1-6Z"/>',
+    pin: '<path d="M9 3h6l-1 6 4 4v2H6v-2l4-4-1-6Z M12 15v7"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/>',
     memory:
       '<path d="M9 3a4 4 0 0 0-4 4v1a4 4 0 0 0 0 8v1a4 4 0 0 0 7 3V4a3 3 0 0 0-3-1Zm6 0a4 4 0 0 1 4 4v1a4 4 0 0 1 0 8v1a4 4 0 0 1-7 3M8 8h4m0 7h4"/>',

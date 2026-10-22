@@ -156,7 +156,7 @@ svg {
 .new-chat-row svg { width:20px;height:20px; }
 .sidebar-home-label { font-size:16px; font-weight:500; margin-right:auto; }
 #sidebarToggle { border-radius:8px; opacity:1; }
-.sidebar-label { color:var(--ink-secondary); font-size:12px; line-height:18px; padding:16px 16px 8px; }
+.sidebar-label { color:var(--ink-secondary); font-size:14px; font-weight:400; line-height:20px; padding:20px 10px 6px; }
 .chat-list { display:flex; flex-direction:column; gap:2px; flex:1; min-height:0; overflow:auto; padding:0 8px 16px; }
 .shell { position:relative; isolation:isolate; height:100dvh; margin-left:var(--main-inset); display:flex; flex-direction:column; min-width:0; background:var(--canvas); }
 /* One boundary contract for all full-size application surfaces. */
@@ -191,6 +191,8 @@ svg {
   white-space: nowrap;
 }
 .chat-menu-trigger { flex: 0 0 32px; width: 32px; height: 32px; opacity: 0; }
+.chat-row:hover, .chat-row:focus-within,
+.chat-row:has(.chat-item[aria-current="true"]),
 .chat-row:has(.chat-menu-trigger[aria-expanded="true"]) { background:var(--row-hover); }
 .chat-row:hover .chat-menu-trigger, .chat-row:focus-within .chat-menu-trigger,
 .chat-menu-trigger[aria-expanded="true"] { opacity: 1; }
@@ -201,9 +203,11 @@ svg {
   box-shadow: 0 8px 32px rgb(0 0 0 / 12%); z-index: 90;
 }
 .chat-row-menu button, .compact-menu button {
-  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px;
+  display: flex; align-items: center; justify-content:flex-start; gap: 10px; width: 100%; min-height: 36px;
   padding: 8px 10px; border-radius: 10px; text-align: left; font-size: 14px; line-height: 20px;
 }
+.chat-row-menu button > svg, .compact-menu button > svg { width:20px; height:20px; flex:0 0 20px; stroke-width:1.65; }
+.chat-row-menu button > span, .compact-menu button > span { min-width:0; text-align:left; }
 .chat-row-menu button:hover, .compact-menu button:hover { background: var(--row-hover); }
 .chat-running {
   width: 6px;
