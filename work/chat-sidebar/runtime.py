@@ -8,6 +8,7 @@ import sqlite3
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import quote
 from aiohttp import web
 import aiohttp
 from storage import Store, Conflict
@@ -17,6 +18,55 @@ from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
 from history_metadata import install as install_history_metadata
+
+
+MANAGED_IMAGE_TYPES = ('input', 'output')
+MANAGED_IMAGE_MIME = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp',
+    '.avif': 'image/avif', '.tif': 'image/tiff', '.tiff': 'image/tiff',
+}
+
+
+def _attachment_disposition(filename):
+    """Content-Disposition for a basename image_path has already accepted."""
+    cleaned = ''.join(ch for ch in filename if ch not in '\r\n"\\')
+    encoded = quote(cleaned, safe='')
+    ascii_name = ''.join(ch if ch.isascii() and 32 < ord(ch) < 127 and ch not in '"\\' else '_' for ch in cleaned) or 'download'
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
+
+
+def serve_managed_image(request, input_root, output_root, *, download=False):
+    """Serve a managed image from the existing input/output roots.
+
+    `/view` and `/qwen-cn/download` share this resolver. `type` defaults to
+    output. `temp` and any other type are rejected before a path is joined.
+    Resolution stays inside ``image_path``: traversal and symlink escapes never
+    become a file response, and this does not open a temp directory.
+    """
+    filename = request.query.get('filename', '')
+    subfolder = request.query.get('subfolder', '')
+    kind = request.query.get('type') or 'output'
+    headers = {'Cache-Control': 'no-store'}
+    if kind not in MANAGED_IMAGE_TYPES:
+        return web.json_response({'error': 'Unsupported image type', 'type': kind}, status=400, headers=headers)
+    try:
+        target = image_path(
+            {'filename': filename, 'subfolder': subfolder, 'type': kind},
+            input_root, output_root,
+        )
+    except ValueError as error:
+        status = 404 if str(error) == 'Image file is missing' else 400
+        return web.json_response({'error': str(error)}, status=status, headers=headers)
+    # A managed directory can also contain non-image files. Never expose active
+    # documents (including SVG/HTML) on the application's own origin.
+    mime = MANAGED_IMAGE_MIME.get(target.suffix.lower())
+    if mime is None:
+        return web.json_response({'error': 'Unsupported image format'}, status=415, headers=headers)
+    headers.update({'Content-Type': mime, 'X-Content-Type-Options': 'nosniff'})
+    if download:
+        headers['Content-Disposition'] = _attachment_disposition(target.name)
+    return web.FileResponse(target, headers=headers)
 
 
 def backup_before_migration(database):
@@ -48,6 +98,14 @@ def install(app, backend, database, input_root, output_root):
         PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=routes)))
     # Genuine local chat execution, with existing routing, streaming, cancellation.
     lm_chat.install(core)
+
+    @routes.get('/view')
+    async def view_managed(r):
+        return serve_managed_image(r, input_root, output_root)
+
+    @routes.get('/qwen-cn/download')
+    async def download_managed(r):
+        return serve_managed_image(r, input_root, output_root, download=True)
 
     @routes.get('/qwen-cn/health')
     async def health(r):

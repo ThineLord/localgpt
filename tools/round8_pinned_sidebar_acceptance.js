@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Round 8 pinned history plane. Synthetic demo only.
+ * Pinned history plane. Round 8's rail-colored target was wrong.
+ * Pinned history matches --canvas; the rail stays --sidebar. Synthetic demo only.
  *   python3 work/chat-sidebar/build.py
  *   python3 tools/round5_demo.py --port 8194
  *   node tools/round8_pinned_sidebar_acceptance.js
@@ -29,6 +30,11 @@ const near = (value, expected, label) => {
 
 function check(ok, message) {
   if (!ok) throw new Error(message);
+}
+
+function hairline(width) {
+  // Chrome's used value snaps a specified 0.5px border to 1px.
+  return width === "0.5px" || width === "1px";
 }
 
 function samplePixel(file, x, y) {
@@ -75,9 +81,14 @@ async function readPlane(page) {
       historyImage: historyCss.backgroundImage,
       historyShadow: historyCss.boxShadow,
       historyOpacity: historyCss.opacity,
+      historyRadius: historyCss.borderRadius,
       railBg: css(rail).backgroundColor,
       mainBg: css(main).backgroundColor,
       mainClip: css(main).clipPath,
+      mainBorderWidth: css(main).borderLeftWidth,
+      mainBorderStyle: css(main).borderLeftStyle,
+      mainBorderColor: css(main).borderLeftColor,
+      dividerColor: token("--main-divider", "borderLeftColor"),
       toggleOpacity: css(toggle).opacity,
       sidebarToken: token("--sidebar", "backgroundColor"),
       canvasToken: token("--canvas", "backgroundColor"),
@@ -141,6 +152,7 @@ async function main() {
         theme + " collapsed clip " + collapsed.mainClip,
       );
       check(collapsed.toggleOpacity === "1", theme + " collapsed toggle opacity");
+      check(collapsed.mainBorderWidth === "0px", theme + " collapsed drew a divider");
 
       await page.locator("#homeNav").hover();
       await settle(page, "temporary");
@@ -188,17 +200,34 @@ async function main() {
       check(pinned.state === "pinned" && pinned.pinnedClass, theme + " pointer leave closed the pin");
       check(!pinned.temporaryClass, theme + " pinned still temporary");
       check(pinned.stored === "open", theme + " pin was not stored");
-      check(pinned.historyBg === pinned.railBg, theme + " pinned history " + pinned.historyBg + " rail " + pinned.railBg);
-      check(pinned.historyBg === pinned.sidebarToken, theme + " pinned history is not --sidebar");
+      check(pinned.historyBg === pinned.mainBg, theme + " pinned history " + pinned.historyBg + " main " + pinned.mainBg);
+      check(pinned.historyBg === pinned.canvasToken, theme + " pinned history is not --canvas");
       check(pinned.mainBg === pinned.canvasToken, theme + " main is not --canvas");
-      check(pinned.historyBg !== pinned.mainBg, theme + " pinned history matched main");
+      check(pinned.historyBg !== pinned.railBg, theme + " pinned history matched the rail");
+      check(pinned.railBg === pinned.sidebarToken, theme + " rail is not --sidebar");
       check(pinned.railBg !== pinned.mainBg, theme + " rail matched main");
+      check(pinned.historyRadius === "16px 0px 0px 16px", theme + " history radius " + pinned.historyRadius);
+      check(hairline(pinned.mainBorderWidth) && pinned.mainBorderStyle === "solid", theme + " main border " + pinned.mainBorderWidth);
+      const authoredHairline = await page.evaluate(() => {
+        const visit = (rules) => {
+          for (const rule of rules) {
+            if (String(rule.cssText || "").includes("0.5px solid var(--main-divider)")) return true;
+            if (rule.cssRules && visit(rule.cssRules)) return true;
+          }
+          return false;
+        };
+        return [...document.styleSheets].some((sheet) => {
+          try { return visit(sheet.cssRules); } catch { return false; }
+        });
+      });
+      check(authoredHairline, theme + " stylesheet is missing the 0.5px divider");
+      check(pinned.mainBorderColor === pinned.dividerColor, theme + " divider " + pinned.mainBorderColor + " token " + pinned.dividerColor);
       check(pinned.historyShadow === "none", theme + " pinned history kept a shadow");
       check(pinned.historyImage === "none", theme + " pinned background image");
       check(pinned.historyOpacity === "1", theme + " pinned history opacity");
       check(pinned.toggleOpacity === "1", theme + " pinned toggle opacity");
       check(
-        pinned.mainClip === "inset(0px round 0px 16px 0px 0px)",
+        pinned.mainClip === "inset(0px 0px 0px -16px round 16px)",
         theme + " pinned clip " + pinned.mainClip,
       );
       near(pinned.main.x, 340, theme + " pinned main x");
@@ -221,10 +250,28 @@ async function main() {
       const railPixel = rgbOf(samplePixel(pinnedShot, 20, 420));
       const historyPixel = rgbOf(samplePixel(pinnedShot, 200, 820));
       const mainPixel = rgbOf(samplePixel(pinnedShot, 900, 140));
-      check(historyPixel === railPixel, theme + ` screenshot history ${historyPixel} rail ${railPixel}`);
-      check(historyPixel !== mainPixel, theme + ` screenshot history matched main ${mainPixel}`);
+      check(historyPixel === mainPixel, theme + ` screenshot history ${historyPixel} main ${mainPixel}`);
+      check(historyPixel !== railPixel, theme + ` screenshot history matched rail ${railPixel}`);
       check(historyPixel === pinned.historyBg, theme + ` screenshot ${historyPixel} computed ${pinned.historyBg}`);
       check(mainPixel === pinned.mainBg, theme + ` screenshot main ${mainPixel} computed ${pinned.mainBg}`);
+
+      const rowMenu = await page.evaluate(async () => {
+        const row = document.querySelector(".chat-row");
+        const trigger = row?.querySelector(".chat-menu-trigger");
+        if (!trigger) return { missing: true };
+        trigger.click();
+        const menu = row.querySelector(".chat-row-menu");
+        const rect = menu.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + 12);
+        const result = {
+          missing: false,
+          hit: !!hit && (hit === menu || menu.contains(hit)),
+          inside: rect.width > 40 && rect.height > 20 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1 && rect.left >= -1,
+        };
+        menu.hidePopover?.();
+        return result;
+      });
+      check(!rowMenu.missing && rowMenu.hit && rowMenu.inside, theme + " chat menu clipped " + JSON.stringify(rowMenu));
 
       const surfaces = { chat: pinned };
       await page.locator("#galleryNav").click();
@@ -236,23 +283,117 @@ async function main() {
       near(gallery.history.x, pinned.history.x, theme + " gallery panel x");
       near(gallery.history.width, pinned.history.width, theme + " gallery panel width");
       check(gallery.mainClip === pinned.mainClip, theme + " gallery clip changed");
+      check(hairline(gallery.mainBorderWidth), theme + " gallery divider " + gallery.mainBorderWidth);
       surfaces.gallery = gallery;
       await page.screenshot({ path: path.join(shotDir, `gallery-1440-${theme}.png`), scale: "css" });
 
+      const pinBeforeSettings = await page.evaluate(() => localStorage.getItem("qwen-studio-sidebar"));
       await page.locator("#profileButton").click();
+      const profileMenu = await page.evaluate(() => {
+        const menu = document.getElementById("profileMenu");
+        const rect = menu.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + Math.min(24, rect.height / 2));
+        return {
+          hit: !!hit && (hit === menu || menu.contains(hit)),
+          inside: rect.left >= -1 && rect.top >= -1 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1,
+          width: rect.width,
+          height: rect.height,
+        };
+      });
+      check(profileMenu.hit && profileMenu.inside && profileMenu.width > 40 && profileMenu.height > 40, theme + " profile menu clipped " + JSON.stringify(profileMenu));
       await page.locator("#appSettings").click();
-      await page.waitForSelector("#preferencesDialog[open]");
+      await page.waitForFunction(() => {
+        const nav = document.getElementById("settingsNav");
+        return document.getElementById("preferencesDialog").open && nav.parentElement.id === "sidebar";
+      });
       const settings = await readPlane(page);
-      const settingsBox = await page.locator(".settings-page").boundingBox();
+      const hierarchy = await page.evaluate(() => {
+        const nav = document.getElementById("settingsNav");
+        const history = document.getElementById("historyPanel");
+        const pageEl = document.querySelector(".settings-page");
+        const main = document.getElementById("mainContent");
+        const rail = document.querySelector("#sidebar .app-rail");
+        const item = nav.querySelector(".settings-nav-item");
+        const selected = nav.querySelector('[aria-selected="true"]');
+        const navBox = nav.getBoundingClientRect();
+        const pageBox = pageEl.getBoundingClientRect();
+        const railBox = rail.getBoundingClientRect();
+        const hit = document.elementFromPoint(navBox.x + navBox.width / 2, Math.min(navBox.bottom - 24, navBox.y + 80));
+        const itemCss = getComputedStyle(item);
+        const navCss = getComputedStyle(nav);
+        const pageCss = getComputedStyle(pageEl);
+        const mainCss = getComputedStyle(main);
+        const probe = document.createElement("div");
+        probe.style.backgroundColor = "rgba(255,255,255,0.1)";
+        document.body.appendChild(probe);
+        const darkSelected = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return {
+          rails: document.querySelectorAll(".app-rail").length,
+          navInDialog: !!nav.closest("#preferencesDialog"),
+          historyVisibility: getComputedStyle(history).visibility,
+          hitNav: !!hit && (hit === nav || nav.contains(hit)),
+          hitHistory: !!hit && (hit === history || history.contains(hit)),
+          navX: navBox.x,
+          navWidth: navBox.width,
+          pageX: pageBox.x,
+          railX: railBox.x,
+          railWidth: railBox.width,
+          pageBorder: pageCss.borderLeftWidth,
+          pageClip: pageCss.clipPath,
+          mainClip: mainCss.clipPath,
+          mainBorder: mainCss.borderLeftWidth,
+          pageBg: pageCss.backgroundColor,
+          navBg: navCss.backgroundColor,
+          columns: pageCss.gridTemplateColumns.trim().split(/\s+/).length,
+          font: itemCss.fontSize,
+          height: itemCss.height,
+          pad: [itemCss.paddingTop, itemCss.paddingRight, itemCss.paddingBottom, itemCss.paddingLeft].join(" "),
+          gap: itemCss.gap,
+          radius: itemCss.borderRadius,
+          navPad: [navCss.paddingTop, navCss.paddingRight, navCss.paddingBottom, navCss.paddingLeft].join(" "),
+          selected: selected ? getComputedStyle(selected).backgroundColor : "",
+          darkSelected,
+          stored: localStorage.getItem("qwen-studio-sidebar"),
+        };
+      });
       check(settings.state === "pinned", theme + " settings dropped the pin");
-      check(settings.historyBg === pinned.historyBg && settings.mainBg === pinned.mainBg, theme + " settings recolored the plane");
-      near(settings.main.x, pinned.main.x, theme + " settings main x");
-      near(settings.history.x, pinned.history.x, theme + " settings panel x");
-      near(settings.history.width, pinned.history.width, theme + " settings panel width");
-      near(settingsBox.x, pinned.main.x, theme + " settings page x");
-      check(settings.mainClip === pinned.mainClip, theme + " settings clip changed");
-      surfaces.settings = settings;
+      check(hierarchy.rails === 1 && !hierarchy.navInDialog, theme + " settings duplicated navigation");
+      check(hierarchy.historyVisibility === "hidden" && hierarchy.hitNav && !hierarchy.hitHistory, theme + " history peeked over settings");
+      near(hierarchy.navX, 52, theme + " settings nav x");
+      near(hierarchy.navWidth, 288, theme + " settings nav width");
+      near(hierarchy.pageX, 340, theme + " settings main x");
+      near(hierarchy.railX, 0, theme + " settings rail x");
+      near(hierarchy.railWidth, 52, theme + " settings rail width");
+      near(settings.main.x, 340, theme + " settings underlying main x");
+      check(hairline(hierarchy.pageBorder) && hierarchy.mainBorder === "0px", theme + " double border " + hierarchy.pageBorder + "/" + hierarchy.mainBorder);
+      check(hierarchy.pageClip === pinned.mainClip && hierarchy.mainClip === "none", theme + " double clip " + hierarchy.pageClip + " / " + hierarchy.mainClip);
+      check(hierarchy.pageBg === pinned.mainBg && hierarchy.navBg === pinned.canvasToken, theme + " settings plane " + hierarchy.navBg);
+      check(hierarchy.columns === 1, theme + " settings kept a second column " + hierarchy.columns);
+      check(hierarchy.stored === pinBeforeSettings, theme + " settings rewrote the pin preference");
+      check(hierarchy.font === "14px" && hierarchy.height === "35px", theme + " nav metrics " + hierarchy.font + " " + hierarchy.height);
+      check(hierarchy.pad === "6px 10px 6px 10px" && hierarchy.gap === "8px" && hierarchy.radius === "8px", theme + " nav item box " + hierarchy.pad);
+      check(hierarchy.navPad === "4px 6px 8px 6px", theme + " nav padding " + hierarchy.navPad);
+      if (theme === "dark") check(hierarchy.selected === hierarchy.darkSelected, theme + " selected " + hierarchy.selected);
       await page.screenshot({ path: path.join(shotDir, `settings-1440-${theme}.png`), scale: "css" });
+      await page.locator('[data-settings-section="memory"]').click();
+      await page.locator("#memoryNav").click();
+      await page.waitForSelector("#memoryDialog[open]");
+      await page.locator("#backMemory").click();
+      await page.waitForFunction(() => !document.getElementById("memoryDialog").open && document.getElementById("preferencesDialog").open);
+      await page.locator("#closePreferences").click();
+      await page.waitForFunction(() => !document.getElementById("preferencesDialog").open && !document.body.classList.contains("settings-surface-open"));
+      check(await page.locator("#galleryView").isVisible(), theme + " closing settings left Gallery");
+      check(
+        await page.evaluate(() => document.getElementById("settingsNav").closest("#preferencesDialog") !== null),
+        theme + " settings nav was not restored",
+      );
+      check(
+        (await page.evaluate(() => localStorage.getItem("qwen-studio-sidebar"))) === pinBeforeSettings,
+        theme + " closing settings rewrote the pin preference",
+      );
+      const settingsBox = { x: hierarchy.pageX };
+      surfaces.settings = settings;
 
       await page.goto(base + "/qwen-cn/");
       await page.locator("#prompt").waitFor();
@@ -276,6 +417,27 @@ async function main() {
       check(reopened.historyShadow !== "none", theme + " second temporary lost shadow");
       await page.mouse.move(980, 460);
       await settle(page, "collapsed");
+      check((await page.evaluate(() => localStorage.getItem("qwen-studio-sidebar"))) === "closed", theme + " unpin did not store closed");
+      await page.locator("#profileButton").click();
+      await page.locator("#appSettings").click();
+      await page.waitForFunction(() => document.getElementById("settingsNav").parentElement.id === "sidebar");
+      const forced = await page.evaluate(() => ({
+        stored: localStorage.getItem("qwen-studio-sidebar"),
+        pinnedClass: document.body.classList.contains("sidebar-open"),
+        mainX: document.getElementById("mainContent").getBoundingClientRect().x,
+        pageX: document.querySelector(".settings-page").getBoundingClientRect().x,
+        navX: document.getElementById("settingsNav").getBoundingClientRect().x,
+      }));
+      check(forced.stored === "closed" && !forced.pinnedClass, theme + " collapsed settings rewrote pin " + forced.stored);
+      near(forced.mainX, 340, theme + " collapsed settings main x");
+      near(forced.pageX, 340, theme + " collapsed settings page x");
+      near(forced.navX, 52, theme + " collapsed settings nav x");
+      await page.locator("#closePreferences").click();
+      await page.waitForFunction(() => !document.body.classList.contains("settings-surface-open"));
+      await settle(page, "collapsed");
+      const restoredCollapsed = await readPlane(page);
+      near(restoredCollapsed.main.x, 52, theme + " settings close did not restore the collapsed inset");
+      check(restoredCollapsed.stored === "closed", theme + " settings close stored a pin");
 
       results.push({
         theme,
@@ -308,6 +470,35 @@ async function main() {
         },
       });
     }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(base + "/qwen-cn/");
+    await page.evaluate(() => {
+      localStorage.setItem("qwen-studio-theme", "dark");
+      localStorage.setItem("qwen-studio-sidebar", "closed");
+    });
+    await page.reload();
+    await page.locator("#prompt").waitFor();
+    await page.locator("#mobileMenu").click();
+    await page.locator("#profileButton").click();
+    await page.locator("#appSettings").click();
+    await page.waitForSelector("#preferencesDialog[open]");
+    const mobile = await page.evaluate(() => {
+      const nav = document.getElementById("settingsNav");
+      return {
+        inDialog: !!nav.closest("#preferencesDialog"),
+        rails: document.querySelectorAll(".app-rail").length,
+        overflow: document.documentElement.scrollWidth > innerWidth + 1,
+        stored: localStorage.getItem("qwen-studio-sidebar"),
+      };
+    });
+    check(mobile.inDialog && mobile.rails === 1 && !mobile.overflow && mobile.stored === "closed", "Mobile settings " + JSON.stringify(mobile));
+    await page.locator("#settingsBack").click();
+    await page.locator(".settings-nav-open").waitFor();
+    const mobileNav = await page.locator("#settingsNav").boundingBox();
+    check(mobileNav.x < 8 && mobileNav.width > 120 && mobileNav.width < 360, "Mobile settings drawer " + JSON.stringify(mobileNav));
+    check(!(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), "Mobile settings drawer overflow");
+    await page.locator("#closePreferences").click();
+    await page.waitForFunction(() => !document.getElementById("preferencesDialog").open);
   } finally {
     await browser.close();
   }

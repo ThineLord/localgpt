@@ -102,7 +102,7 @@ async (page) => {
         const pinnedMain = await page.locator("#mainContent").boundingBox();
         check(Math.abs(pinnedMain.x - 340) < 1, "Pinned main inset");
         check(
-          (await clipOf("#mainContent")) === "inset(0px round 0px 16px 0px 0px)",
+          (await clipOf("#mainContent")) === "inset(0px 0px 0px -16px round 16px)",
           "Pinned corners " + (await clipOf("#mainContent")),
         );
         await page.setViewportSize({ width: width === 1440 ? 1280 : 1440, height: width === 1440 ? 800 : 900 });
@@ -140,8 +140,9 @@ async (page) => {
       const settingsBox = await page.locator(".settings-page").boundingBox();
       check(Math.abs(settingsBox.x - shellBox.x) < 1, "Settings page is not on the main surface");
       check(
-        (await clipOf(".settings-page")) === (await clipOf("#mainContent")),
-        "Settings clip differs from chat",
+        (await clipOf(".settings-page")) === "inset(0px 0px 0px -16px round 16px)" &&
+          (await clipOf("#mainContent")) === "none",
+        "Settings clip " + (await clipOf(".settings-page")) + " underlying " + (await clipOf("#mainContent")),
       );
       await page.screenshot({
         path: out + `settings-${width}-${theme}.png`,
@@ -168,7 +169,7 @@ async (page) => {
         await page.waitForSelector("#galleryView:not([hidden])");
         check((await page.locator("#preferencesDialog[open]").count()) === 0, "Gallery left settings open");
         check(
-          (await clipOf("#mainContent")) === "inset(0px round 0px 16px 0px 0px)",
+          (await clipOf("#mainContent")) === "inset(0px 0px 0px -16px round 16px)",
           "Gallery lost the pinned corner contract",
         );
         await page.locator("#profileButton").click();

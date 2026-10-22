@@ -16,6 +16,28 @@
     );
   }
 
+  const settingsNav = $("settingsNav");
+  const navHome = settingsNav
+    ? { parent: settingsNav.parentElement, next: settingsNav.nextSibling }
+    : null;
+
+  function parkSettingsNav(park) {
+    const nav = $("settingsNav");
+    const sidebar = $("sidebar");
+    const history = $("historyPanel");
+    if (!nav || !sidebar || !navHome) return;
+    if (park && innerWidth > 760) {
+      if (nav.parentElement !== sidebar) sidebar.appendChild(nav);
+      if (history) {
+        history.inert = true;
+        history.setAttribute("aria-hidden", "true");
+      }
+      return;
+    }
+    if (nav.parentElement !== navHome.parent) navHome.parent.insertBefore(nav, navHome.next);
+    if (history?.getAttribute("aria-hidden") === "true") history.removeAttribute("aria-hidden");
+  }
+
   function placeMobileMenu() {
     const menu = $("mobileMenu");
     const shellHeader = document.querySelector(".shell > header");
@@ -41,6 +63,8 @@
     const origin = settingsOrigin;
     settingsOrigin = null;
     document.body.classList.remove("settings-surface-open");
+    document.body.classList.remove("sidebar-temporary");
+    parkSettingsNav(false);
     placeMobileMenu();
     dispatchEvent(new CustomEvent("appshell-surface"));
     restoreFocus(origin);
@@ -93,10 +117,12 @@
     closing = null;
     window.LiquidLayers?.closeSettings({ focus: false });
     dismissMobileDrawer();
+    document.body.classList.remove("sidebar-temporary");
     if (origin instanceof Element) settingsOrigin = origin;
-    if (prefs && !prefs.open) prefs.show();
     document.body.classList.add("settings-surface-open");
+    parkSettingsNav(true);
     placeMobileMenu();
+    if (prefs && !prefs.open) prefs.show();
     dispatchEvent(new CustomEvent("appshell-surface"));
     if (section) {
       dispatchEvent(new CustomEvent("appshell-settings-section", { detail: section }));
@@ -161,5 +187,19 @@
     closeSettings();
   });
 
-  addEventListener("resize", () => placeMobileMenu(), { passive: true });
+  const memoryButton = $("memoryNav");
+  if (memoryButton && window.HanzMemory) {
+    memoryButton.onclick = () => {
+      const dialog = $("preferencesDialog");
+      window.HanzMemory.open(null, dialog?.open ? dialog : memoryButton);
+    };
+  }
+
+  addEventListener("appshell-surface", () => {
+    parkSettingsNav(document.body.classList.contains("settings-surface-open"));
+  });
+  addEventListener("resize", () => {
+    parkSettingsNav(document.body.classList.contains("settings-surface-open"));
+    placeMobileMenu();
+  }, { passive: true });
 })();

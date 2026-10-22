@@ -58,7 +58,10 @@ def create_app(backend='http://127.0.0.1:8188', *, database=None, input_root=Non
     app.router.add_get('/', index)
     app.router.add_get('/qwen-cn/', index)
     app.router.add_route('*', '/qwen-cn/{tail:.*}', proxy)
-    app.router.add_get('/view', proxy)
+    # With discovered roots, runtime.install serves /view and /qwen-cn/download
+    # from those roots so an offline Comfy process cannot 502 managed images.
+    if database is None:
+        app.router.add_get('/view', proxy)
     app.router.add_post('/upload/image', proxy)
     return app
 
