@@ -30,7 +30,8 @@
     if (dialog.open) return;
     const parent = origin?.closest?.("dialog[open]") || null;
     records.set(dialog, { origin, parent });
-    dialog.showModal();
+    if (dialog.id === "preferencesDialog") dialog.show();
+    else dialog.showModal();
     sync();
   }
   function focusReturn(dialog) {
@@ -128,6 +129,9 @@
       close(dialog);
     });
     dialog.addEventListener("close", sync);
+    dialog.addEventListener("beforetoggle", (event) => {
+      if (event.newState === "closed") sync();
+    });
     dialog.addEventListener("pointerdown", (event) => {
       if (event.target !== dialog) return;
       const r = dialog.getBoundingClientRect();

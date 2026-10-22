@@ -42,19 +42,14 @@
           <button id="sidebarToggle" class="chrome-button" type="button" aria-label="固定侧边栏" title="固定侧边栏" aria-controls="historyPanel" aria-expanded="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><path d="M8 4v12"/></svg></button>
         </div>
           <button id="newChat" class="new-chat-row" type="button" aria-label="新对话" title="新对话"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5M11 4l2-2 5 5-2 2-7 7-4 1 1-4Z"/></svg><span>新对话</span></button>
-        <div class="sidebar-label">聊天记录</div>
         <nav id="chatList" class="chat-list" aria-label="聊天记录"></nav>
       </section>
     </aside>
     <div id="profileMenu" class="compact-menu profile-menu" role="menu" popover="manual" hidden>
       <div class="profile-summary"><span class="local-avatar"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17v-1a6 6 0 0 1 12 0v1"/></svg></span><div>本地用户<small>LocalGPT · 本机数据</small></div></div>
       <button id="appSettings" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="m9 3-1 3-3 1-2 4 2 2 1 4 3 1 2 3 4-1 1-3 3-1 2-4-2-2-1-4-3-1-2-3Z"/></svg><span>设置</span></button>
-      <button id="profileAvatar" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-2a8 8 0 0 1 16 0v2"/></svg><span>更换头像</span></button>
-      <button id="profileMemory" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>记忆</span></button>
-      <button id="profileAppearance" role="menuitem" type="button" aria-haspopup="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span>外观</span><span class="menu-chevron">›</span></button>
       <button id="profileAbout" role="menuitem" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><span>关于 LocalGPT</span></button>
     </div>
-    <div id="appearanceMenu" class="compact-menu" role="menu" popover="manual" hidden></div>
     <a class="skip-link" href="#prompt">跳到输入框</a>
     <main class="shell" id="mainContent">
       <header>
@@ -85,10 +80,9 @@
         </button>
         <section class="canvas" id="chatScroll">
           <span id="canvasCount" hidden></span>
-          <section class="intro" id="intro">
+          <section class="intro" id="intro" aria-hidden="true">
             <div class="intro-copy">
-              <h1>聊点什么，或画点什么。</h1>
-              <div class="suggestions" aria-label="开始创作">
+              <div class="suggestions" aria-label="开始创作" hidden>
                 <button type="button" data-suggestion="chat">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 4h14v12H9l-4 4V4Z" />
@@ -197,13 +191,14 @@
               popover="manual"
             ></div>
             <label for="prompt" class="sr-only">描述 / 修改要求</label>
+            <span id="composerKeyboardHint" class="sr-only">Enter 发送，Shift+Enter 换行</span>
             <textarea
               id="prompt"
               placeholder="描述想生成的画面…"
               required
               maxlength="4000"
               rows="1"
-              aria-describedby="composerHelp"
+              aria-describedby="composerKeyboardHint"
             ></textarea>
             <div class="composer-trailing">
               <div class="native-select-host" aria-hidden="true">
@@ -395,9 +390,6 @@
             role="status"
             aria-live="polite"
           ></div>
-          <span class="composer-help" id="composerHelp"
-            >Enter 发送 · Shift+Enter 换行</span
-          >
           <div
             class="save-state"
             id="saveState"
@@ -424,11 +416,6 @@
       aria-labelledby="preferencesTitle"
     >
       <div class="settings-layout">
-        <nav class="settings-rail" aria-label="应用导航">
-          <button type="button" class="chrome-button" data-settings-route="close" aria-label="返回对话" title="返回对话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 10 8-7 8 7v11h-6v-7h-4v7H4Z"/></svg></button>
-          <button type="button" class="chrome-button" data-settings-route="newChat" aria-label="新对话" title="新对话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/></svg></button>
-          <button type="button" class="chrome-button" data-settings-route="galleryNav" aria-label="图库" title="图库"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 6 3-4 5 5"/></svg></button>
-        </nav>
         <div class="settings-page app-surface">
         <button type="button" id="settingsNavShade" class="settings-nav-shade" aria-label="关闭设置导航" hidden></button>
         <div class="settings-layout-header">
@@ -436,10 +423,10 @@
             type="button"
             id="settingsBack"
             class="chrome-button settings-back"
-            aria-label="打开设置导航" aria-expanded="false" aria-controls="settingsNav"
+            aria-label="打开设置分类" aria-expanded="false" aria-controls="settingsNav"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="16" rx="3" /><path d="M9 4v16" />
+              <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
             </svg>
           </button>
           <h2 id="preferencesTitle">设置</h2>
@@ -462,7 +449,7 @@
               <option value="general">通用</option>
               <option value="appearance">外观</option>
               <option value="models">模型与生成</option>
-              <option value="memory">记忆</option>
+              <option value="memory">个性化</option>
               <option value="trash">回收站</option>
             </select>
             <div class="settings-nav-list" role="tablist" aria-orientation="vertical">
@@ -470,7 +457,7 @@
               <button type="button" class="settings-nav-item" data-settings-section="general" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="m9 3-1 3-3 1-2 4 2 2 1 4 3 1 2 3 4-1 1-3 3-1 2-4-2-2-1-4-3-1-2-3Z"/></svg><span>通用</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="appearance" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></svg><span>外观</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="models" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4M9 9h6v6H9Z"/></svg><span>模型与生成</span></button>
-              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>记忆</span></button>
+              <button type="button" class="settings-nav-item" data-settings-section="memory" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6"/></svg><span>个性化</span></button>
               <button type="button" class="settings-nav-item" data-settings-section="trash" role="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg><span>回收站</span></button>
             </div>
           </nav>
@@ -531,16 +518,25 @@
               </div>
             </section>
             <section class="settings-panel" data-settings-panel="memory" id="settingsPanelMemory" hidden>
-              <h3 class="settings-panel-title">记忆</h3>
+              <h3 class="settings-panel-title">个性化</h3>
+              <p class="dialog-note">全局记忆只保存在本机。关闭后不再记录或引用，已有条目仍可管理，不会被删除。</p>
+              <div class="memory-switches" id="memoryPreferenceSwitches">
+                <label><input type="checkbox" id="memoryEnabled" checked />使用全局记忆</label>
+                <label><input type="checkbox" id="memoryAutomatic" />记住明确表达的个人信息与偏好</label>
+              </div>
+              <p id="memorySettingsSummary" class="memory-settings-summary" role="status">正在读取记忆概况。</p>
+              <ul id="memorySettingsHighlights" class="memory-highlights"></ul>
+              <p id="memorySettingsStatus" class="dialog-note" role="status"></p>
               <div class="settings-group">
                 <button id="memoryNav" type="button" class="settings-row-button preference-link">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 3h8l4 4v14H4V3h4Zm0 5h5M8 12h8M8 16h6" />
                   </svg>
-                  <span>管理全局记忆</span>
+                  <span>打开记忆管理</span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
               </div>
+              <p class="dialog-note">关闭全局记忆、暂停某一条、删除某一条是三件不同的事。清空全部需要当前列表版本，过期时不会强制删除。</p>
             </section>
             <section class="settings-panel" data-settings-panel="trash" id="settingsPanelTrash" hidden>
               <h3 class="settings-panel-title">回收站</h3>
@@ -561,7 +557,7 @@
     </dialog>
     <dialog
       id="memoryDialog"
-      class="memory-dialog"
+      class="memory-dialog memory-dialog--round4"
       aria-labelledby="memoryTitle"
     >
       <div class="dialog-heading">
@@ -576,7 +572,7 @@
             <path d="m14 6-6 6 6 6" />
           </svg>
         </button>
-        <h2 id="memoryTitle">全局记忆</h2>
+        <h2 id="memoryTitle">已保存的记忆</h2>
         <button
           type="button"
           id="closeMemory"
@@ -588,46 +584,54 @@
           </svg>
         </button>
       </div>
-      <p class="dialog-note">
-        跨对话保留你的偏好与背景，仅存储在本机。你可以随时修改或删除。
-      </p>
-      <div class="memory-switches">
-        <label><input type="checkbox" id="memoryEnabled" />使用全局记忆</label
-        ><label
-          ><input
-            type="checkbox"
-            id="memoryAutomatic"
-          />记住明确表达的个人信息与偏好</label
-        >
-      </div>
-      <p class="dialog-note">
-        只记录明确陈述或「记住：…」，不猜测，不分析旧对话。关闭记忆后停止记录与引用。
-      </p>
-      <p id="memoryStatus" role="status" class="dialog-note"></p>
-      <div id="memoryList" class="memory-list"></div>
-      <form id="memoryForm" class="memory-form">
-        <label for="memoryContent">添加或修改记忆</label
-        ><textarea
-          id="memoryContent"
-          rows="3"
-          maxlength="800"
-          required
-          placeholder="例如：我偏好简洁的中文回答。"
-        ></textarea>
-        <div class="memory-form-actions">
-          <select id="memoryCategory" aria-label="记忆类别">
-            <option value="preference">偏好</option>
-            <option value="profile">个人背景</option>
-            <option value="project">项目</option>
-            <option value="note">其他</option></select
-          ><button type="button" id="cancelMemoryEdit" class="action" hidden>
-            取消编辑</button
-          ><button type="submit" id="saveMemory" class="primary">保存</button>
+      <div class="memory-dialog--body">
+        <p id="memoryConflict" role="alert" class="error" hidden></p>
+        <div id="memoryConflictActions" class="memory-conflict-actions" hidden>
+          <button type="button" id="memoryReload" class="action">重新加载</button>
+          <button type="button" id="memoryAdopt" class="action" hidden>改用服务器上的内容</button>
         </div>
-      </form>
-      <button type="button" id="clearMemory" class="danger-link">
-        清空所有记忆
-      </button>
+        <div id="memoryListView">
+          <p class="dialog-note">只保存明确陈述或「记住：…」。关闭全局记忆后，这里的条目仍可搜索和修改。</p>
+          <p id="memorySummary" class="memory-summary" role="status"></p>
+          <p id="memoryStatus" role="status" class="dialog-note"></p>
+          <div class="memory-list-toolbar">
+            <div class="memory-search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input id="memorySearch" type="search" autocomplete="off" placeholder="搜索记忆" aria-label="搜索记忆" />
+            </div>
+          </div>
+          <div id="memoryListScroll" class="memory-list-scroll">
+            <div id="memoryList" class="memory-list" role="list" aria-label="已保存的记忆"></div>
+          </div>
+          <button type="button" id="memoryAddButton">添加记忆</button>
+        </div>
+        <div id="memoryEditorView" hidden>
+          <div class="memory-editor-heading">
+            <button type="button" id="memoryEditorBack" class="chrome-button" aria-label="返回记忆列表">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>
+            </button>
+            <h3 id="memoryEditorTitle">添加记忆</h3>
+          </div>
+          <form id="memoryForm" class="memory-form">
+            <label for="memoryContent">添加或修改记忆</label>
+            <textarea id="memoryContent" rows="3" maxlength="800" required placeholder="例如：我偏好简洁的中文回答。"></textarea>
+            <p id="memoryEditorNote" class="dialog-note"></p>
+            <div class="memory-form-actions">
+              <select id="memoryCategory" aria-label="记忆类别">
+                <option value="preference">偏好</option>
+                <option value="profile">个人背景</option>
+                <option value="project">项目</option>
+                <option value="note">其他</option>
+              </select>
+              <button type="button" id="cancelMemoryEdit" class="action">取消编辑</button>
+              <button type="submit" id="saveMemory" class="primary">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="memory-dialog--footer">
+        <button type="button" id="clearMemory" class="danger-link">清空所有记忆</button>
+      </div>
     </dialog>
     <dialog
       id="confirmDialog"

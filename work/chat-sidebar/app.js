@@ -304,7 +304,8 @@ Object.assign(EN, {
   记为全局记忆: "Save as personal memory",
   回到最新消息: "Latest message",
   个人资料:"Profile", 更换头像:"Change avatar", 头像预览:"Avatar preview", 上传图片:"Upload image", 恢复默认头像:"Reset avatar", "头像仅保存在本机，不会上传到外部服务。":"Your avatar stays on this device. It is never uploaded to external services.", "PNG、JPEG 或 WebP，最大 5 MB。":"PNG, JPEG or WebP, up to 5 MB.",
-  "LocalGPT · 本机数据":"LocalGPT · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 LocalGPT":"About LocalGPT", "仅在此设备":"On this device",
+  "LocalGPT · 本机数据":"LocalGPT · Local data", 主页:"Home", 本地用户:"Local user", 用户菜单:"User menu", 固定侧边栏:"Pin sidebar", 已固定:"Pinned", 最近:"Recent", 固定对话:"Pin chat", 取消固定:"Unpin chat", 数据库暂不可用:"Database unavailable", 刷新失败:"Refresh failed", "连接失败 · 重试":"Connection failed · Retry", "关于 LocalGPT":"About LocalGPT", "仅在此设备":"On this device",
+  "Enter 发送，Shift+Enter 换行":"Enter to send, Shift+Enter for newline",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
   记忆: "Memory", 外观模式: "Mode",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
@@ -358,6 +359,8 @@ function applyLanguage(next, persist = true) {
   setReference(reference, referenceLabel, false);
   setStatus(lastStatus, lastError);
   setSave(saveLabel);
+  const composerHint = $("composerKeyboardHint");
+  if (composerHint) composerHint.textContent = t("Enter 发送，Shift+Enter 换行");
   if (phaseState) setPhase(...phaseState);
   renderSidebar(true);
   render(true);
@@ -698,6 +701,15 @@ function setChatTitle() {
   $("renameChat").disabled = view !== "chat" || !current;
   $("deleteCurrent").hidden = view !== "chat" || !current;
 }
+async function toggleChatPin(chat) {
+  const next = !chat.pinned;
+  await request(
+    `/qwen-cn/chats/${chat.id}/pin`,
+    json("PATCH", { pinned: next, pin_version: chat.pin_version ?? 0 }),
+  );
+  chats = await request("/qwen-cn/chats");
+  renderSidebar(true);
+}
 function renderSidebar(force = false) {
   const signature =
     JSON.stringify(chats) + language + view + (current?.id || "");
@@ -711,7 +723,7 @@ function renderSidebar(force = false) {
   list.replaceChildren();
   $("galleryNav").setAttribute("aria-current", String(view === "gallery"));
   $("trashNav").setAttribute("aria-current", String(view === "trash"));
-  for (const chat of chats) {
+  function appendChatRow(chat) {
     const row = document.createElement("div");
     row.className = "chat-row";
     const b = document.createElement("button");
@@ -771,7 +783,19 @@ function renderSidebar(force = false) {
       menu.hidePopover();
       deleteChat(chat.id).catch((e) => setStatus(e.message, true));
     };
-    menu.append(rename, del);
+    const pin = document.createElement("button");
+    pin.type = "button";
+    pin.setAttribute("role", "menuitem");
+    pin.innerHTML =
+      icon(chat.pinned ? "unpin" : "pin") +
+      "<span>" +
+      t(chat.pinned ? "取消固定" : "固定对话") +
+      "</span>";
+    pin.onclick = () => {
+      menu.hidePopover();
+      toggleChatPin(chat).catch((e) => setStatus(e.message, true));
+    };
+    menu.append(rename, pin, del);
     menuTrigger.onclick = () => {
       if (menu.matches(":popover-open")) {
         menu.hidePopover();
@@ -808,6 +832,22 @@ function renderSidebar(force = false) {
     row.append(b, menuTrigger, menu);
     list.append(row);
   }
+  const pinned = chats.filter((c) => c.pinned);
+  const recent = chats.filter((c) => !c.pinned);
+  if (pinned.length) {
+    const heading = document.createElement("div");
+    heading.className = "sidebar-label";
+    heading.textContent = t("已固定");
+    list.append(heading);
+    for (const chat of pinned) appendChatRow(chat);
+  }
+  if (recent.length) {
+    const heading = document.createElement("div");
+    heading.className = "sidebar-label";
+    heading.textContent = t("最近");
+    list.append(heading);
+    for (const chat of recent) appendChatRow(chat);
+  }
   if (menuState) {
     const restored = document.getElementById(menuState.id);
     if (restored) {
@@ -823,6 +863,8 @@ function icon(name) {
     edit: '<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14v6Z"/>',
     download: '<path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5"/>',
     more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    pin: '<path d="M12 17v5M9 3h6l1 7h4l-5 9v-3"/>',
+    unpin: '<path d="M9 3h6l1 7h4l-5 9M5 5l14 14"/>',
     copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
     retry: '<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-2l2 3M4 16l2 3a7 7 0 0 0 12-2"/>',
     check: '<path d="m5 12 4 4L19 6"/>',
@@ -1056,6 +1098,7 @@ async function newChat() {
   $("newChat").disabled = true;
   try {
     if (!(await saveDraft())) return;
+    await window.AppShell?.leaveSettingsForNavigation?.();
     ++navigationVersion;
     current = null;
     dirty = false;
@@ -1172,7 +1215,7 @@ function syncSidebar() {
   $('sidebarToggle').setAttribute('aria-pressed', String(pinned));
   $('sidebarToggle').ariaLabel = t(pinned ? '收起侧边栏' : '固定侧边栏');
   $('mobileMenu').setAttribute('aria-expanded', String(pinned));
-  $('mainContent').inert = pinned && innerWidth <= 760;
+  $('mainContent').inert = (pinned && innerWidth <= 760) || document.body.classList.contains('settings-surface-open');
   $('sidebar').inert = !visible && innerWidth <= 760;
   $('historyPanel').inert = !visible;
 }
@@ -1181,7 +1224,7 @@ function temporarySidebar(open) {
   document.body.classList.toggle('sidebar-temporary', open);
   syncSidebar();
 }
-function setSidebar(open) {
+function setSidebar(open, options = {}) {
   const wasOpen = document.body.classList.contains('sidebar-open');
   document.body.classList.remove('sidebar-temporary');
   document.body.classList.toggle('sidebar-open', open);
@@ -1190,6 +1233,7 @@ function setSidebar(open) {
     try { localStorage.setItem('qwen-studio-sidebar', open ? 'open' : 'closed'); } catch {}
   }
   syncSidebar();
+  if (options.focus === false) return;
   if (innerWidth <= 760) {
     if (open) $('sidebarToggle').focus();
     else if (wasOpen) $('mobileMenu').focus();
@@ -1210,6 +1254,10 @@ document.addEventListener('pointerdown',e => {
 });
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !e.defaultPrevented && document.body.classList.contains('sidebar-temporary')) {
+    const modal = e.target.closest?.('dialog[open]');
+    if (modal && modal.id !== 'preferencesDialog') return;
+    e.preventDefault();
+    e.stopPropagation();
     temporarySidebar(false); $('homeNav').focus();
   }
 });
@@ -1402,6 +1450,7 @@ function showView() {
 async function setView(next) {
   const version = ++navigationVersion;
   if (!(await saveDraft()) || version !== navigationVersion) return;
+  await window.AppShell?.leaveSettingsForNavigation?.();
   setStatus("");
   view = next;
   showView();
@@ -1608,10 +1657,8 @@ function renderGallerySelection() {
 }
 $("galleryNav").onclick = () =>
   setView("gallery").catch((e) => setStatus(e.message, true));
-$("trashNav").onclick = async () => {
-  await LiquidLayers.close($("preferencesDialog"));
+$("trashNav").onclick = () =>
   setView("trash").catch((e) => setStatus(e.message, true));
-};
 $("deleteCurrent").onclick = () => {
   if (current) deleteChat(current.id).catch((e) => setStatus(e.message, true));
 };
@@ -1634,7 +1681,13 @@ $("closeImage").onclick = () => {
   LiquidLayers.close($("imageDialog"));
   gallerySelection = null;
 };
-$("imageDialog").addEventListener("close", () => (gallerySelection = null));
+function clearGallerySelection() {
+  gallerySelection = null;
+}
+$("imageDialog").addEventListener("close", clearGallerySelection);
+$("imageDialog").addEventListener("beforetoggle", (event) => {
+  if (event.newState === "closed") clearGallerySelection();
+});
 $("galleryOpenChat").onclick = async () => {
   const item = gallerySelection;
   await LiquidLayers.close($("imageDialog"));
@@ -1843,7 +1896,8 @@ for (const id of [
     scheduleSave();
   });
 $("prompt").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     if (!busy) $("form").requestSubmit();
   }
@@ -2144,15 +2198,21 @@ document.addEventListener("pointerdown", (e) => {
     LiquidLayers.closeSettings({ focus: false });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.defaultPrevented || e.target.closest?.("dialog[open]")) return;
+  const modal = e.target.closest?.("dialog[open]");
+  const settingsPage = modal?.id === "preferencesDialog";
+  if (e.defaultPrevented || (modal && !settingsPage)) return;
+  if (settingsPage && e.key !== "Escape") return;
   if (e.key === "Escape" && settings.open) {
     e.preventDefault();
+    e.stopPropagation();
     closeSettings();
     return;
   }
   const sidebarModal =
     innerWidth <= 760 && document.body.classList.contains("sidebar-open");
   if (e.key === "Escape" && sidebarModal) {
+    e.preventDefault();
+    e.stopPropagation();
     setSidebar(false);
     return;
   }
@@ -2182,6 +2242,18 @@ matchMedia("(max-width:760px)").addEventListener("change", () => {
   const pinned = desktopPinned;
   setSidebar(innerWidth > 760 && pinned);
   settings.open = false;
+});
+addEventListener("appshell-surface", () => {
+  if (
+    document.body.classList.contains("settings-surface-open") &&
+    innerWidth <= 760 &&
+    (document.body.classList.contains("sidebar-open") ||
+      document.body.classList.contains("sidebar-temporary"))
+  ) {
+    setSidebar(false, { focus: false });
+    return;
+  }
+  syncSidebar();
 });
 window.addEventListener("resize", () => {
   document.querySelectorAll(".chat-row-menu:popover-open").forEach(menu => menu.hidePopover());

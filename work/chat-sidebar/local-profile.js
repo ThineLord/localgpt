@@ -65,9 +65,12 @@
     } catch (e) { say(e.status === 409 ? tr('头像已在其他窗口更新。取消预览后重新选择。','Avatar changed in another window. Cancel preview and choose again.') : tr('保存失败，请检查图片或本地服务后重试。','Save failed. Check the image or local service and retry.'),true); }
     finally { working = false; render(); }
   };
-  $('preferencesDialog').addEventListener('close', () => { if (!working) { clear(); say(''); } });
-  $('profileAvatar').addEventListener('click', refresh);
-  document.querySelector('[data-settings-section="profile"]').addEventListener('click', refresh);
+  const resetAvatarDraft = () => { if (!working) { clear(); say(''); } };
+  $('preferencesDialog').addEventListener('close', resetAvatarDraft);
+  $('preferencesDialog').addEventListener('beforetoggle', (event) => {
+    if (event.newState === 'closed') resetAvatarDraft();
+  });
+  document.querySelector('[data-settings-section="profile"]')?.addEventListener('click', refresh);
   addEventListener('focus', refresh);
   if (channel) channel.onmessage = refresh;
   addEventListener('hanzlanguage', render);

@@ -10,6 +10,47 @@ import unicodedata
 class Conflict(Exception):
     pass
 
+def _ensure_pin_schema(db):
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS chat_pin(
+            chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            pin_version INTEGER NOT NULL DEFAULT 0,
+            pinned_at REAL
+        );
+        """
+    )
+
+
+def _pin_row(db, chat_id):
+    row = db.execute(
+        "SELECT pinned, pin_version, pinned_at FROM chat_pin WHERE chat_id=?", (chat_id,)
+    ).fetchone()
+    if not row:
+        return {"pinned": False, "pin_version": 0, "pinned_at": None}
+    return {
+        "pinned": bool(row["pinned"]),
+        "pin_version": int(row["pin_version"]),
+        "pinned_at": row["pinned_at"],
+    }
+
+
+def _attach_pin_fields(chat_dict, pin):
+    chat_dict["pinned"] = pin["pinned"]
+    chat_dict["pin_version"] = pin["pin_version"]
+    return chat_dict
+
+
+def _chats_order_sql():
+    return """
+        ORDER BY COALESCE(p.pinned, 0) DESC,
+                 CASE WHEN COALESCE(p.pinned, 0) = 1 THEN p.pinned_at ELSE NULL END ASC,
+                 c.updated DESC,
+                 c.id
+    """
+
+
 class Store:
     def __init__(self, path, legacy=None):
         self.path = Path(path)
@@ -47,6 +88,7 @@ class Store:
             if 'image_deleted' not in columns:db.execute('ALTER TABLE messages ADD COLUMN image_deleted INTEGER NOT NULL DEFAULT 0')
             if 'memory_json' not in columns:db.execute("ALTER TABLE messages ADD COLUMN memory_json TEXT NOT NULL DEFAULT '{}' ")
             db.executescript('CREATE TABLE IF NOT EXISTS gallery_archive(id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS removed_sources(source TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS purged_imports(source TEXT PRIMARY KEY);')
+            _ensure_pin_schema(db)
         # Older ComfyUI extensions can reimport their historical JSON on restart.
         # Honor explicit purge tombstones without changing that installation.
         with self.connect() as db:
@@ -87,10 +129,23 @@ class Store:
 
     def chats(self, deleted=False):
         with self.connect() as db:
-            return [dict(r) for r in db.execute('''SELECT c.id,c.title,c.created,c.updated,c.version,
+            rows = db.execute(
+                f"""SELECT c.id,c.title,c.created,c.updated,c.version,
                 (SELECT count(*) FROM messages m WHERE m.chat_id=c.id) AS count,
-                (SELECT count(*) FROM messages m WHERE m.chat_id=c.id AND m.status IN ('submitting','running')) AS active
-                FROM chats c WHERE (c.deleted_at IS NOT NULL)=? ORDER BY c.updated DESC,c.id''',(int(deleted),))]
+                (SELECT count(*) FROM messages m WHERE m.chat_id=c.id AND m.status IN ('submitting','running')) AS active,
+                COALESCE(p.pinned, 0) AS pinned, COALESCE(p.pin_version, 0) AS pin_version
+                FROM chats c
+                LEFT JOIN chat_pin p ON p.chat_id = c.id
+                WHERE (c.deleted_at IS NOT NULL)=?{_chats_order_sql()}""",
+                (int(deleted),),
+            )
+            listed = []
+            for row in rows:
+                item = dict(row)
+                item["pinned"] = bool(item["pinned"])
+                item["pin_version"] = int(item["pin_version"])
+                listed.append(item)
+            return listed
 
     def create(self, title='新对话'):
         now = time.time()
@@ -105,6 +160,7 @@ class Store:
             if not row:
                 raise KeyError(chat_id)
             result = self._chat(row)
+            _attach_pin_fields(result, _pin_row(db, chat_id))
             result['messages'] = [self._message(r) for r in db.execute('SELECT * FROM messages WHERE chat_id=? ORDER BY created,id',(chat_id,))]
             return result
 
