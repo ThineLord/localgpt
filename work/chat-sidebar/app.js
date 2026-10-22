@@ -1017,6 +1017,7 @@ function render(force = false) {
         new URLSearchParams({
           filename: m.image.filename,
           subfolder: m.image.subfolder || "",
+          type: m.image.type || "output",
         });
       dl.download = m.image.filename;
       messageAction(dl, "download", "保存图片");
@@ -1648,6 +1649,7 @@ function renderGallerySelection() {
     new URLSearchParams({
       filename: item.image.filename,
       subfolder: item.image.subfolder || "",
+      type: item.image.type || "output",
     });
   $("galleryDownload").download = item.image.filename;
   messageAction($("galleryDownload"), "download", "保存图片");

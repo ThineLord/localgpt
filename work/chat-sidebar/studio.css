@@ -30,6 +30,10 @@
   --header: 52px;
   --main-inset: var(--rail);
   --main-radius: 16px;
+  --main-divider: rgba(0, 0, 0, 0.1);
+  --pinned-main-clip: inset(0px 0px 0px -16px round 16px);
+  --history-radius: 16px 0 0 16px;
+  --settings-nav-selected: var(--settings-row-selected);
   --panel-radius: 14px;
   --floating-shadow: inset 0 0 0 .5px var(--line-subtle), 0 4px 16px #0000000d;
   --tooltip-bg: #0d0d0d;
@@ -63,6 +67,8 @@
   --ink-tertiary: #afafaf;
   --line: #ffffff26;
   --line-subtle: #ffffff0d;
+  --main-divider: rgba(255, 255, 255, 0.15);
+  --settings-nav-selected: rgba(255, 255, 255, 0.1);
   --selected: color-mix(in oklab, var(--ink) 12%, transparent);
   --button-fill: #ededed;
   --on-button: #0d0d0d;
@@ -83,8 +89,8 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 body { overflow: hidden; background: var(--sidebar); --main-clip: inset(0 round var(--main-radius)); }
-/* Pinned corners: square left, 16px top-right, square bottom-right. Collapsed keeps four 16px corners. */
-body.sidebar-open { --main-inset: var(--sidebar-width); --main-radius: 0 16px 0 0; }
+/* Pinned and Settings share one clip token. The negative left inset keeps the left edge square. Collapsed keeps four 16px corners. */
+body.sidebar-open { --main-inset: var(--sidebar-width); --main-clip: var(--pinned-main-clip); }
 [hidden] { display: none !important; }
 button, input, select, textarea, summary, a { font: inherit; }
 button, summary { cursor: pointer; }
@@ -128,7 +134,7 @@ svg {
 }
 .skip-link:focus { top: 8px; }
 
-/* Pinned history shares the rail navigation plane (--sidebar). Temporary history overlays that plane as an elevated card. */
+/* Pinned history uses the main canvas, not the rail. Temporary history overlays that plane as an elevated card. */
 .sidebar { position:fixed; z-index:40; inset:0 auto 0 0; width:var(--rail); overflow:visible; }
 .sidebar-open .sidebar, .sidebar-temporary .sidebar { width:var(--sidebar-width); }
 .app-rail { position:absolute; inset:0 auto 0 0; width:var(--rail); background:var(--sidebar); display:flex; flex-direction:column; align-items:center; gap:16px; padding:8px; }
@@ -140,8 +146,8 @@ svg {
 .profile-button { margin-top:auto; }
 .local-avatar { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; background:var(--selected); font-size:12px; }
 .local-avatar svg { width:18px; height:18px; }
-.history-panel { position:absolute; inset:0 auto 0 var(--rail); width:288px; display:flex; flex-direction:column; background:var(--sidebar); border-radius:16px 0 0 16px; overflow:hidden; visibility:hidden; transform:translateX(-8px); opacity:0; transition:transform 140ms ease,opacity 140ms ease; }
-.sidebar-open .history-panel { background:var(--sidebar); }
+.history-panel { position:absolute; inset:0 auto 0 var(--rail); width:288px; display:flex; flex-direction:column; background:var(--canvas); border-radius:var(--history-radius); overflow:hidden; visibility:hidden; transform:translateX(-8px); opacity:0; transition:transform 140ms ease,opacity 140ms ease; }
+.sidebar-open .history-panel { background:var(--canvas); }
 .sidebar-open .history-panel, .sidebar-temporary .history-panel { visibility:visible; transform:none; opacity:1; }
 .sidebar-temporary .history-panel { inset:4px auto 4px calc(var(--rail) + 4px); width:284px; border-radius:var(--panel-radius); background:var(--surface-elevated); box-shadow:var(--floating-shadow); }
 .sidebar-top { display:flex; align-items:center; gap:8px; min-height:52px; padding:8px 10px 8px 16px; }
@@ -154,7 +160,10 @@ svg {
 .chat-list { display:flex; flex-direction:column; gap:2px; flex:1; min-height:0; overflow:auto; padding:0 8px 16px; }
 .shell { position:relative; isolation:isolate; height:100dvh; margin-left:var(--main-inset); display:flex; flex-direction:column; min-width:0; background:var(--canvas); }
 /* One boundary contract for all full-size application surfaces. */
-.shell, .app-surface, #imageDialog, #preferencesDialog.settings-surface .settings-page { clip-path:inset(0 round var(--main-radius)); }
+.shell, .app-surface, #imageDialog, #preferencesDialog.settings-surface .settings-page { clip-path:var(--main-clip); }
+@media (min-width: 761px) {
+  body.sidebar-open:not(.settings-surface-open) :is(.shell, #imageDialog) { border-left:0.5px solid var(--main-divider); }
+}
 .sidebar-open #headerNewChat { display:none; }
 .profile-menu, #appearanceMenu { padding:10px; }
 .profile-summary { display:flex; align-items:center; gap:10px; padding:10px; font-size:14px; border-bottom:1px solid var(--line); margin-bottom:4px; }
@@ -708,13 +717,14 @@ dialog::backdrop { background: var(--backdrop); }
 .settings-layout-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; padding: 0 8px 0 16px; border-right: 1px solid var(--line); }
 .settings-layout-header h2 { flex: 1; margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .settings-layout-body { display: contents; }
-.settings-nav { grid-column: 1; grid-row: 2; padding: 8px; border-right: 1px solid var(--line); overflow: auto; }
+.settings-nav { grid-column: 1; grid-row: 2; width: 288px; padding: 4px 6px 8px; border-right: 1px solid var(--line); overflow: auto; }
 .settings-nav-label { padding: 8px 8px 12px; color: var(--ink-secondary); font-size: 14px; }
 .settings-section-select, .settings-back { display: none; }
 .settings-nav-list { display: flex; flex-direction: column; gap: 0; }
-.settings-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; padding: 8px; border-radius: 8px; font-size: 14px; line-height: 20px; text-align: left; }
+.settings-nav-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 35px; padding: 6px 10px; border-radius: 8px; font-size: 14px; line-height: 20px; text-align: left; }
 .settings-nav-item svg { width: 18px; height: 18px; }
-.settings-nav-item:hover, .settings-nav-item[aria-selected="true"] { background: var(--settings-row-selected); }
+.settings-nav-item:hover { background: var(--settings-row-selected); }
+.settings-nav-item[aria-selected="true"] { background: var(--settings-nav-selected); }
 .settings-panels { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: 32px; }
 .settings-panel { width: 100%; max-width: var(--settings-content-max); margin: 0 auto; }
 .settings-panel-title { margin: 0 0 var(--settings-title-gap); font-size: 24px; font-weight: 500; line-height: 32px; letter-spacing: normal; }
@@ -844,8 +854,41 @@ dialog button.primary, #saveMemory {
 @media (hover: none) {
   .chat-menu-trigger { opacity: 1; }
 }
+@media (min-width: 761px) {
+  body.settings-surface-open { --main-inset: var(--sidebar-width); --main-clip: var(--pinned-main-clip); }
+  body.settings-surface-open .sidebar { width: var(--sidebar-width); }
+  body.settings-surface-open .history-panel,
+  body.settings-surface-open.sidebar-open .history-panel,
+  body.settings-surface-open.sidebar-temporary .history-panel {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+  body.settings-surface-open .settings-nav {
+    position: absolute;
+    z-index: 1;
+    inset: 0 auto 0 var(--rail);
+    width: 288px;
+    display: flex;
+    flex-direction: column;
+    background: var(--canvas);
+    border: 0;
+    border-radius: var(--history-radius);
+    overflow: auto;
+  }
+  body.settings-surface-open .settings-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 52px minmax(0, 1fr);
+    border-left: 0.5px solid var(--main-divider);
+    background: var(--canvas);
+  }
+  body.settings-surface-open .settings-layout-header { grid-column: 1; grid-row: 1; border-right: 0; }
+  body.settings-surface-open .settings-panels { grid-column: 1; grid-row: 2; }
+  body.settings-surface-open .shell { clip-path: none; border-left-width: 0; }
+}
 @media (max-width: 760px) {
-  body, body.sidebar-open { --main-inset:0px; --main-radius:0px; }
+  body, body.sidebar-open, body.settings-surface-open { --main-inset:0px; --main-radius:0px; --main-clip: inset(0 round 0px); }
+  body.sidebar-open .shell, body.settings-surface-open .shell, body.settings-surface-open .settings-page { border-left-width: 0; }
   .shell, .sidebar-open .shell { margin-left:0; }
   .shell > header { background:var(--canvas); }
   .mobile-menu { display: grid; }

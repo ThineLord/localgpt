@@ -21,7 +21,7 @@ async(page)=>{
    await page.screenshot({path:out+`after-${width}-${theme}-temporary.png`});
    await page.locator('#sidebarToggle').click();await page.mouse.move(width-20,400);
    const shell=await page.locator('#mainContent').evaluate(e=>({clip:getComputedStyle(e).clipPath,x:e.getBoundingClientRect().x}));
-   check(shell.x===340,'Pinned inset');check(shell.clip==='inset(0px round 0px 16px 0px 0px)','Pinned corners '+shell.clip);
+   check(shell.x===340,'Pinned inset');check(shell.clip==='inset(0px 0px 0px -16px round 16px)','Pinned corners '+shell.clip);
    await page.screenshot({path:out+`after-${width}-${theme}-pinned.png`});
    await page.locator('#profileButton').click();await page.locator('#appSettings').click();
    const settings=await page.locator('.settings-page').evaluate(e=>({clip:getComputedStyle(e).clipPath,x:e.getBoundingClientRect().x}));

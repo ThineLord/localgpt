@@ -19,7 +19,7 @@ class HealthTests(unittest.IsolatedAsyncioTestCase):
         r=await self.client.get('/qwen-cn/health');self.assertEqual(r.status,200)
         self.assertTrue((await r.json())['database_ready'])
         self.assertEqual((await self.client.get('/qwen-cn/chats')).status,200)
-        self.assertEqual((await self.client.get('/view?filename=missing.png')).status,502)
+        self.assertEqual((await self.client.get('/view?filename=missing.png')).status,404)
     async def test_sqlite_unavailable_then_recovery(self):
         with patch.object(Store,'connect',side_effect=sqlite3.OperationalError('synthetic lock')):
             for path in ('/qwen-cn/health','/qwen-cn/chats'):
