@@ -136,10 +136,11 @@
   const panels=[...dialog.querySelectorAll('[data-settings-panel]')];
   const tabs=[...nav.querySelectorAll('[data-settings-section]')];
   function title(){
-    toggle.setAttribute('aria-label',dialog.classList.contains('settings-nav-open')?tr('关闭设置分类','Close settings categories'):tr('打开设置分类','Open settings categories'));
-    $('preferencesTitle').textContent=innerWidth<=760&&!dialog.classList.contains('settings-nav-open')
-      ? panels.find(p=>!p.hidden)?.querySelector('.settings-panel-title').textContent||tr('设置','Settings')
-      :tr('设置','Settings');
+    const mobile=innerWidth<=760, open=dialog.classList.contains('settings-nav-open');
+    toggle.setAttribute('aria-label',open?tr('关闭设置分类','Close settings categories'):tr('打开设置分类','Open settings categories'));
+    $('preferencesTitle').textContent=tr('设置','Settings');
+    $('settingsSectionTitle').textContent=panels.find(p=>!p.hidden)?.querySelector('.settings-panel-title')?.textContent||tr('设置','Settings');
+    dialog.setAttribute('aria-labelledby',mobile&&!open?'settingsSectionTitle':'preferencesTitle');
   }
   function drawer(open){
     dialog.classList.toggle('settings-nav-open',open);
