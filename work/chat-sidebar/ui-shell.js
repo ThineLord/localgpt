@@ -119,7 +119,7 @@
   },$('composerCard'),()=>$('composerCard').getBoundingClientRect().width,4);
   $('upload').onclick=null; // The original file input/change handler stays intact.
   const chatMenu=new Menu($('chatActions'),$('chatActionsMenu'),null,$('chatActions'),196);
-  for(const id of ['renameChat','deleteCurrent'])$(id).addEventListener('click',()=>chatMenu.close(),{capture:true});
+  $('chatActionsMenu').addEventListener('click',event=>{if(event.target.closest('button'))chatMenu.close();},{capture:true});
   new MutationObserver(()=>{$('chatActions').hidden=$('deleteCurrent').hidden;}).observe($('deleteCurrent'),{attributes:true,attributeFilter:['hidden']});
   addEventListener('liquidlayerchange',()=>{for(const menu of controllers)menu.close(false);});
 

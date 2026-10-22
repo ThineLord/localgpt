@@ -32,6 +32,7 @@ let view = "chat",
   gallerySignature = "",
   lastDeleted = null,
   trashSignature = "";
+let activeProjectId = null;
 let language = "zh";
 try {
   language =
@@ -574,7 +575,7 @@ const transientDraftKey = "hanz-transient-draft";
 function stashTransientDraft() {
   try {
     if (!current || sessionStorage.getItem(transientDraftKey))
-      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, baseDraft: normalized(baseDraft), draft: draft()}));
+      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, projectId: activeProjectId, baseDraft: normalized(baseDraft), draft: draft()}));
   } catch {}
 }
 function scheduleSave() {
@@ -609,11 +610,12 @@ async function saveDraft() {
       } catch {}
       return true;
     }
-    saving = request("/qwen-cn/chats", json("POST", {})).then(fresh => {
+    saving = request("/qwen-cn/chats", json("POST", {project_id: activeProjectId})).then(fresh => {
       current = fresh;
       baseDraft = normalized(fresh.draft);
       stashTransientDraft();
-      history.replaceState(null, "", "#chat=" + encodeURIComponent(fresh.id));
+      window.ProjectWorkspace?.chatCreated(fresh, activeProjectId);
+      if (view !== 'project') history.replaceState(null, "", "#chat=" + encodeURIComponent(fresh.id));
       setChatTitle();
     }).finally(() => { saving = null; });
     await saving;
@@ -700,6 +702,7 @@ function setChatTitle() {
   $('headerNewChat').hidden = view !== 'chat' || !(current?.messages?.length);
   $("renameChat").disabled = view !== "chat" || !current;
   $("deleteCurrent").hidden = view !== "chat" || !current;
+  window.ProjectWorkspace?.syncHeading();
 }
 async function toggleChatPin(chat) {
   const next = !chat.pinned;
@@ -712,7 +715,7 @@ async function toggleChatPin(chat) {
 }
 function renderSidebar(force = false) {
   const signature =
-    JSON.stringify(chats) + language + view + (current?.id || "");
+    JSON.stringify(chats) + language + view + (current?.id || "") + (window.ProjectWorkspace?.signature() || '');
   if (!force && signature === lastSidebarSignature) return;
   lastSidebarSignature = signature;
   const list = $("chatList");
@@ -723,7 +726,7 @@ function renderSidebar(force = false) {
   list.replaceChildren();
   $("galleryNav").setAttribute("aria-current", String(view === "gallery"));
   $("trashNav").setAttribute("aria-current", String(view === "trash"));
-  function appendChatRow(chat) {
+  function appendChatRow(chat, target = list) {
     const row = document.createElement("div");
     row.className = "chat-row";
     const b = document.createElement("button");
@@ -796,6 +799,7 @@ function renderSidebar(force = false) {
       toggleChatPin(chat).catch((e) => setStatus(e.message, true));
     };
     menu.append(rename, pin, del);
+    window.ProjectWorkspace?.extendChatMenu(menu, chat);
     menuTrigger.onclick = () => {
       if (menu.matches(":popover-open")) {
         menu.hidePopover();
@@ -830,10 +834,11 @@ function renderSidebar(force = false) {
       }
     });
     row.append(b, menuTrigger, menu);
-    list.append(row);
+    window.ProjectWorkspace?.makeDraggable(row, chat);
+    target.append(row);
   }
   const pinned = chats.filter((c) => c.pinned);
-  const recent = chats.filter((c) => !c.pinned);
+  const recent = chats.filter((c) => !c.pinned && !window.ProjectWorkspace?.projectForChat(c.id));
   if (pinned.length) {
     const heading = document.createElement("div");
     heading.className = "sidebar-label";
@@ -841,6 +846,7 @@ function renderSidebar(force = false) {
     list.append(heading);
     for (const chat of pinned) appendChatRow(chat);
   }
+  window.ProjectWorkspace?.appendSidebar(list, appendChatRow);
   if (recent.length) {
     const heading = document.createElement("div");
     heading.className = "sidebar-label";
@@ -893,7 +899,7 @@ function render(force = false) {
       ]),
     ) +
     language +
-    (current?.id || "");
+    (current?.id || "") + (activeProjectId || '');
   if (!force && signature === lastMessageSignature) return;
   lastMessageSignature = signature;
   const root = $("conversation"),
@@ -914,7 +920,7 @@ function render(force = false) {
   $('headerNewChat').hidden = records.length === 0;
   $("history").hidden = true;
   for (const m of records) {
-    const key = JSON.stringify(m) + language;
+    const key = JSON.stringify(m) + language + (activeProjectId || '');
     const existing = oldEntries.get(m.id);
     oldEntries.delete(m.id);
     if (existing?.dataset.renderKey === key) {
@@ -959,6 +965,7 @@ function render(force = false) {
       remember.className = "remember-message action";
       messageAction(remember, "memory", "记为全局记忆");
       remember.onclick = () => window.HanzFeatures?.remember(m);
+      window.ProjectWorkspace?.prepareRemember(remember, m);
       let userActions = userShell.querySelector(".message-actions");
       if (!userActions) { userActions = document.createElement("div"); userActions.className = "message-actions"; userShell.append(userActions); }
       userActions.append(remember);
@@ -1069,6 +1076,7 @@ async function selectChat(id) {
   if (id === current?.id && view === "chat") return;
   const version = ++navigationVersion;
   if (!(await saveDraft())) return;
+  await window.AppShell?.leaveSettingsForNavigation?.();
   const fresh = await request(`/qwen-cn/chats/${id}`);
   if (version !== navigationVersion) return;
   if (fresh.deleted_at) {
@@ -1076,6 +1084,7 @@ async function selectChat(id) {
     return;
   }
   current = fresh;
+  activeProjectId = window.ProjectWorkspace?.projectForChat(id)?.id || null;
   dirty = false;
   conflict = null;
   $("draftConflict").hidden = true;
@@ -1093,15 +1102,26 @@ async function selectChat(id) {
   if (innerWidth < 761) setSidebar(false);
   else temporarySidebar(false);
 }
-async function newChat() {
+async function newChat(projectId = null) {
   if (creatingChat) return;
+  const version = ++navigationVersion;
   creatingChat = true;
   $("newChat").disabled = true;
   try {
-    if (!(await saveDraft())) return;
+    if (!(await saveDraft()) || version !== navigationVersion) return;
     await window.AppShell?.leaveSettingsForNavigation?.();
-    ++navigationVersion;
+    if (projectId) {
+      try { await request('/qwen-cn/projects/' + projectId); }
+      catch (error) {
+        if (version !== navigationVersion) return;
+        if (error.status !== 404) throw error;
+        await window.ProjectWorkspace.openIndex();
+        return;
+      }
+    }
+    if (version !== navigationVersion) return;
     current = null;
+    activeProjectId = projectId;
     dirty = false;
     conflict = null;
     baseDraft = normalized({});
@@ -1112,6 +1132,7 @@ async function newChat() {
     view = "chat";
     showView();
     history.replaceState(null, "", location.pathname + location.search);
+    if (projectId) history.replaceState(null, '', '#project=' + encodeURIComponent(projectId) + '&new=1');
     setChatTitle();
     renderSidebar(true);
     updateActivity();
@@ -1158,6 +1179,7 @@ async function refresh() {
   refreshing = true;
   try {
     chats = await request("/qwen-cn/chats");
+    await window.ProjectWorkspace?.refresh();
     connectionRecovered();
     if (current) {
       const refreshId = current.id;
@@ -1199,6 +1221,7 @@ async function refresh() {
       await loadGallery();
     else if (view === "trash") await loadTrash();
     renderSidebar();
+    window.ProjectWorkspace?.refreshView();
   } catch (e) {
     connectionError(e);
   } finally {
@@ -1264,7 +1287,7 @@ document.addEventListener('keydown', e => {
 });
 $('sidebarToggle').onclick = () => setSidebar(!document.body.classList.contains('sidebar-open'));
 $('sidebarShade').onclick = () => setSidebar(false);
-$('headerNewChat').onclick = () => newChat().catch(e => setStatus(e.message,true));
+$('headerNewChat').onclick = () => newChat(activeProjectId).catch(e => setStatus(e.message,true));
 $("newChat").onclick = () => newChat().catch((e) => setStatus(e.message, true));
 $("keepDraft").onclick = () =>
   resolveConflict(true).catch((e) => setStatus(e.message, true));
@@ -1447,6 +1470,7 @@ function showView() {
   $("galleryView").hidden = view !== "gallery";
   $("trashView").hidden = view !== "trash";
   setChatTitle();
+  window.ProjectWorkspace?.syncView();
 }
 async function setView(next) {
   const version = ++navigationVersion;
@@ -1736,21 +1760,33 @@ async function init() {
     if ($("databasePath")) $("databasePath").title = health.database || "";
     if ($("settingsDatabasePathDisplay")) $("settingsDatabasePathDisplay").textContent = health.database || "";
     chats = await request("/qwen-cn/chats");
+    await window.ProjectWorkspace?.refresh();
     const id = new URLSearchParams(location.hash.slice(1)).get("chat");
-    if (location.hash === "#gallery") await setView("gallery");
+    const projectId = new URLSearchParams(location.hash.slice(1)).get("project");
+    let pendingDraft;
+    try { pendingDraft = JSON.parse(sessionStorage.getItem(transientDraftKey)); } catch {}
+    if (projectId) {
+      if (new URLSearchParams(location.hash.slice(1)).get('new')) await newChat(projectId);
+      else await window.ProjectWorkspace?.open(projectId);
+    }
+    else if (location.hash === '#projects') await window.ProjectWorkspace?.openIndex();
+    else if (location.hash === "#gallery") await setView("gallery");
     else if (location.hash === "#trash") await setView("trash");
     else {
-      let pendingDraft;
-      try { pendingDraft = JSON.parse(sessionStorage.getItem(transientDraftKey)); } catch {}
       const existing = chats.some(c => c.id === id);
       if (existing) await selectChat(id);
       else await newChat();
-      if (pendingDraft?.draft && pendingDraft.chatId === (existing ? id : null)) {
-        if (existing && same(current.draft, pendingDraft.draft)) {
+    }
+    // Recover only in the original chat AND project scope. In particular an
+    // unsaved project-only draft must never appear in an ordinary new chat.
+    if (['chat', 'project'].includes(view) && pendingDraft?.draft &&
+        pendingDraft.chatId === (current?.id || null) &&
+        (pendingDraft.projectId || null) === activeProjectId) {
+        if (current && same(current.draft, pendingDraft.draft)) {
           try { sessionStorage.removeItem(transientDraftKey); } catch {}
         } else {
           showDraft(pendingDraft.draft);
-          if (existing && (!pendingDraft.baseDraft || !same(current.draft, pendingDraft.baseDraft))) {
+          if (current && (!pendingDraft.baseDraft || !same(current.draft, pendingDraft.baseDraft))) {
             // Recovery must compare against the original base, not silently
             // adopt a newer server version and overwrite another tab's edits.
             baseDraft = normalized(pendingDraft.baseDraft);
@@ -1760,7 +1796,6 @@ async function init() {
             setStatus("其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。", true);
           } else scheduleSave();
         }
-      }
     }
     connectionRecovered();
     appReady = true;
@@ -1951,6 +1986,11 @@ async function sendTurn(overrides) {
   try {
     if (!current) dirty = true;
     if (!(await saveDraft())) return;
+    if (view === 'project') {
+      view = 'chat';
+      showView();
+      history.replaceState(null, '', '#chat=' + encodeURIComponent(current.id));
+    }
     const payload = {
       ...draft(),
       ...overrides,
@@ -2136,6 +2176,7 @@ function renderAnswer(entry, m) {
         mode: m.kind === "chat" ? "chat" : m.settings.mode,
       });
     actions.append(retry);
+    window.ProjectWorkspace?.extendAnswer(actions, m);
     answer.append(actions);
   }
   entry.append(answer);
@@ -2281,7 +2322,11 @@ for (const button of document.querySelectorAll("[data-suggestion]"))
   };
 window.addEventListener("hashchange", () => {
   const hash = location.hash;
-  if (hash === "#gallery" || hash === "#trash")
+  const projectId = new URLSearchParams(hash.slice(1)).get('project');
+  if (projectId) {
+    (new URLSearchParams(hash.slice(1)).get('new') ? newChat(projectId) : window.ProjectWorkspace.open(projectId)).catch(e => setStatus(e.message, true));
+  } else if (hash === '#projects') window.ProjectWorkspace.openIndex().catch(e => setStatus(e.message, true));
+  else if (hash === "#gallery" || hash === "#trash")
     setView(hash.slice(1)).catch((e) => setStatus(e.message, true));
   else {
     const id = new URLSearchParams(hash.slice(1)).get("chat");
