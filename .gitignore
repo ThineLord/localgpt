@@ -41,3 +41,5 @@ work/liquid-memory/
 
 # Local avatar data (never source).
 .localgpt-profile/
+.localgpt-project-memory/
+.localgpt-backups/

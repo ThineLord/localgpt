@@ -9,13 +9,13 @@ def build(check=False):
     template = (ROOT / 'template.html').read_text()
     mark = (ROOT.parent.parent / 'assets' / 'localgpt-mark.svg').read_text()
     template = template.replace('<!-- HANZ_FAVICON -->', '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,' + quote(mark, safe='') + '" />')
-    styles = '\n'.join((ROOT / name).read_text() for name in ('studio.css', 'message-actions.css', 'gallery-ui.css', 'atelier.css', 'liquid-layers.css', 'settings-memory.css', 'local-profile.css'))
+    styles = '\n'.join((ROOT / name).read_text() for name in ('studio.css', 'message-actions.css', 'gallery-ui.css', 'atelier.css', 'liquid-layers.css', 'settings-memory.css', 'local-profile.css', 'projects.css'))
     result = template.replace('/* STUDIO_STYLES */', styles)
     result = result.replace('/* STUDIO_APP */', (ROOT / 'message-actions.js').read_text() + '\n' + (ROOT / 'gallery-ui.js').read_text() + '\n' + (ROOT / 'app.js').read_text())
     result = result.replace('/* LIQUID_LAYERS */', (ROOT / 'liquid-layers.js').read_text())
     result = result.replace('/* ATELIER_MOTION */', (ROOT / 'atelier.js').read_text())
     result = result.replace('/* WORKSPACE_FEATURES */', (ROOT / 'workspace.js').read_text() + '\n' + (ROOT / 'memory-ui.js').read_text())
-    result = result.replace('/* STUDIO_UI_SHELL */', (ROOT / 'app-shell.js').read_text() + '\n' + (ROOT / 'ui-shell.js').read_text() + '\n' + (ROOT / 'data-lifecycle.js').read_text() + '\n' + (ROOT / 'local-profile.js').read_text())
+    result = result.replace('/* STUDIO_UI_SHELL */', (ROOT / 'app-shell.js').read_text() + '\n' + (ROOT / 'ui-shell.js').read_text() + '\n' + (ROOT / 'data-lifecycle.js').read_text() + '\n' + (ROOT / 'local-profile.js').read_text() + '\n' + (ROOT / 'projects.js').read_text())
     assert '/* STUDIO_' not in result
     assert '/* LIQUID_' not in result
     assert '/* ATELIER_' not in result

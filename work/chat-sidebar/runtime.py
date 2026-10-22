@@ -18,6 +18,7 @@ from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
 from history_metadata import install as install_history_metadata
+from projects import install as install_projects
 
 
 MANAGED_IMAGE_TYPES = ('input', 'output')
@@ -96,6 +97,7 @@ def install(app, backend, database, input_root, output_root):
         clean_draft=lambda d:clean_draft(d,input_root,output_root),image_path=lambda i:image_path(i,input_root,output_root),
         graph=graph,comfy=comfy,shutil=shutil,folder_paths=SimpleNamespace(get_output_directory=lambda:output_root),
         PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=routes)))
+    install_projects(core)
     # Genuine local chat execution, with existing routing, streaming, cancellation.
     lm_chat.install(core)
 
@@ -123,7 +125,8 @@ def install(app, backend, database, input_root, output_root):
     async def create(r):
         mutate(r);data=await r.json();title=data.get('title','新对话')
         if not isinstance(title,str) or not 1<=len(title.strip())<=100:raise ValueError('Invalid title')
-        return reply(store.create(title.strip()),201)
+        project_id = data.get('project_id')
+        return reply(core.PROJECTS.create_chat(title.strip(), project_id) if project_id else store.create(title.strip()),201)
     @routes.get('/qwen-cn/chats/{chat_id}')
     async def get(r):return reply(store.chat(r.match_info['chat_id']))
     @routes.patch('/qwen-cn/chats/{chat_id}')
@@ -137,7 +140,12 @@ def install(app, backend, database, input_root, output_root):
         mutate(r);store.trash(r.match_info['chat_id']);return reply({'deleted':True,'recoverable':True})
     @routes.post('/qwen-cn/chats/{chat_id}/restore')
     async def restore(r):
-        mutate(r);return reply(store.restore(r.match_info['chat_id']))
+        mutate(r)
+        membership = core.PROJECTS.membership(r.match_info['chat_id'])
+        if membership['project_id']:
+            try: core.PROJECTS.get(membership['project_id'])
+            except KeyError: raise Conflict('请先在「项目 → 已删除项目」恢复所属项目。 / Restore the project from Projects → Deleted projects first.')
+        return reply(store.restore(r.match_info['chat_id']))
     @routes.delete('/qwen-cn/trash/{chat_id}')
     async def purge(r):
         mutate(r);data=await r.json()

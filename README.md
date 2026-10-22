@@ -27,6 +27,29 @@ Before enabling Round 4 permanent deletion, back up the existing store, update t
 
 Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation pin/unpin/rename/trash/restore, gallery, controlled local memory, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
 
+## Projects
+
+Create a project from the sidebar to keep chats, files and instructions together.
+Projects support names, icons, colors, pinning, chat search/moves, text sources,
+PDF/DOCX uploads, source previews/downloads, and recoverable deletion. ChatGPT's
+Projects layout and documented interactions informed the local implementation.
+
+Project instructions and relevant source/chat excerpts are used by the real
+LM Studio chat pipeline. Choose **Default memory** to use global saved memories,
+or **Project-only memory** for separate saved memories and project chat context.
+The scope is fixed at creation. Project-only memories can be managed or paused
+from the project's menu. The source badge on an answer lists the context actually
+included in that request. Existing chats move without rewriting their messages or
+drafts. See [Projects behavior, limits and recovery](docs/PROJECTS.md).
+
+For a safe browser fixture, build and run `.venv/bin/python tools/projects_demo.py`,
+then open http://127.0.0.1:8194/qwen-cn/ . Its streamed answer is explicitly
+synthetic; all project routes and persistence are real and use a disposable store.
+With LM Studio running, `.venv/bin/python tools/projects_live_acceptance.py` checks
+one real local-model answer against a random fact in a disposable project source.
+It may load the existing local qwen3-8b model through the normal app loader.
+Text chat works while ComfyUI is stopped; image generation still requires ComfyUI.
+
 The current interface follows measured signed-in navigation: a 52px rail, independent 288px pinned/temporary history panel, avatar menu and full-page settings. See [Round 4 reference and lifecycle contract](docs/ROUND4-REFERENCE.md). Earlier [design measurements](docs/DESIGN.md) and [acceptance](docs/ACCEPTANCE.md) are historical; [collaboration record](docs/COLLABORATION.md) describes that earlier delivery.
 
 ## Validation
@@ -36,6 +59,7 @@ python work/chat-sidebar/build.py
 python work/chat-sidebar/build.py --check
 node --check work/chat-sidebar/app.js
 node --check work/chat-sidebar/workspace.js
+node --check work/chat-sidebar/projects.js
 python -m unittest discover -s work/chat-sidebar -p 'test_*.py' -v
 python -m unittest discover -s tools -p 'test_*.py' -v
 ```

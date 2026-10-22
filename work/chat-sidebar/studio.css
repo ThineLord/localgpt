@@ -814,7 +814,7 @@ dialog::backdrop { background: var(--backdrop); }
 #renameForm label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
 #renameForm > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 #chatName { padding: 8px 10px; }
-dialog:not(.settings-surface) button:not(.chrome-button), dialog a.action {
+dialog:not(.settings-surface):not(.project-dialog) button:not(.chrome-button), dialog a.action {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
