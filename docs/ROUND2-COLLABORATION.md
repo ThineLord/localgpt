@@ -36,7 +36,7 @@ acceptance. Platform approval checks remain in force.
 ## Actual handoff
 
 - Cloud implementation commit: `aa227b05ae2113bc9f2e37c53007cd6b9bdbd414`.
-- Source PR: https://github.com/ThineLord/hanzagent/pull/3
+- Source PR: https://github.com/ThineLord/localgpt/pull/3
   Draft targeting the integration branch; opened by **Axel**, not by a completed
   Cursor turn. Cursor authored the four-file implementation and pushed it.
 - Cloud browser measurement repeatedly retried dependency setup/scripts without
