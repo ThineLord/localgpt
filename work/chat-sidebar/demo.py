@@ -29,7 +29,7 @@ print(message)
 A long line should wrap without pushing the composer or sidebar outside the viewport. 这段中英混排文字用于验证可读性、自然换行和流式输出时的滚动行为。'''
 
 def create_demo():
-    root = Path(tempfile.mkdtemp(prefix='hanzagent-demo-'))
+    root = Path(tempfile.mkdtemp(prefix='localgpt-demo-'))
     (root/'input').mkdir(); (root/'output').mkdir()
     (root/'output'/'fixture.svg').write_text(SVG)
     @web.middleware

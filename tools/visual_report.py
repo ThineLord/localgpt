@@ -57,7 +57,7 @@ def build(manifest):
                      f'<div class="captures">{"".join(figures)}</div><ul>{issues}</ul></section>')
     document = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HanzAgent 第二轮视觉验收</title>
+<title>LocalGPT 第二轮视觉验收</title>
 <style>
 *{box-sizing:border-box}body{margin:0 auto;max-width:1600px;padding:40px 24px;background:#f7f7f7;color:#181818;font:15px/1.6 -apple-system,BlinkMacSystemFont,sans-serif}
 h1{font-size:28px;font-weight:600}h2{font-size:20px;font-weight:600}p{color:#555}
@@ -65,7 +65,7 @@ section{margin:28px 0;padding:24px;background:white;border:1px solid #e4e4e4;bor
 .captures{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 figure{margin:0}img{width:100%;height:auto;border:1px solid #ddd;border-radius:8px}
 figcaption{padding:6px 0;color:#555}li{margin:6px 0}
-</style><h1>HanzAgent 第二轮视觉验收</h1>"""
+</style><h1>LocalGPT 第二轮视觉验收</h1>"""
     document += "<p>" + html.escape(data.get("summary", "")) + "</p>"
     document += "".join(cards) + "</html>"
     (root / "report.html").write_text(document)

@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent
 
 def build(check=False):
     template = (ROOT / 'template.html').read_text()
-    mark = (ROOT.parent.parent / 'assets' / 'hanzagent-mark.svg').read_text()
+    mark = (ROOT.parent.parent / 'assets' / 'localgpt-mark.svg').read_text()
     template = template.replace('<!-- HANZ_FAVICON -->', '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,' + quote(mark, safe='') + '" />')
     styles = '\n'.join((ROOT / name).read_text() for name in ('studio.css', 'message-actions.css', 'gallery-ui.css', 'atelier.css', 'liquid-layers.css', 'settings-memory.css', 'local-profile.css'))
     result = template.replace('/* STUDIO_STYLES */', styles)

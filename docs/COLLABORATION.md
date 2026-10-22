@@ -1,10 +1,12 @@
+> Historical delivery record. The repository is now `ThineLord/localgpt`. The 2026-10-22 maintenance migration is authorized for Codex alone, without external agents or reviewers; see [migration record](REPOSITORY-MIGRATION.md). The collaboration roles below describe the original delivery.
+
 # Development and independent review
 
 Codex owns architecture, privacy, local services, integration and visual/function acceptance. Axel coordinates a single Cursor Cloud Agent for scoped frontend work and relays review requests to Mason. Mason reviews independently and performs conditional merges only under separately recorded human authorization.
 
 The authorized repository for this delivery is `ThineLord/hanzagent`. This is not organization-wide permission. Existing bot tools, routines and other projects remain outside this task. Einstein obtained approval to reuse Mason; Kit updated Mason's role description rather than creating a duplicate bot. Those organizational receipts remain in the private coordination conversation.
 
-Cloud task: `bc-ea24cc35-60bd-5f16-ae3f-dc3e23b5e0e9`, branch `cursor/chatgpt-ui-redesign`, [PR 1](https://github.com/ThineLord/hanzagent/pull/1). The agent delivered the neutral layout, composer, responsive styles and flat dialogs. The allowed scope was template, styling, dialog adapter and build; backend and local integration stayed with Codex. Cloud commits were fetched and merged into `codex/local-integration` for local validation. PR 1 itself is read-only review material and must not be merged independently.
+Cloud task: `bc-ea24cc35-60bd-5f16-ae3f-dc3e23b5e0e9`, branch `cursor/chatgpt-ui-redesign`, [PR 1](https://github.com/ThineLord/localgpt/pull/1). The agent delivered the neutral layout, composer, responsive styles and flat dialogs. The allowed scope was template, styling, dialog adapter and build; backend and local integration stayed with Codex. Cloud commits were fetched and merged into `codex/local-integration` for local validation. PR 1 itself is read-only review material and must not be merged independently.
 
 After the initial screenshot review, Codex sent measured corrections through Axel. The same agent pushed `d4e914ad1b1e42b8a2926b72af6529a07572b45d`, fixing heading alignment and redundant labels. Codex then corrected the textarea focus treatment and removed invisible shortcuts from keyboard navigation during integration.
 

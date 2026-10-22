@@ -2,7 +2,7 @@
 
 The source baseline was created in a new, independent Git object database. The original local workspace had no branch commits but did contain application-generated checkpoint refs and objects; none were copied. Only explicitly reviewed runtime source, synthetic test code, dependency metadata and documentation were copied. The original workspace, local configuration and user data remain on the machine.
 
-The private remote is `ThineLord/hanzagent`. Initial main is `946c860537b12e75a42d4aaca4a6bb8c8081144b`. GitHub visibility was verified PRIVATE before the initial push, and remote main SHA was checked against the local commit. Later changes use feature branches and PRs. Never push all refs, mirror, force-push or change visibility.
+The private remote is `ThineLord/localgpt` (renamed in place from `ThineLord/hanzagent`; see [migration record](REPOSITORY-MIGRATION.md)). Initial main is `946c860537b12e75a42d4aaca4a6bb8c8081144b`. GitHub visibility was verified PRIVATE before the initial push, and remote main SHA was checked against the local commit. Later changes use feature branches and PRs. Never push all refs, mirror, force-push or change visibility.
 
 Excluded from the source copy: personal SQLite databases and sidecars, legacy chat JSON, memory contents, ComfyUI input/output, uploaded attachments, generated imagery (including old decorative material), logs, browser profiles/storage/traces, screenshots, historical backup/source snapshots, local launcher/configuration paths and credentials. The build is generated and ignored; the demo's labeled vector fixture is authored source and contains no private imagery.
 

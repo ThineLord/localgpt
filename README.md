@@ -1,5 +1,9 @@
 # LocalGPT
 
+Canonical private repository: [ThineLord/localgpt](https://github.com/ThineLord/localgpt).
+The checkout is `work/localgpt-repository`; run commands below from that directory.
+See the [repository migration and compatibility record](docs/REPOSITORY-MIGRATION.md).
+
 A local chat and image workspace. Vanilla JavaScript, HTML and CSS; Python/aiohttp serving and SQLite persistence. No frontend framework, npm build, cloud inference, or credentials are required.
 
 ## Portable UI preview (synthetic data)
@@ -23,7 +27,7 @@ Before enabling Round 4 permanent deletion, back up the existing store, update t
 
 Features: automatic/chat/image mode, model selection, streamed answers, stop/retry/edit/copy, image reference upload/edit/download, draft persistence and conflicts, conversation pin/unpin/rename/trash/restore, gallery, controlled local memory, Chinese/English, light/dark/system appearance. Markdown is intentionally a small escaped subset, not a full renderer.
 
-The current interface follows measured signed-in navigation: a 52px rail, independent 288px pinned/temporary history panel, avatar menu and full-page settings. See [Round 4 reference and lifecycle contract](docs/ROUND4-REFERENCE.md). Earlier [design measurements](docs/DESIGN.md) and [acceptance](docs/ACCEPTANCE.md) are historical; [agent/review boundaries](docs/COLLABORATION.md) still apply.
+The current interface follows measured signed-in navigation: a 52px rail, independent 288px pinned/temporary history panel, avatar menu and full-page settings. See [Round 4 reference and lifecycle contract](docs/ROUND4-REFERENCE.md). Earlier [design measurements](docs/DESIGN.md) and [acceptance](docs/ACCEPTANCE.md) are historical; [collaboration record](docs/COLLABORATION.md) describes that earlier delivery.
 
 ## Validation
 
@@ -61,9 +65,9 @@ only a normalized 256px PNG is kept beside the existing database in
 `.localgpt-profile/avatar.png`. Nothing is uploaded to a cloud service. Reset is a
 preview until Save. A stale browser cannot overwrite a newer avatar silently.
 
-Visible branding is now LocalGPT. Repository slug, checkout directory, API paths,
-SQLite paths, browser storage keys, LM Studio instance ownership IDs and the
-`HanzAgent` application-support directory intentionally remain legacy identifiers.
+Visible branding, repository slug and checkout directory now use LocalGPT. API
+paths, SQLite paths, browser storage keys, LM Studio instance ownership IDs and
+the `HanzAgent` application-support directory intentionally remain legacy identifiers.
 This avoids losing drafts, cached paths, backups, model ownership or saved links.
 The half-knot logo is retained; this is an independent local application.
 See [Round 6 delivery contract](docs/ROUND6.md) for the direct Cloud API workflow,

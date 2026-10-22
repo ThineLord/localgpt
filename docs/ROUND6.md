@@ -47,7 +47,7 @@ Development agent: `bc-4de9fd73-65b6-4ee6-b100-2c9b24d5ae73`.
 Initial run: `run-e64b7818-3232-4401-b3c4-fb2a968ab3c2`.
 Requested catalog-supported model: `composer-2.5`, `fast=false`; no configurable
 reasoning-effort parameter is exposed for this model. Development run FINISHED;
-[component PR 13](https://github.com/ThineLord/hanzagent/pull/13) is provenance only.
+[component PR 13](https://github.com/ThineLord/localgpt/pull/13) is provenance only.
 Only the final integrated PR may be merged after independent review and local acceptance.
 Run duration was returned; tokens, account remaining allowance and monetary usage
 were not returned by the run endpoint and must not be inferred.
