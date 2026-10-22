@@ -127,8 +127,9 @@
     if (section) {
       dispatchEvent(new CustomEvent("appshell-settings-section", { detail: section }));
     }
-    const selected = document.querySelector(`[data-settings-section="${section}"]`);
-    const target = selected?.getClientRects().length ? selected : $("closePreferences");
+    // Enter the page at its heading; Tab then reaches the selected category.
+    // Focusing the category here can inherit focus-visible from the composer.
+    const target = [$("preferencesTitle"), $("settingsSectionTitle"), $("closePreferences")].find(visible);
     target?.focus({ preventScroll: true });
   }
 
