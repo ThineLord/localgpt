@@ -254,7 +254,7 @@ async function main() {
       surfaces.settings = settings;
       await page.screenshot({ path: path.join(shotDir, `settings-1440-${theme}.png`), scale: "css" });
 
-      await page.reload();
+      await page.goto(base + "/qwen-cn/");
       await page.locator("#prompt").waitFor();
       await settle(page, "pinned");
       const restored = await readPlane(page);
