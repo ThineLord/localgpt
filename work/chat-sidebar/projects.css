@@ -76,14 +76,14 @@
 .project-sidebar-heading {
   display: flex;
   align-items: center;
-  padding: 20px 2px 6px 10px;
+  padding: 18px 2px 4px 10px;
   gap: 2px;
 }
 .project-sidebar-heading .sidebar-label {
   margin: 0;
   padding: 0;
   font-size: 14px;
-  line-height: 22px;
+  line-height: 20px;
 }
 .project-sidebar-heading .chrome-button {
   width: 24px;
@@ -114,7 +114,8 @@
   padding: 0 3px;
 }
 .project-sidebar-row:has([aria-current="true"]),
-.project-sidebar-row:hover {
+.project-sidebar-row:hover,
+.project-sidebar-row:focus-within {
   background: var(--row-hover);
 }
 .project-sidebar-link {
