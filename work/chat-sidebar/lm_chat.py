@@ -350,9 +350,9 @@ def finish_task(core, message_id, owner, task):
             if current['kind'] != 'image' and current['status'] in ('submitting', 'running'):
                 core.STORE.update(message_id, status='stopped', phase='已停止', finished=time.time())
         elif task.exception() is not None:
-            LOGGER.error('Generation task failed to persist its outcome', exc_info=task.exception())
+            LOGGER.error('Generation task failed to persist its outcome; reconciliation required')
     except Exception:
-        LOGGER.exception('Generation cleanup failed; next reconciliation must recover')
+        LOGGER.error('Generation cleanup failed; next reconciliation must recover')
     finally:
         owner.close()
         CHAT_TASKS.pop(message_id, None)
