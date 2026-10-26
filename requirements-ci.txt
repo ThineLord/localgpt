@@ -1,0 +1,4 @@
+# Tested direct dependencies; keep within requirements.txt application ranges.
+aiohttp==3.13.5
+Pillow==11.3.0
+pypdf==5.9.0
