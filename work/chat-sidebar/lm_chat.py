@@ -4,6 +4,7 @@ import base64
 import contextlib
 import json
 import math
+import logging
 import re
 import secrets
 import sqlite3
@@ -12,6 +13,13 @@ from pathlib import Path
 
 import aiohttp
 from aiohttp import web
+
+try:  # Installed Comfy package and standalone runtime share the same protocol.
+    from .generation_ownership import GenerationLock
+except ImportError:
+    from generation_ownership import GenerationLock
+
+LOGGER = logging.getLogger(__name__)
 
 LM_URL = 'http://127.0.0.1:1234'
 LMS = Path.home()/'.lmstudio/bin/lms'
@@ -209,7 +217,7 @@ async def queue_image(core,session,message,settings,reference):
     core.STORE.update(mid,kind='image',model='qwen-image-2.1-UC-Q4_K_M',status='running',prompt_id=result['prompt_id'],reference_json=json.dumps(reference,ensure_ascii=False) if reference else None,phase='准备生成')
 
 
-async def run_turn(core,message,settings):
+async def run_turn(core,message,settings,owner=None):
     mid=message['id'];answer='';reasoning=''
     try:
         from memory_commands import command_reply
@@ -329,6 +337,26 @@ async def run_turn(core,message,settings):
     except Exception as error:
         core.STORE.update(mid,status='failed',error=str(error),answer=answer,reasoning=reasoning,finished=time.time())
 
+    finally:
+        if owner is not None:
+            owner.close()
+
+
+def finish_task(core, message_id, owner, task):
+    # A task cancelled before its coroutine's first instruction never enters finally.
+    try:
+        if task.cancelled():
+            current = core.STORE.message(message_id)
+            if current['kind'] != 'image' and current['status'] in ('submitting', 'running'):
+                core.STORE.update(message_id, status='stopped', phase='已停止', finished=time.time())
+        elif task.exception() is not None:
+            LOGGER.error('Generation task failed to persist its outcome', exc_info=task.exception())
+    except Exception:
+        LOGGER.exception('Generation cleanup failed; next reconciliation must recover')
+    finally:
+        owner.close()
+        CHAT_TASKS.pop(message_id, None)
+
 
 def install(core):
     routes=core.PromptServer.instance.routes
@@ -367,20 +395,47 @@ def install(core):
                 projects=getattr(core,'PROJECTS',None)
                 if projects:
                     memory=projects.memory_for_chat(chat_id, memory)
-                width,height=map(int,settings['size'].split(','))
-                message,_=core.STORE.reserve(chat_id,prompt,settings['reference'],width,height,int(settings['quality']),'qwen-chat-'+secrets.token_hex(16),key,kind='routing',model=settings['model'],settings=settings)
-                if memory:
-                    from memory_store import MemoryConflict
+                owner=GenerationLock(core.STORE.path)
+                transferred=False
+                try:
+                    if not owner.acquire():
+                        # A competing process may have just committed this same request.
+                        prior=core.STORE.by_request(key)
+                        if prior and prior['chat_id']==chat_id and prior['prompt']==prompt and prior['settings']==settings:
+                            return core.reply(prior)
+                        raise core.Conflict('本地模型正在处理其他任务，请等当前任务完成。')
+                    recovery=core.STORE.reconcile_generation(owner)
+                    if not recovery['generation_recovery_ready']:
+                        raise core.Conflict('Generation ownership_unknown：旧任务所有权未知，需要协调升级；未自动恢复。')
+                    width,height=map(int,settings['size'].split(','))
+                    message,created=core.STORE.reserve(chat_id,prompt,settings['reference'],width,height,int(settings['quality']),'qwen-chat-'+secrets.token_hex(16),key,kind='routing',model=settings['model'],settings=settings,owner=owner)
+                    if not created:
+                        if message['chat_id']!=chat_id or message['prompt']!=prompt or message['settings']!=settings:
+                            raise core.Conflict('重复的请求标识。')
+                        return core.reply(message)
+                    if memory:
+                        from memory_store import MemoryConflict
+                        try:
+                            outcome=memory.process_turn(prompt,chat_id,message['id'])
+                            message=core.STORE.update(message['id'],memory_json=json.dumps({**outcome,'used':[]},ensure_ascii=False))
+                        except (ValueError,sqlite3.Error,MemoryConflict,KeyError) as error:
+                            # Record a rejected outcome and still start the turn so the row leaves submitting.
+                            message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':[],'updated':[],'forgotten':[],'used':[],'notice':str(error),'status':'rejected'},ensure_ascii=False))
+                    turn=run_turn(core,message,settings,owner)
                     try:
-                        outcome=memory.process_turn(prompt,chat_id,message['id'])
-                        message=core.STORE.update(message['id'],memory_json=json.dumps({**outcome,'used':[]},ensure_ascii=False))
-                    except (ValueError,sqlite3.Error,MemoryConflict,KeyError) as error:
-                        # Record a rejected outcome and still start the turn so the row leaves submitting.
-                        message=core.STORE.update(message['id'],memory_json=json.dumps({'saved':[],'updated':[],'forgotten':[],'used':[],'notice':str(error),'status':'rejected'},ensure_ascii=False))
-                task=asyncio.create_task(run_turn(core,message,settings));CHAT_TASKS[message['id']]=task
-                task.add_done_callback(lambda done:CHAT_TASKS.pop(message['id'],None))
+                        task=asyncio.create_task(turn)
+                    except BaseException:
+                        turn.close()
+                        raise
+                    CHAT_TASKS[message['id']]=task
+                    task.add_done_callback(lambda done:finish_task(core,message['id'],owner,done))
+                    transferred=True
+                finally:
+                    if not transferred:
+                        owner.close()
             return core.reply(message,202)
         except core.Conflict as error:return core.reply({'error':str(error)},409)
+        except (sqlite3.Error,OSError):return core.reply({'error':'Generation storage or ownership unavailable; request retained if committed.', 'code':'generation_unavailable'},503)
         except KeyError:raise web.HTTPNotFound()
         except (ValueError,TypeError) as error:return core.reply({'error':str(error)},400)
 

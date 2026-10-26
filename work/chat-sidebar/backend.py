@@ -4,6 +4,7 @@ import contextlib
 import json
 import secrets
 import shutil
+import sqlite3
 import subprocess
 import time
 from urllib.parse import quote, urlsplit
@@ -13,6 +14,7 @@ from aiohttp import web
 from server import PromptServer
 import folder_paths
 from .storage import Store, Conflict
+from . import generation_ownership
 
 ROOT = Path(__file__).parent
 USER = Path(folder_paths.get_user_directory()) / 'default'
@@ -68,7 +70,14 @@ async def studio(request):
 @PromptServer.instance.routes.get('/qwen-cn/health')
 async def health(request):
     pressure = int(subprocess.check_output(['sysctl','-n','kern.memorystatus_vm_pressure_level'],timeout=2))
-    return reply({'ready':True,'disk_free_bytes':shutil.disk_usage(folder_paths.get_output_directory()).free,'memory_pressure_level':pressure,'output_directory':folder_paths.get_output_directory(),'database':str(DB)})
+    try:
+        with STORE.connect() as db:
+            db.execute('SELECT count(*) FROM chats').fetchone()
+        recovery=generation_ownership.readiness(STORE)
+    except sqlite3.Error:
+        return reply({'ready':False,'database_ready':False,'generation_recovery_ready':False,
+                      'generation_recovery_state':'unavailable','code':'database_unavailable'},503)
+    return reply({**recovery,'database_ready':True,'ready':recovery['generation_recovery_ready'],'disk_free_bytes':shutil.disk_usage(folder_paths.get_output_directory()).free,'memory_pressure_level':pressure,'output_directory':folder_paths.get_output_directory(),'database':str(DB)})
 
 
 @PromptServer.instance.routes.get('/qwen-cn/chats')
@@ -205,6 +214,10 @@ async def stop(request):
         if message['id'] in CHAT_TASKS:
             CHAT_TASKS[message['id']].cancel()
             await asyncio.gather(CHAT_TASKS[message['id']],return_exceptions=True)
+        elif message['status'] in ('running','submitting') and message['kind']!='image':
+            recovery=generation_ownership.reconcile(STORE)
+            if STORE.message(message['id'])['status'] in ('running','submitting'):
+                return reply({'requested':False, **recovery},409)
         elif message['status'] in ('running','submitting') and message['kind']=='image' and not message['prompt_id']:
             STORE.update(message['id'],phase='正在停止')
         elif message['status'] in ('running','submitting') and message['prompt_id']:
@@ -342,9 +355,7 @@ async def monitor():
 
 
 async def lifecycle(app):
-    for message in STORE.active():
-        if message['kind']!='image':
-            STORE.update(message['id'],status='failed',error='本地服务重启，已保留部分回答。请重试。',finished=time.time())
+    generation_ownership.reconcile(STORE)
     task=asyncio.create_task(monitor())
     yield
     task.cancel()

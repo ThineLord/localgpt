@@ -19,7 +19,7 @@ Open http://127.0.0.1:8191/qwen-cn/ . Demo chat streaming and the labeled vector
 
 ## Real local services
 
-Start your existing ComfyUI instance with the LocalGPT extension (legacy installation name: qwen-local-app) on loopback port 8188 and LM Studio on 1234. Then build the frontend and run `.venv/bin/python work/chat-sidebar/launch.py` and open http://127.0.0.1:8190/qwen-cn/ . The launcher detaches the UI process from its terminal, verifies the occupied port and served build, and never kills another service. For foreground debugging use `serve.py`. The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
+Start your existing ComfyUI instance with the LocalGPT extension (legacy installation name: qwen-local-app) on loopback port 8188 and LM Studio on 1234. Then build the frontend and run `.venv/bin/python work/chat-sidebar/launch.py` and open http://127.0.0.1:8190/qwen-cn/ . The launcher detaches the UI process from its terminal, verifies the occupied port and served build, and never kills another service. For foreground debugging use `serve.py`. The server discovers the existing database and image output location from `/qwen-cn/health`. It preserves existing data. The backend extension source is `backend.py` (installed as `__init__.py`) with `storage.py`, `lm_chat.py`, `generation_ownership.py`, `generation.py` and built `index.html`; installation and model acquisition are explicit local setup tasks, not performed by the demo.
 
 Image inference requires the existing ComfyUI nodes and model files named in `generation.py`: Qwen Image 2.1 GGUF, its Qwen3-VL encoder and VAE, UnetLoaderGGUF, TextEncodeQwenImage21 and QwenImage21Cache. Models are not distributed. Chat uses locally installed LM Studio models (default qwen3-8b), `/v1/chat/completions` streaming, and its `lms` executable. The app only unloads LM Studio instances it owns. Do not change model names or settings to make UI tests pass.
 
@@ -111,3 +111,5 @@ Disabling recall preserves saved rows, while deleting a memory removes it from
 future recall without rewriting earlier messages. No past-chat scan or cloud
 memory extraction is performed. See [shell contract](docs/ROUND7-SHELL.md) and
 [memory contract and limitations](docs/ROUND7-MEMORY.md).
+
+APP-03 crash recovery uses a shared generation ownership protocol. Read [the protocol and coordinated upgrade requirements](docs/APP03_RECOVERY.md) before any deployment; legacy active rows are never automatically adopted or cleared.
