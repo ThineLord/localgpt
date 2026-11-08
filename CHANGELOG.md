@@ -7,6 +7,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 ### Fixed
 
 - Keep slow live UI startup pending instead of failing after 15 seconds. A child-held per-port lease prevents repeated or concurrent launchers from starting duplicate processes.
+- Clear stop-request feedback when its generation reaches a terminal state; a late acknowledgement cannot restore the waiting notice or overwrite another status.
 
 ## [0.2.0] - 2026-11-09
 
