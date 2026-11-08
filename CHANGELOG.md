@@ -4,13 +4,27 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
-- Show build version/commit and process-start identity; separately probe local model services on explicit diagnostic refresh.
-- Cache project source chunks/terms in SQLite and retrieve off the event loop; add scope, rebuild, rollback and performance regression checks.
-- Return keyboard focus to the memory-manager trigger after closing its dialog, while keeping Settings open.
+## [0.2.0] - 2026-11-09
 
-- Render and download demo images through the production image routes using labeled synthetic PNGs.
+### Fixed
 
-- Recover interrupted chat generations with shared POSIX ownership across the UI and ComfyUI writers; preserve partial answers and request identity. Unknown legacy ownership remains blocked.
+- Recover recognized abandoned chat/routing generations using shared POSIX ownership. Preserve partial output and request identity; never replay model calls or clear unknown legacy owners.
+- Generate clearly labeled synthetic PNGs through production preview/download routes. Production SVG rejection is unchanged.
+- Restore focus to the Memory settings trigger when closing its nested dialog.
+- Keep extension diagnostics functional across cached package reloads and respect ComfyUI's configured port.
+
+### Added
+
+- About and health expose build version/commit and the running process's startup identity. Local diagnostics independently probe application health, LM Studio and ComfyUI without starting inference.
+- A pinned one-command synthetic acceptance runner, isolated fixtures, machine-readable results, per-case screenshots/video and an explicit historical-test coverage map.
+
+### Performance
+
+- Cache project source chunks and terms in SQLite; backfill existing sources lazily and retrieve off the event loop. Preserve project isolation, deletion/restore, budget semantics and cancellation.
+
+### Upgrade
+
+- Runtime release: upgrade both writers together on a local POSIX filesystem after quiescing work and taking a consistent backup. Additive ownership and derived index tables are not a license to mix old/new writers. See [English notes](docs/releases/0.2.0.md) / [中文说明](docs/releases/0.2.0.zh-CN.md).
 
 ## [0.1.0] - 2026-11-09
 
