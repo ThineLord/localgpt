@@ -40,7 +40,7 @@ python3 -m venv .venv
 .venv/bin/python work/chat-sidebar/demo.py
 ```
 
-打开 **http://127.0.0.1:8191/qwen-cn/**。演示使用临时数据库和合成回答，按 Ctrl+C 停止；暂不支持原生 Windows。
+打开 [http://127.0.0.1:8191/qwen-cn/](http://127.0.0.1:8191/qwen-cn/)。演示使用临时数据库和合成回答，按 Ctrl+C 停止；暂不支持原生 Windows。
 
 实际推理见[本地服务配置](docs/user-guide.zh-CN.md#本地服务)。模型和本地服务需单独安装；已有安装升级前应[备份并协调更新两个写入端](docs/reference/recovery.md)。
 
