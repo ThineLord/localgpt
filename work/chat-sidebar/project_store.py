@@ -407,23 +407,20 @@ class ProjectStore:
         with self.store.connect() as db:
             db.execute('CREATE TEMP TABLE query_terms(term TEXT PRIMARY KEY) WITHOUT ROWID')
             db.executemany('INSERT INTO query_terms VALUES(?)', ((term,) for term in query_terms))
-            # Match the cached inverted index; rank metadata first, then fetch at
-            # most two bodies per source (the existing per-source context cap).
+            # Sort lightweight metadata, then fetch bodies only when considering
+            # them for the budget. Later short chunks may fit when earlier ones do not.
             rows = db.execute("""WITH hits AS (
                 SELECT t.chunk_id,count(*) AS score FROM query_terms q
                 JOIN project_source_terms t ON t.term=q.term
                 JOIN project_source_chunks c ON c.id=t.chunk_id
                 JOIN project_sources s ON s.id=c.source_id
                 WHERE s.project_id=? AND s.deleted_at IS NULL GROUP BY t.chunk_id
-            ), ranked AS (
-                SELECT c.id,c.source_id,c.offset,s.name,s.created,COALESCE(h.score,0)+1 AS score,
-                ROW_NUMBER() OVER(PARTITION BY c.source_id ORDER BY COALESCE(h.score,0) DESC,c.offset) AS rank
+            ) SELECT c.id,c.source_id,c.offset,s.name,s.created,COALESCE(h.score,0)+1 AS score
                 FROM project_source_chunks c JOIN project_sources s ON s.id=c.source_id
                 LEFT JOIN hits h ON h.chunk_id=c.id WHERE s.project_id=? AND s.deleted_at IS NULL
-            ) SELECT r.*,c.body FROM ranked r JOIN project_source_chunks c ON c.id=r.id
-              WHERE r.rank<=2 ORDER BY r.score DESC,r.created DESC,r.source_id,r.offset""", (project['id'], project['id']))
+                ORDER BY score DESC,s.created DESC,c.source_id,c.offset""", (project['id'], project['id']))
             for row in rows:
-                candidates.append((row['score'], 'source', row['source_id'], row['name'], row['body'], row['offset']))
+                candidates.append((row['score'], 'source', row['source_id'], row['name'], row['id'], row['offset']))
             for row in db.execute("SELECT m.id,m.chat_id,c.title,m.prompt,m.answer FROM messages m JOIN chats c ON c.id=m.chat_id JOIN project_chats pc ON pc.chat_id=c.id WHERE pc.project_id=? AND c.id!=? AND c.deleted_at IS NULL AND m.status='completed' AND m.kind='chat' ORDER BY m.created DESC LIMIT 150", (project['id'], chat_id)):
                 if not include_history:
                     break
@@ -431,25 +428,27 @@ class ProjectStore:
                 score = len(query_terms & terms(row['title'] + ' ' + body))
                 if score:
                     candidates.append((score, 'chat', row['chat_id'], row['title'], body[:4000], 0))
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        entries, source_ids, chat_ids, per_source = [], [], [], {}
-        for _, kind, identity, name, body, offset in candidates:
-            if budget < 120 or len(entries) >= 8:
-                break
-            if per_source.get(identity, 0) >= 2:
-                continue
-            # Bound per-entry size and total serialization cost, including names.
-            body = clip(body, min(650, budget - 100))
-            entry = {'kind': kind, 'id': identity, 'name': name, 'excerpt': body, 'offset': offset}
-            encoded = json.dumps(entry, ensure_ascii=False)
-            if cost(encoded) > budget:
-                continue
-            entries.append(entry)
-            per_source[identity] = per_source.get(identity, 0) + 1
-            budget -= cost(encoded) + 5
-            target = source_ids if kind == 'source' else chat_ids
-            if identity not in target:
-                target.append(identity)
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            entries, source_ids, chat_ids, per_source = [], [], [], {}
+            for _, kind, identity, name, body, offset in candidates:
+                if budget < 120 or len(entries) >= 8:
+                    break
+                if per_source.get(identity, 0) >= 2:
+                    continue
+                if kind == 'source':
+                    body = db.execute('SELECT body FROM project_source_chunks WHERE id=?', (body,)).fetchone()['body']
+                # Bound per-entry size and total serialization cost, including names.
+                body = clip(body, min(650, budget - 100))
+                entry = {'kind': kind, 'id': identity, 'name': name, 'excerpt': body, 'offset': offset}
+                encoded = json.dumps(entry, ensure_ascii=False)
+                if cost(encoded) > budget:
+                    continue
+                entries.append(entry)
+                per_source[identity] = per_source.get(identity, 0) + 1
+                budget -= cost(encoded) + 5
+                target = source_ids if kind == 'source' else chat_ids
+                if identity not in target:
+                    target.append(identity)
         data = json.dumps(entries, ensure_ascii=False) if entries else ''
         metadata = {'id': project['id'], 'name': project['name'], 'memory_mode': project['memory_mode'], 'source_ids': source_ids, 'chat_ids': chat_ids}
         return project['instructions'], data, metadata

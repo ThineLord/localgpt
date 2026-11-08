@@ -70,6 +70,14 @@ class RetrievalTests(unittest.IsolatedAsyncioTestCase):
             for table in ['project_sources', 'project_source_chunks', 'project_source_terms', 'project_source_index']:
                 self.assertEqual(db.execute('SELECT count(*) FROM ' + table).fetchone()[0], 0)
 
+    async def test_long_name_small_budget_can_select_later_short_chunk(self):
+        self.add(name='长' * 175 + '.txt', text='a ' * 1050)
+        for budget in (500, 550, 600, 650, 700):
+            _, body, _ = await self.projects.context_async(self.chat['id'], 'unmatched', budget)
+            entries = json.loads(body)
+            self.assertEqual(entries[0]['offset'], 2000)
+            self.assertEqual(len(entries[0]['excerpt']), 100)
+
     async def test_async_retrieval_allows_heartbeat(self):
         started, release = threading.Event(), threading.Event()
         original = self.projects.context

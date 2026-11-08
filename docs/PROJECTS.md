@@ -64,7 +64,7 @@ through the existing ComfyUI pipeline without silently changing workflow setting
 
 ## Storage and compatibility
 
-`project_store.py` adds four tables beside the existing chats. Existing table
+`project_store.py` adds four core tables plus three rebuildable index tables beside the existing chats. Existing table
 schemas, identifiers, transcripts and draft versions are not rewritten by chat
 membership changes. Project edits and moves use version checks; project trash and
 restore are transactions. Source bytes live in SQLite and soft removal preserves

@@ -5,6 +5,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 ## [Unreleased]
 
 - Cache project source chunks/terms in SQLite and retrieve off the event loop; add scope, rebuild, rollback and performance regression checks.
+- Render and download demo images through the production image routes using labeled synthetic PNGs.
 
 - Recover interrupted chat generations with shared POSIX ownership across the UI and ComfyUI writers; preserve partial answers and request identity. Unknown legacy ownership remains blocked.
 

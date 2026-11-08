@@ -7,7 +7,7 @@
 - `POST /qwen-cn/chats/{id}/send` accepts prompt, mode (auto/chat/image), model, thinking, temperature, max_tokens, cfg, seed, size, quality, reference and request_key. Returns persisted message; preserve idempotency and concurrent-draft conflict checks.
 - Chat CRUD/drafts: `/qwen-cn/chats`, `/qwen-cn/chats/{id}`, `/{id}/draft`, `/{id}/restore`. Trash/gallery/memory and model endpoints are implemented, not decorative UI.
 - Images remain files in configured ComfyUI input/output directories. SQLite contains reference descriptors, chat text, drafts, settings and memories. Legacy JSON and migration backups contain personal data. None belongs in Git or cloud contexts.
-- `demo.py` is an explicit separate process with a fresh temporary database, simulated SSE and authored vector fixture. It replaces inference only inside that demo process. Never use demo tests as proof of real inference.
+- `demo.py` is an explicit separate process with a fresh temporary database, simulated SSE and labeled generated PNG fixture. It replaces inference only inside that demo process. Never use demo tests as proof of real inference.
 
 ## Current ownership
 

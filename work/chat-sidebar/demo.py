@@ -5,13 +5,12 @@ import json
 import tempfile
 import time
 import uuid
-from generation import image_path
 from pathlib import Path
 from aiohttp import web
 import lm_chat
 from runtime import install, errors
+from synthetic_image import write_png
 
-SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#ede9e2"/><circle cx="256" cy="218" r="100" fill="#bccbb6"/><path d="M0 410Q150 270 310 370T512 330V512H0" fill="#697d6b"/><text x="256" y="470" text-anchor="middle" font-family="sans-serif" font-size="16" fill="white">Synthetic UI fixture · not model output</text></svg>'
 ANSWER = '''这是一个用于界面验收的模拟回答，不是模型推理结果。
 
 ## 先把想法拆成三个步骤
@@ -31,7 +30,7 @@ A long line should wrap without pushing the composer or sidebar outside the view
 def create_demo():
     root = Path(tempfile.mkdtemp(prefix='localgpt-demo-'))
     (root/'input').mkdir(); (root/'output').mkdir()
-    (root/'output'/'fixture.svg').write_text(SVG)
+    write_png(root/'output'/'fixture.png')
     @web.middleware
     async def fixture(request, handler):
         if request.path == '/qwen-cn/models':
@@ -51,7 +50,9 @@ def create_demo():
             if image:
                 for i in range(15):
                     core.STORE.update(mid,step=i+1,total=15,phase='正在生成'); await asyncio.sleep(.25)
-                name='synthetic-'+mid+'.svg';(root/'output'/name).write_text(SVG)
+                name='synthetic-'+mid+'.png'
+                width,height=map(int,settings['size'].split(','))
+                write_png(root/'output'/name,width,height)
                 core.STORE.update(mid,image_json=json.dumps({'filename':name,'subfolder':'','type':'output'}),status='completed',finished=time.time(),phase='已完成')
             else:
                 for end in range(1,len(ANSWER)+16,16):
@@ -69,10 +70,6 @@ def create_demo():
     core.STORE.update(msg['id'],answer=ANSWER,status='completed',finished=time.time())
     core.STORE.create('新对话')
     async def index(r):return web.FileResponse(Path(__file__).with_name('index.html'),headers={'Cache-Control':'no-store'})
-    async def image(r):
-        try:path=image_path(dict(r.query),root/'input',root/'output')
-        except (ValueError,FileNotFoundError):raise web.HTTPNotFound()
-        return web.FileResponse(path)
     async def upload(r):
         reader=await r.multipart();part=await reader.next()
         while part and part.name!='image':part=await reader.next()
@@ -81,7 +78,6 @@ def create_demo():
         core.MEDIA.register_upload({'filename':name,'type':'input','subfolder':''})
         return web.json_response({'name':name,'subfolder':'','type':'input'})
     app.router.add_get('/',index);app.router.add_get('/qwen-cn/',index)
-    app.router.add_get('/view',image);app.router.add_get('/qwen-cn/download',image)
     app.router.add_post('/upload/image',upload)
     return app
 
