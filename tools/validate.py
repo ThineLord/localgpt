@@ -15,6 +15,7 @@ import tempfile
 import time
 import urllib.request
 import uuid
+import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
 BROWSER = ROOT / 'tools' / 'browser'
@@ -31,6 +32,7 @@ STANDALONE = {'memory-api', 'memory-ui', 'sidebar'}
 def stop(process):
     # Own the entire session, including a browser whose Node parent has exited.
     def group_exists():
+        process.poll()  # macOS may return EPERM for a group containing only an unreaped zombie.
         try:
             os.killpg(process.pid, 0)
             return True
@@ -70,8 +72,8 @@ def fixture(kind, output, env):
         if kind == 'projects':
             args += ['--root', temporary]
         process = subprocess.Popen(args, cwd=ROOT, env=child_env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        (output/'server.json').write_text(json.dumps({'pid':process.pid,'base':base,'synthetic_only':True}))
         try:
+            (output/'server.json').write_text(json.dumps({'pid':process.pid,'base':base,'synthetic_only':True}))
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
                 if process.poll() is not None:
@@ -176,6 +178,7 @@ def main():
                         command=['node'] + ([] if name in STANDALONE else [str(BROWSER/'run-case.cjs')]) + [str(BROWSER/(name+'.cjs'))]
                         run('browser-'+name,command,180,{'LOCALGPT_TEST_BASE':base,'LOCALGPT_TEST_OUTPUT':str(case_output),'LOCALGPT_FIXTURE_ROOT':fixture_root})
                 except (OSError, RuntimeError) as error:
+                    traceback.print_exc()
                     report['checks'].append({'name':'browser-'+name,'status':'BLOCKED','reason':str(error)});save()
         failures=[r for r in report['checks'] if r['status']!='PASS']
         report['status']='FAIL' if failures else 'PARTIAL_PASS' if report['scope']=='partial' else 'PASS'

@@ -74,7 +74,7 @@ class RunnerTests(unittest.TestCase):
                     self.assertEqual(report['status'],'RUNNING');self.assertNotEqual(report['run_id'],'old')
                     server=json.loads(server_info.read_text())
                     child.send_signal(signal.SIGINT)
-                    self.assertEqual(child.wait(timeout=15),130)
+                    self.assertEqual(child.wait(timeout=15),130,(output/'runner.log').read_text()+(output/'report.json').read_text()+(output/'memory-ui/server.log').read_text())
                     self.assertEqual(json.loads((output/'report.json').read_text())['status'],'INTERRUPTED')
                     with self.assertRaises(ProcessLookupError):os.kill(server['pid'],0)
                 finally:
