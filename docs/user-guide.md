@@ -33,6 +33,8 @@ Use a release tag when installing. For an existing installation, first read the 
 
 Version 0.2.0 adds recovery for interrupted chat tasks created by upgraded writers. Partial answers remain visible and Retry is explicit; no model call is replayed automatically. Upgrade the UI and ComfyUI extension together, including `generation_ownership.py`, `build_info.py`, `diagnostics.py`. Unknown legacy tasks stay blocked for deliberate maintenance; do not delete database rows or the generation lock manually. See [recovery and upgrade requirements](APP03_RECOVERY.md). Version 0.1.0 itself remains the earlier documentation-only baseline.
 
+The launcher waits for readiness for up to 120 seconds. If the process is still alive after that budget, it reports **still starting** and leaves it running; it does not claim success or open the browser yet. Run the launcher again to check the same process. A per-port startup lock prevents duplicate launches even before the server binds. Keep the lock file in place. `--wait-seconds` adjusts this foreground wait; it does not cancel startup.
+
 ## Troubleshooting
 
 - Demo port occupied: stop your own previous demo or use `demo.py --help` for its port option; do not kill an unknown process.
