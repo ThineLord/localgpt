@@ -123,9 +123,12 @@
         el('settingsServerIdentity').textContent = tr('运行服务：', 'Running server: ') + describe(lastHealth) + (mismatch ? tr(' · 版本不同，请按升级说明重启服务', ' · Build differs; follow the coordinated upgrade guide') : '');
       };
       const renderDiagnostics = () => {
-        const results = {checking:tr('正在检查…', 'Checking…'), available:tr('应用数据库可用', 'Application database is available'), unknown:tr('应用数据库状态未知', 'Application database status is unknown'), failed:tr('诊断请求失败，请检查应用服务', 'Diagnostics failed; check the application server')};
+        const results = {checking:tr('正在检查…', 'Checking…'), available:tr('应用数据库可用', 'Application database is available'), unknown:tr('应用数据库状态未知', 'Application database status is unknown'), failed:tr('诊断请求失败，请检查应用服务', 'Diagnostics failed; check the application server'), health_failed:tr('应用状态检查失败；模型服务检查已返回', 'Application health check failed; model service results are available'), services_failed:(lastHealth?.database_ready ? tr('应用数据库可用', 'Application database is available') : tr('应用数据库状态未知', 'Application database status is unknown')) + ' · ' + tr('模型服务检查失败', 'Model service checks failed')};
         el('settingsDiagnosticsResult').textContent = results[diagnosticResult] || '';
-        if (!lastDiagnostics) return;
+        if (!lastDiagnostics) {
+          el('settingsLMStatus').textContent = el('settingsComfyStatus').textContent = '—';
+          return;
+        }
         const labels = {available:tr('可连接', 'Reachable'), unavailable:tr('未连接', 'Unreachable'), http_error:tr('响应异常', 'HTTP error'), blocked:tr('非本地地址，未检测', 'Non-local address; not probed'), synthetic:tr('模拟服务', 'Synthetic fixture')};
         for (const [id, key] of [['settingsLMStatus','lm_studio'], ['settingsComfyStatus','comfyui']]) {
           const state = lastDiagnostics[key] || {};
@@ -140,9 +143,11 @@
         button.disabled = true;
         diagnosticResult = 'checking'; renderDiagnostics();
         try {
-          const [health, diagnostic] = await Promise.all([request('/qwen-cn/health'), request('/qwen-cn/diagnostics')]);
-          lastHealth = health; lastDiagnostics = diagnostic;
-          diagnosticResult = health.database_ready ? 'available' : 'unknown';
+          const [health, diagnostic] = await Promise.allSettled([request('/qwen-cn/health'), request('/qwen-cn/diagnostics')]);
+          lastHealth = health.status === 'fulfilled' ? health.value : null;
+          lastDiagnostics = diagnostic.status === 'fulfilled' ? diagnostic.value : null;
+          diagnosticResult = !lastHealth ? (lastDiagnostics ? 'health_failed' : 'failed')
+            : !lastDiagnostics ? 'services_failed' : lastHealth.database_ready ? 'available' : 'unknown';
           renderIdentity(); renderDiagnostics();
         } catch {
           lastDiagnostics = null;
