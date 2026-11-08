@@ -88,6 +88,9 @@ def main():
     parser.add_argument('--case', choices=sorted(CASES), help='Partial single browser case')
     parser.add_argument('--output', type=Path, default=ROOT/'output'/'validation')
     args = parser.parse_args()
+    def interrupted(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
     if args.setup and sys.prefix == sys.base_prefix:
         parser.error('--setup requires an activated virtual environment; create .venv first')
     if args.skip_browser and (args.browser_only or args.case):

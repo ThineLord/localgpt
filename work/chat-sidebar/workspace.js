@@ -54,6 +54,8 @@
             "本项目为社区/个人作品，与任何商业聊天或 AI 产品无官方隶属或背书关系。界面布局仅作体验参考，不代表合作或授权。",
             "This project is an independent local app. It is not affiliated with, endorsed by, or officially related to any commercial chat or AI product. Layout references are for UX only.",
           )}</p>
+          <p class="settings-about-copy" id="settingsBuildIdentity"></p>
+          <p class="settings-about-copy" id="settingsServerIdentity" aria-live="polite"></p>
         </div>`;
       const diagPanel = document.createElement("section");
       diagPanel.className = "settings-panel";
@@ -73,6 +75,9 @@
             <span class="settings-row-label" id="databasePath">${tr("数据库路径", "Database path")}</span>
             <span class="settings-diagnostics-value" id="settingsDatabasePathDisplay" data-settings-hook="database-path" title="">—</span>
           </div>
+          <div class="settings-row"><span class="settings-row-label">LM Studio</span><span class="settings-diagnostics-value" id="settingsLMStatus">—</span></div>
+          <div class="settings-row"><span class="settings-row-label">ComfyUI</span><span class="settings-diagnostics-value" id="settingsComfyStatus">—</span></div>
+          <p class="dialog-note" id="settingsDiagnosticsResult" aria-live="polite"></p>
           <button type="button" id="settingsDiagnosticsRefresh" class="settings-row-button preference-link" data-settings-hook="diagnostics-refresh">
             <span>${tr("刷新诊断信息", "Refresh diagnostics")}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.5-5.7L20 8V4h-4l1.8 1.8A6 6 0 1 0 18 12"/></svg>
@@ -106,7 +111,46 @@
         syncDatabasePath();
         dispatchEvent(new Event("hanz-diagnostics-refresh"));
       });
-      addEventListener("hanzlanguage", syncDatabasePath);
+      let lastHealth = null;
+      let lastDiagnostics = null;
+      let diagnosticResult = null;
+      const meta = name => document.querySelector(`meta[name="localgpt-${name}"]`)?.content || 'unknown';
+      const uiBuild = {version:meta('version'), build_sha:meta('build-sha'), build_dirty:meta('build-dirty') === 'true'};
+      const describe = build => `${build?.version || 'unknown'} · ${(build?.build_sha || 'unknown').slice(0, 12)}${build?.build_dirty ? tr('（有本地修改）', ' (local changes)') : ''}`;
+      const renderIdentity = () => {
+        el('settingsBuildIdentity').textContent = tr('界面版本：', 'Interface: ') + describe(uiBuild);
+        const mismatch = lastHealth && (lastHealth.version !== uiBuild.version || lastHealth.build_sha !== uiBuild.build_sha);
+        el('settingsServerIdentity').textContent = tr('运行服务：', 'Running server: ') + describe(lastHealth) + (mismatch ? tr(' · 版本不同，请按升级说明重启服务', ' · Build differs; follow the coordinated upgrade guide') : '');
+      };
+      const renderDiagnostics = () => {
+        const results = {checking:tr('正在检查…', 'Checking…'), available:tr('应用数据库可用', 'Application database is available'), unknown:tr('应用数据库状态未知', 'Application database status is unknown'), failed:tr('诊断请求失败，请检查应用服务', 'Diagnostics failed; check the application server')};
+        el('settingsDiagnosticsResult').textContent = results[diagnosticResult] || '';
+        if (!lastDiagnostics) return;
+        const labels = {available:tr('可连接', 'Reachable'), unavailable:tr('未连接', 'Unreachable'), http_error:tr('响应异常', 'HTTP error'), blocked:tr('非本地地址，未检测', 'Non-local address; not probed'), synthetic:tr('模拟服务', 'Synthetic fixture')};
+        for (const [id, key] of [['settingsLMStatus','lm_studio'], ['settingsComfyStatus','comfyui']]) {
+          const state = lastDiagnostics[key] || {};
+          el(id).textContent = (labels[state.status] || tr('未知', 'Unknown')) + (state.http_status && state.http_status !== 200 ? ` (${state.http_status})` : '');
+        }
+      };
+      renderIdentity();
+      addEventListener('hanz-health', event => {lastHealth = event.detail; renderIdentity();});
+      addEventListener('hanz-diagnostics-refresh', async () => {
+        const button = el('settingsDiagnosticsRefresh');
+        if (button.disabled) return;
+        button.disabled = true;
+        diagnosticResult = 'checking'; renderDiagnostics();
+        try {
+          const [health, diagnostic] = await Promise.all([request('/qwen-cn/health'), request('/qwen-cn/diagnostics')]);
+          lastHealth = health; lastDiagnostics = diagnostic;
+          diagnosticResult = health.database_ready ? 'available' : 'unknown';
+          renderIdentity(); renderDiagnostics();
+        } catch {
+          lastDiagnostics = null;
+          el('settingsLMStatus').textContent = el('settingsComfyStatus').textContent = '—';
+          diagnosticResult = 'failed'; renderDiagnostics();
+        } finally {button.disabled = false;}
+      });
+      addEventListener("hanzlanguage", () => {syncDatabasePath(); renderIdentity(); renderDiagnostics();});
     }
   })();
 

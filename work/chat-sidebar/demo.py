@@ -11,6 +11,7 @@ from aiohttp import web
 import lm_chat
 from runtime import install, errors
 from synthetic_image import write_png
+from build_info import build_identity
 
 ANSWER = '''这是一个用于界面验收的模拟回答，不是模型推理结果。
 
@@ -37,7 +38,9 @@ def create_demo():
         if request.path == '/qwen-cn/models':
             return web.json_response({'online':True,'default':'qwen3-8b','models':[{'key':'qwen3-8b','display_name':'Qwen3 8B · Demo','type':'llm','loaded_instances':[]}]})
         if request.path == '/qwen-cn/health':
-            return web.json_response({'ready':True,'database':'Temporary demo database','demo':True}, headers={'X-LocalGPT-Fixture':os.environ.get('LOCALGPT_FIXTURE_TOKEN','')})
+            return web.json_response({**build_identity(),'ready':True,'database_ready':True,'database':'Temporary demo database','demo':True}, headers={'X-LocalGPT-Fixture':os.environ.get('LOCALGPT_FIXTURE_TOKEN','')})
+        if request.path == '/qwen-cn/diagnostics':
+            return web.json_response({'application':build_identity(), 'demo':True, 'lm_studio':{'status':'synthetic'}, 'comfyui':{'status':'synthetic'}})
         if request.path == '/qwen-cn/uploads' and request.method == 'POST':
             return await upload(request)
         if request.path == '/qwen-cn/lm/start':

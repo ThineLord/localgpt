@@ -15,6 +15,8 @@ from server import PromptServer
 import folder_paths
 from .storage import Store, Conflict
 from . import generation_ownership
+from .build_info import build_identity
+from .diagnostics import service_diagnostics
 
 ROOT = Path(__file__).parent
 USER = Path(folder_paths.get_user_directory()) / 'default'
@@ -77,7 +79,12 @@ async def health(request):
     except sqlite3.Error:
         return reply({'ready':False,'database_ready':False,'generation_recovery_ready':False,
                       'generation_recovery_state':'unavailable','code':'database_unavailable'},503)
-    return reply({**recovery,'database_ready':True,'ready':recovery['generation_recovery_ready'],'disk_free_bytes':shutil.disk_usage(folder_paths.get_output_directory()).free,'memory_pressure_level':pressure,'output_directory':folder_paths.get_output_directory(),'database':str(DB)})
+    return reply({**build_identity(),**recovery,'database_ready':True,'ready':recovery['generation_recovery_ready'],'disk_free_bytes':shutil.disk_usage(folder_paths.get_output_directory()).free,'memory_pressure_level':pressure,'output_directory':folder_paths.get_output_directory(),'database':str(DB)})
+
+
+@PromptServer.instance.routes.get('/qwen-cn/diagnostics')
+async def diagnostics(request):
+    return reply({'application':build_identity(), **await service_diagnostics(lm_chat.LM_URL, base_url())})
 
 
 @PromptServer.instance.routes.get('/qwen-cn/chats')
