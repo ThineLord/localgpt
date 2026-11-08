@@ -1,24 +1,18 @@
-# Documentation
+# Documentation / 文档
 
 [English home](../README.md) · [中文首页](../README.zh-CN.md)
 
-| Audience | English | 简体中文 |
+| Start here / 从这里开始 | English | 简体中文 |
 | --- | --- | --- |
-| Users | [User guide](user-guide.md) | [用户指南](user-guide.zh-CN.md) |
-| Agents | [Agent guide](agent-guide.md) | [Agent 指南](agent-guide.zh-CN.md) |
-| Release 0.2.1 | [Release notes](releases/0.2.1.md) | [版本说明](releases/0.2.1.zh-CN.md) |
-| Release 0.2.0 | [Release notes](releases/0.2.0.md) | [版本说明](releases/0.2.0.zh-CN.md) |
-| Validation | [Testing](testing.md) | [验收](testing.zh-CN.md) |
+| Use LocalGPT / 使用 | [User guide](user-guide.md) | [用户指南](user-guide.zh-CN.md) |
+| Contribute / 协作 | [Agent guide](agent-guide.md) | [Agent 指南](agent-guide.zh-CN.md) |
+| Validate / 验证 | [Testing](testing.md) | [测试方法](testing.zh-CN.md) |
+| Version 0.2.1 / 当前版本 | [Release notes](releases/0.2.1.md) | [版本说明](releases/0.2.1.zh-CN.md) |
 
-## Maintaining the project
+## Reference / 技术参考
 
-- [Version and release policy](versioning.md)
-- [Validation](testing.md)
-- [Architecture](ARCHITECTURE.md)
-- [Privacy and publication boundary](PRIVACY.md)
-- [Projects behavior and storage](PROJECTS.md)
-- [Changelog](../CHANGELOG.md)
+[Architecture](reference/architecture.md) · [Privacy](reference/privacy.md) · [Projects](reference/projects.md) · [Recovery and upgrades](reference/recovery.md)
 
-## Previous records
+## Maintenance / 维护
 
-[Historical documentation](history/README.md) preserves earlier designs, acceptance and collaboration records. Their commands, roles and dated test results are not current release instructions or new acceptance evidence.
+[Changelog](CHANGELOG.md) · [Version policy](versioning.md) · [Earlier records](history.md) · [Screenshot provenance](images/README.md)

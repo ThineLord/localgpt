@@ -70,7 +70,7 @@ def available_port():
 def fixture(kind, output, env):
     port = available_port()
     base = f'http://127.0.0.1:{port}'
-    scripts = {'demo':'work/chat-sidebar/demo.py', 'gallery':'tools/round5_demo.py', 'projects':'tools/projects_demo.py'}
+    scripts = {'demo':'work/chat-sidebar/demo.py', 'gallery':'tools/gallery_demo.py', 'projects':'tools/projects_demo.py'}
     with tempfile.TemporaryDirectory(prefix='localgpt-validation-') as temporary, (output/'server.log').open('w') as log:
         token = uuid.uuid4().hex
         child_env = {**env, 'TMPDIR':temporary, 'LOCALGPT_FIXTURE_TOKEN':token}
@@ -152,7 +152,7 @@ def main():
         return entry['status']=='PASS'
     try:
         if args.setup:
-            for name, command in [('setup-python',[sys.executable,'-m','pip','install','-r','requirements-test.txt']),
+            for name, command in [('setup-python',[sys.executable,'-m','pip','install','-r','tools/requirements-test.txt']),
                                   ('setup-node',['npm','ci','--prefix',str(BROWSER)]),
                                   ('setup-browser',['node',str(BROWSER/'node_modules/playwright/cli.js'),'install','chromium'])]:
                 if not run(name,command,600):

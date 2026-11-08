@@ -47,9 +47,9 @@ def validate(root, tag=None):
             errors.append(f'{name}: current version missing or inconsistent')
         elif f'git checkout v{version}' not in path.read_text():
             errors.append(f'{name}: quick start must select v{version}')
-    changelog = root / 'CHANGELOG.md'
+    changelog = root / 'docs' / 'CHANGELOG.md'
     if not changelog.is_file():
-        errors.append('Missing CHANGELOG.md')
+        errors.append('Missing docs/CHANGELOG.md')
     else:
         text = changelog.read_text()
         if '## [Unreleased]' not in text or not re.search(r'^## \[' + re.escape(version) + r'\] - \d{4}-\d{2}-\d{2}$', text, re.M):

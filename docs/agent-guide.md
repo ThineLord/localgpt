@@ -10,13 +10,14 @@ Codex coordinates and implements. Native subagents independently review the fina
 | --- | --- |
 | `work/chat-sidebar/` | Runtime Python, browser source, build and backend tests |
 | `tools/` | Audits, synthetic demos and acceptance utilities |
-| `assets/` | Reviewed source artwork |
+| `docs/images/` | Two reviewed synthetic README screenshots |
 | `docs/` | Current user/agent guides and technical contracts |
-| `docs/history/` | Earlier designs, collaboration and acceptance evidence |
+| `docs/reference/` | Architecture, privacy, projects and recovery |
+| `docs/history.md` | Fixed Git links to earlier records |
 | `docs/releases/` | Immutable release scope and upgrade notes |
 | `VERSION.txt` | Canonical application version |
 
-Keep generated `index.html`, virtual environments, screenshots, runtime data and local evidence out of Git. The enclosing `Local_First` workspace is not the publishable repository. Its old checkouts, outputs and investigation folders must not be imported or moved as part of source cleanup.
+Keep generated `index.html`, virtual environments, runtime captures, runtime data and local evidence out of Git. The only screenshot exception is the pair of reviewed synthetic previews documented in `docs/images/README.md`; their exact bytes are approved by the source audit. The enclosing `Local_First` workspace is not the publishable repository. Its old checkouts, outputs and investigation folders must not be imported or moved as part of source cleanup.
 
 ## Change workflow
 
@@ -27,10 +28,10 @@ Keep generated `index.html`, virtual environments, screenshots, runtime data and
 5. When the task authorizes merge, a subagent verifies the head and base, review findings and required checks, marks the PR ready and merges. Do not bypass repository rules. Same-account agent review must be described as such, not as a GitHub APPROVED review.
 6. For a release task, follow the [release policy](versioning.md). Otherwise leave the validated PR ready for the next authorized step.
 
-Historical PR #26 remains separate. The current recovery integration is independently reviewed against the current main branch; do not merge the historical PR or enable its CI workflow as a shortcut. Follow [generation recovery and coordinated upgrades](APP03_RECOVERY.md).
+Historical PR #26 remains separate. The current recovery integration is independently reviewed against the current main branch; do not merge the historical PR or enable its CI workflow as a shortcut. Follow [generation recovery and coordinated upgrades](reference/recovery.md).
 
 ## Runtime boundaries
 
 The API prefix `/qwen-cn/`, database paths, browser keys, model ownership IDs and `HanzAgent` support directory are compatibility identifiers. Changing them requires a deliberate migration. Updating source or publishing a tag does not restart a service. Installation, real-model calls, data migrations and production maintenance require authorization within the task.
 
-Read [architecture](ARCHITECTURE.md), [privacy](PRIVACY.md) and [Projects](PROJECTS.md) before modifying storage or runtime behavior. Do not weaken guards or change real model settings to make tests pass. Report actual evidence and remaining limitations.
+Read [architecture](reference/architecture.md), [privacy](reference/privacy.md) and [Projects](reference/projects.md) before modifying storage or runtime behavior. Do not weaken guards or change real model settings to make tests pass. Report actual evidence and remaining limitations.

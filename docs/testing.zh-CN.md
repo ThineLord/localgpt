@@ -9,7 +9,7 @@ python3 -m venv .venv
 .venv/bin/python tools/validate.py --setup
 ```
 
-首次会按 `requirements-test.txt` 安装固定 Python 依赖、按浏览器 lockfile 执行 `npm ci` 并下载 Playwright 配套 Chromium；之后只需 `.venv/bin/python tools/validate.py`。已在 macOS、Python 3.13、Node 26 验证；运行时任务所有权依赖 macOS/Linux POSIX 文件锁。Node/npm 仅用于验收，前端无 npm 构建流程。
+首次会按 `tools/requirements-test.txt` 安装固定 Python 依赖、按浏览器 lockfile 执行 `npm ci` 并下载 Playwright 配套 Chromium；之后只需 `.venv/bin/python tools/validate.py`。已在 macOS、Python 3.13、Node 26 验证；运行时任务所有权依赖 macOS/Linux POSIX 文件锁。Node/npm 仅用于验收，前端无 npm 构建流程。
 
 完整合成验收包含构建一致性、版本/文档链接、全部后端和工具测试、当前 JS 语法、暂存/工作区 diff、源码及历史审计、检索性能回归和 15 个浏览器/API 套件。每个浏览器套件使用独立临时数据、服务和随机身份校验；成功、失败或中断都会清理自己创建的进程和数据，不使用已有服务或个人数据库。
 
@@ -17,7 +17,7 @@ python3 -m venv .venv
 
 最终验收前暂存预期源码变更，审查 diff 并检查个人信息；自动审计检查 Git 对象，不能证明任意文本都没有隐私内容。没有 Git 历史的源码压缩包不能代替干净 clone 的发布验收。
 
-[当前浏览器套件](../tools/browser/README.md) 与 [历史覆盖映射](../tools/history/browser/README.md) 分开维护。旧 Round 脚本仅保留溯源，不计入当前通过结果。检索基准使用 1×10k、20×100k、100×200k 重复合成文本，不能据此保证所有真实文档具有相同延迟。
+[当前浏览器套件](../tools/browser/README.md) 与 [历史覆盖映射](history.md) 分开维护。旧 Round 脚本通过固定 Git 历史链接保留溯源，不留在当前目录，也不计入当前通过结果。检索基准使用 1×10k、20×100k、100×200k 重复合成文本，不能据此保证所有真实文档具有相同延迟。
 
 真实推理单独使用 `tools/projects_live_acceptance.py` 和 `tools/round7_memory_live_acceptance.py`，需要本地模型服务和当前任务授权；连接失败必须报告环境阻塞。不能为让合成测试通过而启动外部服务、加载模型或改动生产数据。
 

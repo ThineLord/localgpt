@@ -22,9 +22,9 @@ class SourceAuditTests(unittest.TestCase):
             ["git", *args], cwd=self.root, input=input, stderr=subprocess.STDOUT
         ).decode().strip()
 
-    def audit(self):
+    def audit(self, *args):
         return subprocess.run(
-            [sys.executable, str(AUDIT)], cwd=self.root,
+            [sys.executable, str(AUDIT), *args], cwd=self.root,
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
 
@@ -105,6 +105,53 @@ class SourceAuditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("secret_assignment", result.stdout)
         self.assertNotIn(marker, result.stdout)
+
+    def screenshot(self, name='workspace.png'):
+        source = AUDIT.parent.parent / 'docs' / 'images' / name
+        target = self.root / 'docs' / 'images' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+        return target
+
+    def test_approved_screenshots_require_exact_reviewed_bytes(self):
+        image = self.screenshot()
+        self.screenshot('gallery.png')
+        self.git('add', '.')
+        self.assertEqual(self.audit().returncode, 0)
+        image.write_bytes(image.read_bytes() + b'SYNTHETIC_UNREVIEWED_DATA')
+        self.git('add', '.')
+        result = self.audit()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('unreviewed screenshot bytes', result.stdout)
+        self.assertNotIn('SYNTHETIC_UNREVIEWED_DATA', result.stdout)
+
+    def test_approved_image_bytes_at_another_path_are_rejected(self):
+        image = self.screenshot()
+        image.rename(image.with_name('personal.png'))
+        self.git('add', '.')
+        result = self.audit()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('personal.png not approved source format', result.stdout)
+
+    def test_screenshot_path_cannot_be_a_symlink(self):
+        image = self.screenshot()
+        target = image.with_name('synthetic-target.png')
+        image.rename(target)
+        image.symlink_to(target.name)
+        self.git('add', str(image.relative_to(self.root)))
+        self.assertIn('symlink/submodule', self.audit().stdout)
+
+    def test_old_unreviewed_screenshot_is_not_hidden_by_clean_current_image(self):
+        image = self.screenshot()
+        reviewed = image.read_bytes()
+        image.write_bytes(reviewed + b'SYNTHETIC_UNREVIEWED_HISTORY')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'unreviewed synthetic fixture')
+        image.write_bytes(reviewed)
+        self.git('add', '.')
+        self.git('commit', '-qm', 'reviewed synthetic fixture')
+        self.assertEqual(self.audit().returncode, 0)
+        self.assertIn('unreviewed screenshot bytes', self.audit('--history').stdout)
 
 
 if __name__ == "__main__":

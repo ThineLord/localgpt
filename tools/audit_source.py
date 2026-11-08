@@ -1,9 +1,17 @@
 """Review staged source or all reachable history without ever printing secret matches."""
 import argparse
+import hashlib
 import re
 import subprocess
 import sys
 from pathlib import PurePosixPath
+
+# Visually reviewed captures from tools/gallery_demo.py --preview only.
+# Add reviewed refresh hashes; retain earlier approved bytes for history audits.
+APPROVED_SCREENSHOTS = {
+    'docs/images/workspace.png': {'c5d6f41bb5ec192736f232919268b84b1f2bf6cee3eca59788b5e52d83d666ff'},
+    'docs/images/gallery.png': {'6eae68600b2be3f2d0650e86bafb8f340729cc3f508d4258f1bf0590d0922fdc'},
+}
 
 def git(*args):
     return subprocess.check_output(['git', *args])
@@ -48,6 +56,11 @@ for name, oid, kind, mode in entries:
         continue
     if kind != 'blob' or mode in ('120000', '160000'):
         failures.add((name, 'symlink/submodule is not approved source'))
+        continue
+    if name in APPROVED_SCREENSHOTS:
+        data = git('show', oid)
+        if hashlib.sha256(data).hexdigest() not in APPROVED_SCREENSHOTS[name]:
+            failures.add((name, 'unreviewed screenshot bytes'))
         continue
     if p.suffix not in ('.py', '.js', '.cjs', '.css', '.html', '.md', '.txt', '.yml', '.yaml', '.example', '.svg') and name not in ('.gitignore', 'Start LocalGPT.command', 'tools/browser/package.json', 'tools/browser/package-lock.json'):
         failures.add((name, 'not approved source format'))

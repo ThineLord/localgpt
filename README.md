@@ -2,16 +2,33 @@
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-**A local workspace for conversations, images, projects and personal memory.**
-LocalGPT brings LM Studio text chat and ComfyUI image tools into one browser interface, with SQLite storage on your computer. It is an independent application.
+**Your local workspace for conversations, images and projects.**
+Chat with LM Studio, create images with ComfyUI, and keep conversations, files and memory on your computer.
 
-**For users:** start with the [user guide](docs/user-guide.md).
+[User guide](docs/user-guide.md) · [Latest release · 0.2.1](https://github.com/ThineLord/localgpt/releases/tag/v0.2.1) · [Agent guide](AGENTS.md)
 
-**For agents:** read [AGENTS.md](AGENTS.md), then the [agent guide](docs/agent-guide.md).
+![LocalGPT conversation workspace with projects and chat history](docs/images/workspace.png)
+*Actual application UI with synthetic demo content. No personal data or model-generated results are shown.*
+
+## One workspace
+
+- **Conversations:** streaming answers, editable prompts, stop and retry.
+- **Images:** generation, editing, gallery and downloads through ComfyUI.
+- **Projects and memory:** keep related chats, local files and saved context together.
+
+English and Simplified Chinese · Light and dark themes · Local SQLite storage
+
+<details>
+<summary>View the image gallery</summary>
+
+![LocalGPT image gallery displaying labeled synthetic artwork](docs/images/gallery.png)
+*The gallery preview uses deterministic test artwork, not AI-generated samples.*
+
+</details>
 
 ## Try it locally
 
-Use macOS or Linux with Python 3.10 or newer. The demo works without models or a ComfyUI installation.
+macOS or Linux · Python 3.10+ · No models needed for the demo
 
 ```sh
 git clone https://github.com/ThineLord/localgpt.git
@@ -23,39 +40,18 @@ python3 -m venv .venv
 .venv/bin/python work/chat-sidebar/demo.py
 ```
 
-Open **http://127.0.0.1:8191/qwen-cn/**. Demo answers and images are synthetic; its temporary database is separate from your personal data. Stop it with Ctrl+C. For real chat and image generation, follow [local service setup](docs/user-guide.md#local-services).
+Open **http://127.0.0.1:8191/qwen-cn/**. The demo uses a temporary database and synthetic responses; stop it with Ctrl+C. Native Windows is not supported.
 
-## What you can do
+For real inference, follow [local service setup](docs/user-guide.md#local-services). Models and local services are separate installations. [Back up and upgrade both writers together](docs/reference/recovery.md) when updating an existing installation.
 
-- Chat with local models, stream answers, edit prompts and retry responses.
-- Generate and edit images through your existing ComfyUI setup.
-- Organize chats, instructions and local files in projects.
-- Manage saved memory, conversation history, drafts, gallery and trash.
-- Switch between English and Chinese, and light, dark or system appearance.
+## Find your way
 
-## Project layout
+| Location | Contents |
+| --- | --- |
+| [work/chat-sidebar/](work/chat-sidebar/) | Application source and backend tests |
+| [tools/](tools/) | Validation, audits and isolated demos |
+| [docs/](docs/README.md) | User/agent guides, technical reference and releases |
 
-```text
-localgpt/
-├── work/chat-sidebar/   application source and backend tests
-├── tools/               validation and synthetic demo tools
-├── assets/              source artwork
-├── docs/                user, agent and release documentation
-│   └── history/         previous design and acceptance records
-├── AGENTS.md            agent entry point
-├── CHANGELOG.md         version history
-└── VERSION.txt          canonical application version
-```
+Current application version: **0.2.1**. [Release notes](docs/releases/0.2.1.md) · [Changelog](docs/CHANGELOG.md) · [Testing](docs/testing.md)
 
-Models, personal databases, generated images, backups and local configuration stay outside the published source. Existing runtime paths are preserved. See [privacy and storage](docs/PRIVACY.md).
-
-## Versions and documentation
-
-Current version: **0.2.1**. This patch clears completed stop feedback and keeps slow startup pending without duplicate processes. Read the coordinated upgrade notes before updating an existing installation.
-
-- [User guide](docs/user-guide.md) · [Agent guide](docs/agent-guide.md)
-- [Release notes](docs/releases/0.2.1.md) · [Changelog](CHANGELOG.md) · [GitHub Releases](https://github.com/ThineLord/localgpt/releases)
-- [Version and release policy](docs/versioning.md) · [Validation](docs/testing.md)
-- [Documentation index](docs/README.md)
-
-The interface uses plain JavaScript, HTML and CSS; the backend uses Python/aiohttp and SQLite. Real inference requires separately installed models and local services. Source releases do not bundle those dependencies or migrate your data.
+Personal data, models and local configuration stay outside this repository. See [privacy](docs/reference/privacy.md). This is an independent application built with Python/aiohttp, SQLite and plain JavaScript.
