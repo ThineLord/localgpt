@@ -1,5 +1,6 @@
 """Synthetic UI fixture: temporary data, no network/model calls, no personal history."""
 import argparse
+import os
 import asyncio
 import json
 import tempfile
@@ -36,7 +37,7 @@ def create_demo():
         if request.path == '/qwen-cn/models':
             return web.json_response({'online':True,'default':'qwen3-8b','models':[{'key':'qwen3-8b','display_name':'Qwen3 8B · Demo','type':'llm','loaded_instances':[]}]})
         if request.path == '/qwen-cn/health':
-            return web.json_response({'ready':True,'database':'Temporary demo database','demo':True})
+            return web.json_response({'ready':True,'database':'Temporary demo database','demo':True}, headers={'X-LocalGPT-Fixture':os.environ.get('LOCALGPT_FIXTURE_TOKEN','')})
         if request.path == '/qwen-cn/uploads' and request.method == 'POST':
             return await upload(request)
         if request.path == '/qwen-cn/lm/start':

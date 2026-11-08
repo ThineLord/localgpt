@@ -5,6 +5,7 @@ synthetic; project retrieval, streaming, persistence and request composition run
 through the production code. --root may point at an existing *fixture* directory.
 """
 import argparse
+import os
 import asyncio
 import json
 from pathlib import Path
@@ -53,6 +54,12 @@ async def main(args):
     port=site._server.sockets[0].getsockname()[1]
     lm_chat.LM_URL='http://127.0.0.1:'+str(port)
     app=create_app(lm_chat.LM_URL,database=root/'fixture.sqlite3',input_root=root/'input',output_root=root/'output')
+    @web.middleware
+    async def fixture_identity(request, handler):
+        response = await handler(request)
+        response.headers['X-LocalGPT-Fixture'] = os.environ.get('LOCALGPT_FIXTURE_TOKEN', '')
+        return response
+    app.middlewares.append(fixture_identity)
     store=Store(root/'fixture.sqlite3');projects=ProjectStore(store)
     if not store.chats():
         store.create('A chat to move into a project')
