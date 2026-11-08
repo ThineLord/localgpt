@@ -84,7 +84,7 @@ async def health(request):
 
 @PromptServer.instance.routes.get('/qwen-cn/diagnostics')
 async def diagnostics(request):
-    return reply({'application':build_identity(), **await service_diagnostics(lm_chat.LM_URL, 'http://127.0.0.1:8188')})
+    return reply({'application':build_identity(), **await service_diagnostics(lm_chat.LM_URL, base_url())})
 
 
 @PromptServer.instance.routes.get('/qwen-cn/chats')

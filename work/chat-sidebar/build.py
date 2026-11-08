@@ -17,7 +17,7 @@ def build(check=False):
         owner = Path(subprocess.check_output(['git', '-C', str(repo), 'rev-parse', '--show-toplevel'], stderr=subprocess.DEVNULL, text=True).strip()).resolve()
         if owner == repo.resolve():
             sha = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
-            dirty = str(bool(subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain', '--untracked-files=no'], text=True).strip())).lower()
+            dirty = str(bool(subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain'], text=True).strip())).lower()
     except (OSError, subprocess.CalledProcessError):
         pass  # Source archives have a version but no provable Git commit.
     identity = f'<meta name="localgpt-version" content="{version}" />\n    <meta name="localgpt-build-sha" content="{sha}" />\n    <meta name="localgpt-build-dirty" content="{dirty}" />'

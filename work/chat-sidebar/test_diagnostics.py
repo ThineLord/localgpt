@@ -93,3 +93,20 @@ class DiagnosticRuntimeTests(unittest.IsolatedAsyncioTestCase):
         result = await (await self.client.get('/qwen-cn/diagnostics')).json()
         self.assertEqual(result['lm_studio']['status'], 'unavailable')
         self.assertEqual(result['comfyui']['status'], 'unavailable')
+
+
+import test_chats
+from unittest.mock import AsyncMock
+
+
+class ExtensionDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
+    asyncSetUp = test_chats.APITests.asyncSetUp
+    asyncTearDown = test_chats.APITests.asyncTearDown
+
+    async def test_extension_uses_actual_configured_comfy_port(self):
+        self.backend.PromptServer.instance.port = 18456
+        probe = AsyncMock(return_value={'lm_studio':{'status':'available'},'comfyui':{'status':'available'}})
+        with patch.object(self.backend, 'service_diagnostics', probe):
+            response = await self.client.get('/qwen-cn/diagnostics')
+        self.assertEqual(response.status, 200)
+        self.assertEqual(probe.call_args.args[1], 'http://127.0.0.1:18456')
