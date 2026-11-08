@@ -46,5 +46,7 @@ First versioned source baseline, based on the existing main application at `d452
 
 Application behavior and runtime paths are unchanged. Existing chat, image, projects and memory features form the baseline. Pending PR #26 recovery changes are excluded. Publishing this version does not install, restart or migrate a running application.
 
-[Unreleased]: https://github.com/ThineLord/localgpt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ThineLord/localgpt/compare/v0.2.0...HEAD
 [0.1.0]: https://github.com/ThineLord/localgpt/releases/tag/v0.1.0
+
+[0.2.0]: https://github.com/ThineLord/localgpt/releases/tag/v0.2.0
