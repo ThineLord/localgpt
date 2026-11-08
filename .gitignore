@@ -43,3 +43,6 @@ work/liquid-memory/
 .localgpt-profile/
 .localgpt-project-memory/
 .localgpt-backups/
+
+# Persistent local generation ownership; never publish or rotate while live.
+*.generation.lock

@@ -89,6 +89,20 @@ class Store:
             if 'memory_json' not in columns:db.execute("ALTER TABLE messages ADD COLUMN memory_json TEXT NOT NULL DEFAULT '{}' ")
             db.executescript('CREATE TABLE IF NOT EXISTS gallery_archive(id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS removed_sources(source TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS purged_imports(source TEXT PRIMARY KEY);')
             _ensure_pin_schema(db)
+        # Additive protocol schema: all DDL is one transaction, no legacy rows adopted.
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute("""CREATE TABLE IF NOT EXISTS generation_owners(
+                message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+                owner_nonce TEXT NOT NULL, protocol_version INTEGER NOT NULL,
+                database_device INTEGER NOT NULL, database_inode INTEGER NOT NULL,
+                lock_device INTEGER NOT NULL, lock_inode INTEGER NOT NULL,
+                acquired_at REAL NOT NULL)""")
+            db.execute("""CREATE TABLE IF NOT EXISTS generation_recoveries(
+                message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+                owner_nonce TEXT NOT NULL, protocol_version INTEGER NOT NULL,
+                previous_status TEXT NOT NULL, recovered_at REAL NOT NULL,
+                reason TEXT NOT NULL)""")
         # Older ComfyUI extensions can reimport their historical JSON on restart.
         # Honor explicit purge tombstones without changing that installation.
         with self.connect() as db:
@@ -211,7 +225,9 @@ class Store:
             db.execute('UPDATE chats SET title=?,draft=?,version=version+1,draft_version=draft_version+1,updated=? WHERE id=?', (new_title,new_draft,time.time(),chat_id))
         return self.chat(chat_id)
 
-    def reserve(self, chat_id, prompt, reference, width, height, steps, client_id, request_key, kind="image", model="", settings=None):
+    def reserve(self, chat_id, prompt, reference, width, height, steps, client_id, request_key, kind="image", model="", settings=None, owner=None):
+        if owner is not None:
+            owner.validate(self.path)
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             self._check_media_reference(db, reference)
@@ -230,6 +246,10 @@ class Store:
             db.execute('''INSERT INTO messages(id,chat_id,prompt,reference_json,status,created,width,height,steps,client_id,request_key)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)''',(msg_id,chat_id,prompt,json.dumps(reference,ensure_ascii=False) if reference else None,'submitting',now,width,height,steps,client_id,request_key))
             db.execute('UPDATE messages SET kind=?,model=?,settings_json=? WHERE id=?',(kind,model,json.dumps(settings or {},ensure_ascii=False),msg_id))
+            if owner is not None:
+                db.execute("INSERT INTO generation_owners VALUES(?,?,?,?,?,?,?,?)",
+                    (msg_id, owner.nonce, 1, *owner.database_identity, *owner.lock_identity, now))
+                owner.validate(self.path)
             title = prompt.replace('\n',' ').strip()[:32] if chat['title']=='新对话' else chat['title']
             db.execute("UPDATE chats SET title=?,draft=?,version=version+1,draft_version=draft_version+1,updated=? WHERE id=?",(title,json.dumps({**(settings or {}),"prompt":"","reference":None},ensure_ascii=False),now,chat_id))
         return self.message(msg_id),True
@@ -262,8 +282,54 @@ class Store:
             if not row:
                 raise KeyError(message_id)
             db.execute('UPDATE messages SET '+','.join(k+'=?' for k in fields)+' WHERE id=?',(*fields.values(),message_id))
+            if fields.get('status') in ('completed', 'failed', 'stopped') or fields.get('kind') == 'image':
+                db.execute('DELETE FROM generation_owners WHERE message_id=?', (message_id,))
             db.execute('UPDATE chats SET version=version+1,updated=? WHERE id=?',(time.time(),row['chat_id']))
         return self.message(message_id)
+
+    def _generation_rows(self, db):
+        return db.execute("""SELECT m.id,m.chat_id,m.status,o.* FROM messages m
+            LEFT JOIN generation_owners o ON o.message_id=m.id
+            WHERE m.kind IN ('chat','routing') AND m.status IN ('submitting','running')""").fetchall()
+
+    def _known_generation(self, row, owner):
+        nonce = row['owner_nonce']
+        return (row['protocol_version'] == 1 and isinstance(nonce, str)
+                and len(nonce) == 32 and all(c in '0123456789abcdef' for c in nonce)
+                and (row['database_device'], row['database_inode']) == owner.database_identity
+                and (row['lock_device'], row['lock_inode']) == owner.lock_identity
+                and nonce != owner.nonce)
+
+    def generation_status(self, owner):
+        owner.validate(self.path)
+        with self.connect() as db:
+            rows = self._generation_rows(db)
+        state = ('ownership_unknown' if any(not self._known_generation(r, owner) for r in rows)
+                 else 'recovery_required' if rows else 'ready')
+        return {'generation_recovery_ready': not rows, 'generation_recovery_state': state}
+
+    def reconcile_generation(self, owner):
+        """Must hold this database's lock; unknown/legacy owners are never adopted."""
+        owner.validate(self.path)
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            rows = self._generation_rows(db)
+            if any(not self._known_generation(row, owner) for row in rows):
+                return {'generation_recovery_ready': False, 'generation_recovery_state': 'ownership_unknown', 'recovered': 0}
+            now = time.time()
+            for row in rows:
+                db.execute("""UPDATE messages SET status='failed', finished=?, phase='生成已中断',
+                    error='Generation interrupted: owner exited. 已保留部分回答，请显式重试。'
+                    WHERE id=? AND status=? AND kind IN ('chat','routing')
+                    AND EXISTS(SELECT 1 FROM generation_owners WHERE message_id=? AND owner_nonce=?)""",
+                    (now, row['id'], row['status'], row['id'], row['owner_nonce']))
+                db.execute('INSERT INTO generation_recoveries VALUES(?,?,?,?,?,?)',
+                    (row['id'], row['owner_nonce'], 1, row['status'], now, 'owner_exited'))
+                db.execute('DELETE FROM generation_owners WHERE message_id=? AND owner_nonce=?',
+                    (row['id'], row['owner_nonce']))
+                db.execute('UPDATE chats SET version=version+1,updated=? WHERE id=?', (now, row['chat_id']))
+            owner.validate(self.path)
+        return {'generation_recovery_ready': True, 'generation_recovery_state': 'ready', 'recovered': len(rows)}
 
     def import_record(self, record):
         image = record.get('image') or {}

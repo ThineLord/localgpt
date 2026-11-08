@@ -4,7 +4,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
-No changes recorded yet.
+- Recover interrupted chat generations with shared POSIX ownership across the UI and ComfyUI writers; preserve partial answers and request identity. Unknown legacy ownership remains blocked.
 
 ## [0.1.0] - 2026-11-09
 

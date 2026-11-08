@@ -11,7 +11,7 @@ LocalGPT brings LM Studio text chat and ComfyUI image tools into one browser int
 
 ## Try it locally
 
-Use Python 3.10 or newer. The demo works without models or a ComfyUI installation.
+Use macOS or Linux with Python 3.10 or newer. The demo works without models or a ComfyUI installation.
 
 ```sh
 git clone https://github.com/ThineLord/localgpt.git

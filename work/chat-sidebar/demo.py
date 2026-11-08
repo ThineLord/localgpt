@@ -44,7 +44,7 @@ def create_demo():
             return web.json_response({'started':False,'demo':True})
         return await handler(request)
     app = web.Application(middlewares=[errors,fixture])
-    async def run(core,message,settings):
+    async def run(core,message,settings,owner=None):
         mid=message['id']; image=settings['mode']=='image'
         core.STORE.update(mid,kind='image' if image else 'chat',status='running',phase='正在生成' if image else '正在回答')
         try:
@@ -59,6 +59,9 @@ def create_demo():
                 core.STORE.update(mid,status='completed',finished=time.time(),phase='已完成')
         except asyncio.CancelledError:
             core.STORE.update(mid,status='stopped',phase='已停止',finished=time.time())
+        finally:
+            if owner is not None:
+                owner.close()
     lm_chat.run_turn = run
     core=install(app,'http://127.0.0.1:1',root/'demo.sqlite3',root/'input',root/'output')
     old=core.STORE.create('布局与排版示例')

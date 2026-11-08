@@ -27,7 +27,7 @@ Keep generated `index.html`, virtual environments, screenshots, runtime data and
 5. When the task authorizes merge, a subagent verifies the head and base, review findings and required checks, marks the PR ready and merges. Do not bypass repository rules. Same-account agent review must be described as such, not as a GitHub APPROVED review.
 6. For a release task, follow the [release policy](versioning.md). Otherwise leave the validated PR ready for the next authorized step.
 
-Pending PR #26 is a separate crash-recovery change with its own unresolved acceptance gates. Do not merge it or claim it ships merely because this documentation release succeeds.
+Historical PR #26 remains separate. The current recovery integration is independently reviewed against the current main branch; do not merge the historical PR or enable its CI workflow as a shortcut. Follow [generation recovery and coordinated upgrades](APP03_RECOVERY.md).
 
 ## Runtime boundaries
 

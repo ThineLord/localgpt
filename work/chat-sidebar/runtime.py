@@ -17,6 +17,7 @@ from media_lifecycle import MediaLifecycle
 from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
+import generation_ownership
 from history_metadata import install as install_history_metadata
 from projects import install as install_projects
 
@@ -114,7 +115,8 @@ def install(app, backend, database, input_root, output_root):
         # Probe this process's actual database, independently of model servers.
         with store.connect() as db:
             db.execute('SELECT count(*) FROM chats').fetchone()
-        return reply({'ready': True, 'service': 'hanzagent', 'database_ready': True,
+        recovery=generation_ownership.readiness(store)
+        return reply({**recovery, 'ready': recovery['generation_recovery_ready'], 'service': 'hanzagent', 'database_ready': True,
                       'database': str(path), 'output_directory': str(output_root)})
 
     @routes.get('/qwen-cn/chats')
@@ -241,8 +243,21 @@ def install(app, backend, database, input_root, output_root):
         task=lm_chat.CHAT_TASKS.get(mid)
         if task:
             task.cancel();await asyncio.gather(task,return_exceptions=True)
+        elif message['status'] in ('running','submitting') and message['kind'] != 'image':
+            recovery=generation_ownership.reconcile(store)
+            if store.message(mid)['status'] in ('running','submitting'):
+                if recovery['generation_recovery_state'] == 'busy':
+                    # The other upgraded entry point may own this live chat task.
+                    async with aiohttp.ClientSession() as session:
+                        try:
+                            async with session.post(backend+f'/qwen-cn/messages/{mid}/stop',json={},timeout=aiohttp.ClientTimeout(total=20)) as response:
+                                if response.status == 200:
+                                    return reply(await response.json())
+                        except (aiohttp.ClientError, asyncio.TimeoutError):
+                            pass
+                return reply({'requested':False, **recovery},409)
         elif message['status'] in ('running','submitting'):
-            # The existing backend owns image tasks and any older in-flight chat.
+            # The existing backend owns image tasks.
             async with aiohttp.ClientSession() as session:
                 async with session.post(backend+f'/qwen-cn/messages/{mid}/stop',json={}) as response:
                     if response.status>=400:raise ValueError('停止失败，请重试。')
@@ -288,6 +303,7 @@ def install(app, backend, database, input_root, output_root):
     install_history_metadata(store, routes, mutate, reply)
     app.add_routes(routes)
     async def cleanup(app):
+        generation_ownership.reconcile(store)
         yield
         tasks=list(lm_chat.CHAT_TASKS.values())
         for task in tasks:task.cancel()
@@ -301,7 +317,7 @@ async def errors(request,handler):
     try:return await handler(request)
     except (Conflict,MemoryConflict) as e:return web.json_response({'error':str(e)},status=409)
     except sqlite3.Error:
-        return web.json_response({'error':'本地数据库暂时不可用。数据未被重建，请重试或检查存储权限。', 'code':'database_unavailable'},status=503)
+        return web.json_response({'error':'本地数据库暂时不可用。数据未被重建，请重试或检查存储权限。', 'code':'database_unavailable', 'database_ready':False, 'generation_recovery_ready':False, 'generation_recovery_state':'unavailable'},status=503)
     except OSError:
         return web.json_response({'error':'本地文件操作未完成。记录已保留，请检查权限后重试。', 'code':'file_operation_failed'},status=503)
     except KeyError:return web.json_response({'error':'记录不存在或已删除。'},status=404)
