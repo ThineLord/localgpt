@@ -5,7 +5,7 @@ module.exports = async(page)=>{
   if(!(await(await api.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic demo required');
   const check=(v,m)=>{if(!v)throw Error(m);}, errors=[];page.on('pageerror',e=>errors.push(e.message));
   const json=async(method,path,data)=>{const r=await api[method](base+path,{data});check(r.ok(),`${method} ${path}: ${r.status()} ${await r.text()}`);return r.json();};
-  await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.locator('#prompt').waitFor();
+  await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#prompt').waitFor();
   await page.locator('#newChat').click();await page.locator('#modelMenuTrigger').click();await page.locator('#modelMenu [data-value=image]').click();
   await page.locator('#prompt').fill('Synthetic Round4 deletion fixture');await page.locator('#prompt').press('Enter');
   await page.locator('#cancel').waitFor({state:'visible'});await page.locator('#cancel').waitFor({state:'hidden',timeout:15000});
@@ -16,7 +16,7 @@ module.exports = async(page)=>{
   await page.locator('#galleryNav').click();await page.locator('.gallery-card').first().click();
   await page.locator('#galleryDelete').click();await page.locator('#confirmDialog').waitFor({state:'visible'});await page.screenshot({path:(process.env.LOCALGPT_TEST_OUTPUT + '/image-trash-confirm.png')});await page.locator('#confirmAccept').click();await page.locator('#confirmDialog').waitFor({state:'hidden'});
   check((await api.get(url)).ok(),'Trash removed file');check((await json('get','/qwen-cn/chats/'+chatId)).messages.at(-1).image,'Trash removed chat reference');
-  await page.goto(base+'/qwen-cn/#trash');await page.locator('#imageTrashList .trash-row').first().waitFor();await page.screenshot({path:(process.env.LOCALGPT_TEST_OUTPUT + '/image-trash.png')});
+  await page.goto(base+'/qwen-cn/#trash');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#imageTrashList .trash-row').first().waitFor();await page.screenshot({path:(process.env.LOCALGPT_TEST_OUTPUT + '/image-trash.png')});
   const row=page.locator(`[data-media-id="${message.id}"]`);await row.getByRole('button',{name:'恢复',exact:true}).click();await row.waitFor({state:'hidden'});
   await json('delete','/qwen-cn/gallery/'+message.id,{confirm:true});
   const other=await json('post','/qwen-cn/chats',{title:'Synthetic shared reference'});
@@ -26,7 +26,7 @@ module.exports = async(page)=>{
   const remote=await json('get','/qwen-cn/chats/'+other.id);await json('patch','/qwen-cn/chats/'+other.id,{version:remote.draft_version,draft:{}});
   await row.getByRole('button',{name:'永久删除',exact:true}).click();await page.locator('#confirmAccept').click();await page.locator('#confirmDialog').waitFor({state:'hidden'});
   check((await api.get(url)).status()===404,'Original file survived permanent delete');check(!(await json('get','/qwen-cn/chats/'+chatId)).messages.at(-1).image,'Deleted image reference survived');
-  await page.goto(base+'/qwen-cn/');await page.locator('#newChat').click();
+  await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#newChat').click();
   await page.locator('#file').setInputFiles({name:'synthetic.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=','base64')});
   await page.locator('#reference').waitFor({state:'visible'});
   const uploads=await json('get','/qwen-cn/uploads');check(uploads.items.length>0,'Upload not registered');const uploaded=uploads.items.at(-1);

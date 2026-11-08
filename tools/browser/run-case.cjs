@@ -12,6 +12,7 @@ const { chromium } = require('playwright');
   page.on('pageerror', e => errors.push(e.message));
   try {
     await page.goto(process.env.LOCALGPT_TEST_BASE + '/qwen-cn/');
+    await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
     const result = await require(file)(page);
     if (errors.length) throw Error('Uncaught browser errors: ' + errors.join('; '));
     console.log(JSON.stringify({status:'PASS', result}));

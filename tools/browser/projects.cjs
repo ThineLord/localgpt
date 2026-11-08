@@ -7,7 +7,7 @@ module.exports = async page => {
   const health=await (await page.request.get(base+'/qwen-cn/health')).json();
   assert.equal(health.database,path.join(process.env.LOCALGPT_FIXTURE_ROOT,'fixture.sqlite3'));
   await page.addInitScript(()=>{localStorage.setItem('qwen-studio-language','zh');localStorage.setItem('qwen-studio-sidebar','open');});
-  await page.goto(base+'/qwen-cn/#projects');
+  await page.goto(base+'/qwen-cn/#projects');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.getByRole('button',{name:'新建项目',exact:true}).last().click();
   await page.getByRole('textbox',{name:'项目名称',exact:true}).fill('合成项目 · 版本验收');
   await page.getByRole('combobox',{name:'记忆范围'}).selectOption('project-only');

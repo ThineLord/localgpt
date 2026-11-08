@@ -2,7 +2,7 @@
 // Playwright run-code function. Synthetic port 8193 only; recovery receipt is mocked.
 module.exports = async(page)=>{
  const base=process.env.LOCALGPT_TEST_BASE;if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic only');
- const check=(x,m)=>{if(!x)throw Error(m);};await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.evaluate(()=>localStorage.setItem('qwen-studio-language','zh'));await page.reload();await page.locator('#prompt').waitFor();
+ const check=(x,m)=>{if(!x)throw Error(m);};await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.evaluate(()=>localStorage.setItem('qwen-studio-language','zh'));await page.reload();await page.locator('#prompt').waitFor();
  const open=async()=>{await page.locator('#profileButton').click();await page.locator('#appSettings').click();};
  await open();await page.locator('#language').click();check((await page.locator('[data-settings-section=about]').textContent()).trim()==='About','Injected About label did not translate');check((await page.locator('#settingsPanelDiagnostics > h3').textContent()).includes('Local services'),'Injected diagnostic title did not translate');
  await page.locator('[data-settings-section=diagnostics]').click();check((await page.locator('#manageReferenceFiles').textContent()).includes('Manage uploaded'),'Upload controls did not translate');

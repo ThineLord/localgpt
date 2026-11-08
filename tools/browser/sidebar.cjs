@@ -131,7 +131,7 @@ async function main() {
   const results = [];
   try {
     for (const theme of ["light", "dark"]) {
-      await page.goto(base + "/qwen-cn/");
+      await page.goto(base + "/qwen-cn/");await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
       await page.evaluate((value) => {
         localStorage.setItem("qwen-studio-theme", value);
         localStorage.setItem("qwen-studio-sidebar", "closed");
@@ -394,7 +394,7 @@ async function main() {
       const settingsBox = { x: hierarchy.pageX };
       surfaces.settings = settings;
 
-      await page.goto(base + "/qwen-cn/");
+      await page.goto(base + "/qwen-cn/");await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
       await page.locator("#prompt").waitFor();
       await settle(page, "pinned");
       const restored = await readPlane(page);
@@ -470,7 +470,7 @@ async function main() {
       });
     }
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(base + "/qwen-cn/");
+    await page.goto(base + "/qwen-cn/");await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
     await page.evaluate(() => {
       localStorage.setItem("qwen-studio-theme", "dark");
       localStorage.setItem("qwen-studio-sidebar", "closed");

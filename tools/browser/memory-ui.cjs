@@ -43,7 +43,7 @@ async function main() {
     localStorage.setItem("qwen-studio-language", "zh");
     localStorage.setItem("qwen-studio-sidebar", "open");
   });
-  await page.goto(base + "/qwen-cn/", { waitUntil: "domcontentloaded" });
+  await page.goto(base + "/qwen-cn/", { waitUntil: "domcontentloaded" });await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.locator("#prompt").waitFor();
   await page.waitForFunction(
     () => document.getElementById("retryConnection")?.hidden !== false,
@@ -60,6 +60,7 @@ async function main() {
   };
 
   async function openSettings() {
+    await page.waitForFunction(() => typeof appReady !== "undefined" && appReady);
     const open = await page.evaluate(() => document.getElementById("preferencesDialog").open);
     if (open) return;
     if (!(await page.locator("#profileButton").isVisible())) {
@@ -299,7 +300,7 @@ async function main() {
   check(listed.preferences.enabled === true, "re-enable did not persist");
   check(listed.items.some((item) => item.content === pausedEdit), "re-enable dropped saved rows");
 
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "domcontentloaded" });await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.locator("#prompt").waitFor();
   await openManager();
   await page.locator("#memoryList").getByText(pausedEdit, { exact: true }).waitFor();

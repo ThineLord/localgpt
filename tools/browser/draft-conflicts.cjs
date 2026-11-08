@@ -5,7 +5,7 @@ module.exports = async page=>{
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic only');
  const check=(x,m)=>{if(!x)throw Error(m);};
  const count=async()=>(await(await page.request.get(base+'/qwen-cn/chats')).json()).length;
- await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.locator('#intro').waitFor({state:'visible'});
+ await page.setViewportSize({width:1440,height:900});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#intro').waitFor({state:'visible'});
  const before=await count();
  await page.locator('#upload').click();await page.locator('#attach-image-mode').click();
  await page.waitForFunction(()=>!dirty&&!saving);
@@ -15,7 +15,7 @@ module.exports = async page=>{
  check(await count()===before,'Cleared transient input created an empty chat');
  const receipts=[];
  for(const keep of [false,true]){
-  await page.goto(base+'/qwen-cn/');await page.locator('#intro').waitFor({state:'visible'});
+  await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#intro').waitFor({state:'visible'});
   let failed=0;
   await page.route('**/qwen-cn/chats/*',async route=>{
    if(route.request().method()==='PATCH'){failed++;await route.fulfill({status:503,contentType:'application/json',body:'{"error":"Synthetic failed draft save"}'});}else await route.continue();

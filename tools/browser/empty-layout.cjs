@@ -5,7 +5,7 @@ module.exports = async(page)=>{
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic demo required');
  const result=[];
  for(const [width,height] of [[1440,900],[1280,800],[390,844]])for(const theme of ['light','dark']){
-  await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');await page.evaluate(t=>{localStorage.setItem('qwen-studio-sidebar','closed');localStorage.setItem('qwen-studio-theme',t);},theme);await page.reload();if(await page.locator('#headerNewChat').isVisible())await page.locator('#headerNewChat').click();await page.locator('#intro').waitFor({state:'visible'});
+  await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.evaluate(t=>{localStorage.setItem('qwen-studio-sidebar','closed');localStorage.setItem('qwen-studio-theme',t);},theme);await page.reload();if(await page.locator('#headerNewChat').isVisible())await page.locator('#headerNewChat').click();await page.locator('#intro').waitFor({state:'visible'});
   const intro=await page.locator('#intro').boundingBox(),composer=await page.locator('#composerCard').boundingBox();
   const padding=await page.locator('#intro').evaluate(e=>parseFloat(getComputedStyle(e).paddingTop));
   if(Math.abs(padding-Math.max(152,height*.4-(width<=760?20:72)))>.1)throw Error('Empty heading position');

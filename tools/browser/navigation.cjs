@@ -5,7 +5,7 @@ module.exports = async(page)=>{
  const errors=[],results=[];page.on('pageerror',e=>errors.push(e.message));const check=(x,m)=>{if(!x)throw Error(m)};
  const chats=await(await page.request.get(base+'/qwen-cn/chats')).json();const long=chats.find(c=>c.title==='Synthetic long conversation');
  for(const [width,height] of [[1440,900],[1280,800],[390,844]])for(const theme of ['light','dark']){
-  await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');
+  await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.evaluate(t=>{localStorage.setItem('qwen-studio-theme',t);localStorage.setItem('qwen-studio-sidebar','closed');},theme);await page.reload();
   await page.waitForFunction(()=>document.getElementById('connection').dataset.state==='online');
   check(await page.locator('#headerNewChat').isHidden(),'Empty page new button');
@@ -13,7 +13,7 @@ module.exports = async(page)=>{
   const count=async()=>(await(await page.request.get(base+'/qwen-cn/chats')).json()).length;const n=await count();
   if(width<=760)await page.locator('#mobileMenu').click();
   await page.locator('#homeNav').click();check(await count()===n,'Empty Home created DB row');
-  await page.goto(base+'/qwen-cn/#chat='+long.id);await page.locator('.user-message').first().waitFor();
+  await page.goto(base+'/qwen-cn/#chat='+long.id);await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('.user-message').first().waitFor();
   check(await page.locator('#headerNewChat').isVisible(),'Populated page missing new button');
   await page.screenshot({path:out+`after-${width}-${theme}-chat.png`});
   if(width>760){

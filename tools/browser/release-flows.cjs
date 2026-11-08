@@ -44,7 +44,7 @@ module.exports = async page => {
   await page.keyboard.press('Escape');
   for (const width of [1440,390]) {
     await page.setViewportSize({width,height:900});
-    await page.goto(base+'/qwen-cn/');
+    await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
     if(!await page.locator('#profileButton').isVisible()) await page.locator('#mobileMenu').click();
     await page.locator('#profileButton').click();await page.locator('#profileAbout').click();
     await page.locator('#settingsBuildIdentity').waitFor({state:'visible'});
@@ -57,6 +57,19 @@ module.exports = async page => {
     await page.waitForFunction(()=>document.getElementById('settingsLMStatus').textContent==='模拟服务');
     assert.equal(await page.locator('#settingsComfyStatus').innerText(),'模拟服务');
     await page.screenshot({path:path.join(out,`diagnostics-${width}.png`)});
+    // One failed endpoint must not hide successful results from the other.
+    await page.route('**/qwen-cn/health', route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"Synthetic database unavailable"}'}));
+    await page.locator('#settingsDiagnosticsRefresh').click();
+    await page.waitForFunction(()=>document.getElementById('settingsDiagnosticsResult').textContent.includes('应用状态检查失败'));
+    assert.equal(await page.locator('#settingsLMStatus').innerText(),'模拟服务');
+    await page.unroute('**/qwen-cn/health');
+    await page.route('**/qwen-cn/diagnostics', route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"Synthetic diagnostics failure"}'}));
+    await page.locator('#settingsDiagnosticsRefresh').click();
+    await page.waitForFunction(()=>document.getElementById('settingsDiagnosticsResult').textContent.includes('模型服务检查失败'));
+    assert.match(await page.locator('#settingsDiagnosticsResult').innerText(),/应用数据库可用/);
+    assert.equal(await page.locator('#settingsLMStatus').innerText(),'—');
+    await page.unroute('**/qwen-cn/diagnostics');
+
   }
   return {chatStopRetry:true,pngPreviewDownload:true,buildIdentity:true,diagnostics:[1440,390],syntheticOnly:true};
 };

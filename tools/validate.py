@@ -38,6 +38,12 @@ def stop(process):
             return True
         except ProcessLookupError:
             return False
+        except PermissionError:
+            # Darwin can report EPERM as a group becomes zombie-only. Verify
+            # there are no live members instead of hiding a real cleanup denial.
+            rows = subprocess.check_output(['ps', '-axo', 'pgid=,stat='], text=True).splitlines()
+            return any(len(parts) == 2 and parts[0] == str(process.pid) and not parts[1].startswith('Z')
+                       for parts in (row.split() for row in rows))
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
