@@ -4,6 +4,8 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
+- Show build version/commit and process-start identity; separately probe local model services on explicit diagnostic refresh.
+
 - Render and download demo images through the production image routes using labeled synthetic PNGs.
 
 - Recover interrupted chat generations with shared POSIX ownership across the UI and ComfyUI writers; preserve partial answers and request identity. Unknown legacy ownership remains blocked.

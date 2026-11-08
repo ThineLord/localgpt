@@ -1757,6 +1757,7 @@ async function init() {
     } catch {}
     setSidebar(desktopPinned && innerWidth > 760);
     const health = await request("/qwen-cn/health");
+    dispatchEvent(new CustomEvent("hanz-health", {detail:health}));
     if ($("databasePath")) $("databasePath").title = health.database || "";
     if ($("settingsDatabasePathDisplay")) $("settingsDatabasePathDisplay").textContent = health.database || "";
     chats = await request("/qwen-cn/chats");

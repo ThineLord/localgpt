@@ -1,12 +1,27 @@
 """Build the dependency-free single-file page used by the ComfyUI extension."""
 from pathlib import Path
 import argparse
+import re
+import subprocess
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent
 
 def build(check=False):
     template = (ROOT / 'template.html').read_text()
+    version = (ROOT.parent.parent / 'VERSION.txt').read_text().strip()
+    assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Invalid VERSION.txt'
+    sha, dirty = 'unknown', 'unknown'
+    try:
+        repo = ROOT.parent.parent
+        owner = Path(subprocess.check_output(['git', '-C', str(repo), 'rev-parse', '--show-toplevel'], stderr=subprocess.DEVNULL, text=True).strip()).resolve()
+        if owner == repo.resolve():
+            sha = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+            dirty = str(bool(subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain', '--untracked-files=no'], text=True).strip())).lower()
+    except (OSError, subprocess.CalledProcessError):
+        pass  # Source archives have a version but no provable Git commit.
+    identity = f'<meta name="localgpt-version" content="{version}" />\n    <meta name="localgpt-build-sha" content="{sha}" />\n    <meta name="localgpt-build-dirty" content="{dirty}" />'
+    template = template.replace('<!-- LOCALGPT_BUILD -->', identity)
     mark = (ROOT.parent.parent / 'assets' / 'localgpt-mark.svg').read_text()
     template = template.replace('<!-- HANZ_FAVICON -->', '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,' + quote(mark, safe='') + '" />')
     styles = '\n'.join((ROOT / name).read_text() for name in ('studio.css', 'message-actions.css', 'gallery-ui.css', 'atelier.css', 'liquid-layers.css', 'settings-memory.css', 'local-profile.css', 'projects.css'))
