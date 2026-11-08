@@ -4,15 +4,28 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
-- Add a pinned, one-command synthetic acceptance suite with isolated fixtures and machine-readable evidence; archive obsolete Round browser scripts with a coverage map.
+## [0.2.0] - 2026-11-09
 
-- Show build version/commit and process-start identity; separately probe local model services on explicit diagnostic refresh.
-- Cache project source chunks/terms in SQLite and retrieve off the event loop; add scope, rebuild, rollback and performance regression checks.
-- Return keyboard focus to the memory-manager trigger after closing its dialog, while keeping Settings open.
+### Fixed
 
-- Render and download demo images through the production image routes using labeled synthetic PNGs.
+- Recover recognized abandoned chat/routing generations using shared POSIX ownership. Preserve partial output and request identity; never replay model calls or clear unknown legacy owners.
+- Generate clearly labeled synthetic PNGs through production preview/download routes. Production SVG rejection is unchanged.
+- Restore focus to the Memory settings trigger when closing its nested dialog.
+- Publish chat completion after asynchronous resource cleanup, avoiding a brief ownership conflict on the next send.
+- Keep extension diagnostics functional across cached package reloads and respect ComfyUI's configured port.
 
-- Recover interrupted chat generations with shared POSIX ownership across the UI and ComfyUI writers; preserve partial answers and request identity. Unknown legacy ownership remains blocked.
+### Added
+
+- About and health expose build version/commit and the running process's startup identity. Local diagnostics independently probe application health, LM Studio and ComfyUI without starting inference.
+- A pinned one-command synthetic acceptance runner, isolated fixtures, machine-readable results, per-case screenshots/video and an explicit historical-test coverage map.
+
+### Performance
+
+- Cache project source chunks and terms in SQLite; backfill existing sources lazily and retrieve off the event loop. Preserve project isolation, deletion/restore, budget semantics and cancellation.
+
+### Upgrade
+
+- Runtime release: upgrade both writers together on a local POSIX filesystem after quiescing work and taking a consistent backup. Additive ownership and derived index tables are not a license to mix old/new writers. See [English notes](docs/releases/0.2.0.md) / [中文说明](docs/releases/0.2.0.zh-CN.md).
 
 ## [0.1.0] - 2026-11-09
 
@@ -34,5 +47,7 @@ First versioned source baseline, based on the existing main application at `d452
 
 Application behavior and runtime paths are unchanged. Existing chat, image, projects and memory features form the baseline. Pending PR #26 recovery changes are excluded. Publishing this version does not install, restart or migrate a running application.
 
-[Unreleased]: https://github.com/ThineLord/localgpt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ThineLord/localgpt/compare/v0.2.0...HEAD
 [0.1.0]: https://github.com/ThineLord/localgpt/releases/tag/v0.1.0
+
+[0.2.0]: https://github.com/ThineLord/localgpt/releases/tag/v0.2.0

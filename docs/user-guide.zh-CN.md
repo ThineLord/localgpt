@@ -12,7 +12,7 @@
 
 1. 在仓库 `.venv` 中安装依赖，运行 `.venv/bin/python work/chat-sidebar/build.py` 构建页面。
 2. 在 `127.0.0.1:1234` 启动 LM Studio 本地服务器，并确保 `lms` 可用。既有默认文本模型是 `qwen3-8b`。
-3. 在 `127.0.0.1:8188` 启动装有 LocalGPT 扩展的 ComfyUI（旧安装名为 `qwen-local-app`）。扩展来自 `work/chat-sidebar/`：将 `backend.py` 安装为 `__init__.py`，配合 `storage.py`、`lm_chat.py`、`generation.py`、`generation_ownership.py`, `build_info.py`, `diagnostics.py` 和构建后的 `index.html`。安装或更新扩展是单独的本地维护操作，演示不会执行。
+3. 在 `127.0.0.1:8188` 启动装有 LocalGPT 扩展的 ComfyUI（旧安装名为 `qwen-local-app`）。扩展来自 `work/chat-sidebar/`：将 `backend.py` 安装为 `__init__.py`，配合 `storage.py`、`lm_chat.py`、`generation.py`、`generation_ownership.py`、`build_info.py`、`diagnostics.py` 和构建后的 `index.html`。安装或更新扩展是单独的本地维护操作，演示不会执行。
 4. 运行 `.venv/bin/python work/chat-sidebar/launch.py`，或在 macOS 双击 `Start LocalGPT.command`，打开 **http://127.0.0.1:8190/qwen-cn/**。启动器使 UI 独立于终端运行，并拒绝覆盖已占用的服务。前台调试可用 `.venv/bin/python work/chat-sidebar/serve.py`。
 
 首次启动需要运行 ComfyUI，以便通过 `/qwen-cn/health` 发现已有数据库和图像路径。发现后，ComfyUI 停止时仍可使用文本对话；图像生成仍需要 ComfyUI。LM Studio 和模型需另行安装。图像生成使用 `generation.py` 中指定的 Qwen Image 2.1 GGUF、Qwen3-VL 编码器、VAE，以及 `UnetLoaderGGUF`、`TextEncodeQwenImage21`、`QwenImage21Cache` 节点；仓库不分发这些模型。不要为了通过演示而修改模型名。
@@ -31,7 +31,7 @@
 
 安装时使用版本标签。已有安装升级前先阅读目标版本说明并检查本地修改；用 `git fetch origin --tags` 获取标签，仅在干净且不承载运行服务的 checkout 中切换版本。源码发布和服务升级是两件事。恢复数据前应单独安排维护，备份完整数据并停止所有写入端；产生新活动后，不要直接用旧备份覆盖当前数据。
 
-下一个运行版本加入升级后写入端创建的中断对话任务恢复：保留部分回答，用户显式重试，不自动重放模型调用。UI 与 ComfyUI 扩展必须一起升级，并包含 `generation_ownership.py`, `build_info.py`, `diagnostics.py`。旧版所有权未知的任务仍需专门维护，不要手工删除数据库记录或生成锁文件。详见[恢复与升级要求](APP03_RECOVERY.md)。0.1.0 标签本身仍是之前的文档基线。
+0.2.0 版本加入升级后写入端创建的中断对话任务恢复：保留部分回答，用户显式重试，不自动重放模型调用。UI 与 ComfyUI 扩展必须一起升级，并包含 `generation_ownership.py`、`build_info.py`、`diagnostics.py`。旧版所有权未知的任务仍需专门维护，不要手工删除数据库记录或生成锁文件。详见[恢复与升级要求](APP03_RECOVERY.md)。0.1.0 标签本身仍是之前的文档基线。
 
 ## 常见问题
 

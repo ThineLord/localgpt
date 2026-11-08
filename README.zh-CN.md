@@ -16,7 +16,7 @@ LocalGPT 将 LM Studio 文本对话和 ComfyUI 图像工具整合到一个浏览
 ```sh
 git clone https://github.com/ThineLord/localgpt.git
 cd localgpt
-git checkout v0.1.0
+git checkout v0.2.0
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python work/chat-sidebar/build.py
@@ -51,10 +51,10 @@ localgpt/
 
 ## 版本与文档
 
-当前版本：**0.1.0**。这是现有应用首次采用版本管理的基线，主要整理仓库和文档；没有新增推理功能，也不会自动部署到已有安装。
+当前版本：**0.2.0**。本版加入中断对话恢复、项目检索索引、PNG 演示、可见版本信息与一键验收。已有安装升级前请阅读协调升级说明。
 
 - [用户指南](docs/user-guide.zh-CN.md) · [Agent 指南](docs/agent-guide.zh-CN.md)
-- [版本说明](docs/releases/0.1.0.zh-CN.md) · [更新记录](CHANGELOG.md) · [GitHub Releases](https://github.com/ThineLord/localgpt/releases)
+- [版本说明](docs/releases/0.2.0.zh-CN.md) · [更新记录](CHANGELOG.md) · [GitHub Releases](https://github.com/ThineLord/localgpt/releases)
 - [版本与发布规则](docs/versioning.md) · [验证方法](docs/testing.md)
 - [文档目录](docs/README.md)
 

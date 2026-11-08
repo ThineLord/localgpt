@@ -31,7 +31,7 @@ The existing SQLite database, uploads/output, project-memory directory, avatar d
 
 Use a release tag when installing. For an existing installation, first read the target release notes and inspect local changes. Fetch tags with `git fetch origin --tags`; switch versions only in a clean, inactive checkout. Installing a source release and upgrading a running service are separate operations. Back up the full data set and stop all writers before any separately planned data restoration. Do not overwrite current data with an older backup after new activity.
 
-The upcoming runtime release adds recovery for interrupted chat tasks created by upgraded writers. Partial answers remain visible and Retry is explicit; no model call is replayed automatically. Upgrade the UI and ComfyUI extension together, including `generation_ownership.py`, `build_info.py`, `diagnostics.py`. Unknown legacy tasks stay blocked for deliberate maintenance; do not delete database rows or the generation lock manually. See [recovery and upgrade requirements](APP03_RECOVERY.md). Version 0.1.0 itself remains the earlier documentation-only baseline.
+Version 0.2.0 adds recovery for interrupted chat tasks created by upgraded writers. Partial answers remain visible and Retry is explicit; no model call is replayed automatically. Upgrade the UI and ComfyUI extension together, including `generation_ownership.py`, `build_info.py`, `diagnostics.py`. Unknown legacy tasks stay blocked for deliberate maintenance; do not delete database rows or the generation lock manually. See [recovery and upgrade requirements](APP03_RECOVERY.md). Version 0.1.0 itself remains the earlier documentation-only baseline.
 
 ## Troubleshooting
 
