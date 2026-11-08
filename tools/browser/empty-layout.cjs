@@ -11,7 +11,7 @@ module.exports = async(page)=>{
   if(Math.abs(padding-Math.max(152,height*.4-(width<=760?20:72)))>.1)throw Error('Empty heading position');
   if(width>760&&Math.abs(composer.y-(height*.4+18))>.1)throw Error('Empty composer moved from reference position');
   if(await page.locator('#chatTitle').isVisible())throw Error('Header title returned');
-  await page.screenshot({path:`output/playwright/round5/after-${width}-${theme}-empty.png`,scale:'css'});result.push({width,theme,intro,composer});
+  await page.screenshot({path:`${process.env.LOCALGPT_TEST_OUTPUT}/after-${width}-${theme}-empty.png`,scale:'css'});result.push({width,theme,intro,composer});
  }
  return {result};
 }

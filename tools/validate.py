@@ -29,16 +29,27 @@ STANDALONE = {'memory-api', 'memory-ui', 'sidebar'}
 
 
 def stop(process):
-    # The owned group can still contain a browser after its Node parent exits.
+    # Own the entire session, including a browser whose Node parent has exited.
+    def group_exists():
+        try:
+            os.killpg(process.pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
         pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.wait()
+    deadline = time.monotonic() + 2
+    while group_exists() and time.monotonic() < deadline:
+        process.poll()  # Reap the parent; descendants may still hold the group.
+        time.sleep(.05)
+    if group_exists():
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait()
 
 
 def available_port():
@@ -59,6 +70,7 @@ def fixture(kind, output, env):
         if kind == 'projects':
             args += ['--root', temporary]
         process = subprocess.Popen(args, cwd=ROOT, env=child_env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        (output/'server.json').write_text(json.dumps({'pid':process.pid,'base':base,'synthetic_only':True}))
         try:
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
