@@ -48,7 +48,7 @@ an explicit message. OCR, image understanding of project sources, spreadsheets,
 remote URL fetches, connected cloud drives and collaborative sharing are not
 implemented. Existing chat image attachments and ComfyUI remain separate flows.
 
-Retrieval uses lexical overlap (including Chinese bigrams), with bounded chunks
+Retrieval uses a cached SQLite lexical index (including Chinese bigrams), with bounded chunks
 and at most eight excerpts within a roughly 2,200-token reference budget. Related
 chats consider the latest 150 completed text turns. This is not an embedding index
 or exhaustive recall of every file and past chat. The complete request reserves
@@ -57,12 +57,14 @@ the app's 8,192-token budget. Overlong inputs/instructions receive a clear error
 Model citation quality and resistance to instructions inside sources are not
 guaranteed; the UI badge records the actual injected references independently.
 
+Source chunks and distinct terms are indexed when imported. Existing sources are indexed lazily on their first retrieval, without changing their bytes or text. Soft removal and project scope are checked on every query; restoring a source reuses its index. Retrieval and legacy indexing run in a worker thread so the application event loop remains responsive. The additive `project_source_chunks`, `project_source_terms` and `project_source_index` tables contain rebuildable derived data; they require no external indexing service.
+
 Project context currently applies to text-model responses. Image prompts continue
 through the existing ComfyUI pipeline without silently changing workflow settings.
 
 ## Storage and compatibility
 
-`project_store.py` adds four tables beside the existing chats. Existing table
+`project_store.py` adds four core tables plus three rebuildable index tables beside the existing chats. Existing table
 schemas, identifiers, transcripts and draft versions are not rewritten by chat
 membership changes. Project edits and moves use version checks; project trash and
 restore are transactions. Source bytes live in SQLite and soft removal preserves

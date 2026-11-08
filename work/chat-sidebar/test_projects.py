@@ -1,5 +1,8 @@
 """Projects acceptance with disposable SQLite and captured local-model requests."""
 import io
+import asyncio
+import threading
+from unittest.mock import patch
 import json
 import sqlite3
 import tempfile
@@ -174,6 +177,45 @@ class ProjectRuntimeTests(unittest.IsolatedAsyncioTestCase):
     asyncSetUp = fixtures.RuntimeTests.asyncSetUp
     asyncTearDown = fixtures.RuntimeTests.asyncTearDown
     send = fixtures.RuntimeTests.send
+
+    async def test_stop_during_retrieval_releases_owner_without_late_model_call(self):
+        project = await (await self.client.post('/qwen-cn/projects', json={'name': 'Stop retrieval'})).json()
+        chat = await (await self.client.post('/qwen-cn/chats', json={'project_id': project['id']})).json()
+        started, release, finished = threading.Event(), threading.Event(), threading.Event()
+        original = ProjectStore.context
+        def delayed(store, *args, **kwargs):
+            started.set()
+            try:
+                release.wait(5)
+                return original(store, *args, **kwargs)
+            finally:
+                finished.set()
+        with patch.object(ProjectStore, 'context', delayed):
+            response = await self.client.post('/qwen-cn/chats/'+chat['id']+'/send', json={'prompt':'Blocked retrieval', 'mode':'chat', 'request_key':'stop-retrieval'})
+            self.assertEqual(response.status, 202)
+            message = await response.json()
+            try:
+                for _ in range(200):
+                    if started.is_set(): break
+                    await asyncio.sleep(.005)
+                self.assertTrue(started.is_set())
+                stop = await self.client.post('/qwen-cn/messages/'+message['id']+'/stop', json={})
+                self.assertEqual(stop.status, 200)
+                self.assertEqual(self.payloads, [])
+                # A new plain chat can own the generation while the old worker drains.
+                plain = await (await self.client.post('/qwen-cn/chats', json={})).json()
+                # Plain-chat context also visits context(), so unblock for the new request.
+                release.set()
+                await self.send(plain, 'New request after stop', 'after-retrieval-stop')
+                for _ in range(200):
+                    if finished.is_set(): break
+                    await asyncio.sleep(.005)
+                self.assertTrue(finished.is_set())
+                self.assertEqual(len(self.payloads), 1)
+                final = await (await self.client.get('/qwen-cn/chats/'+chat['id'])).json()
+                self.assertEqual(next(m for m in final['messages'] if m['id']==message['id'])['status'], 'stopped')
+            finally:
+                release.set()
 
     async def test_model_receives_project_instructions_files_and_related_chats(self):
         project = await (await self.client.post('/qwen-cn/projects', json={'name': 'Alpha', 'instructions': 'Answer in short English sentences.'})).json()
