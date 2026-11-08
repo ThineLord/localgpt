@@ -6,7 +6,7 @@ module.exports = async(page)=>{
  const chats=await(await page.request.get(base+'/qwen-cn/chats')).json();const long=chats.find(c=>c.title==='Synthetic long conversation');
  for(const [width,height] of [[1440,900],[1280,800],[390,844]])for(const theme of ['light','dark']){
   await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
-  await page.evaluate(t=>{localStorage.setItem('qwen-studio-theme',t);localStorage.setItem('qwen-studio-sidebar','closed');},theme);await page.reload();
+  await page.evaluate(t=>{localStorage.setItem('qwen-studio-theme',t);localStorage.setItem('qwen-studio-sidebar','closed');},theme);await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.waitForFunction(()=>document.getElementById('connection').dataset.state==='online');
   check(await page.locator('#headerNewChat').isHidden(),'Empty page new button');
   await page.screenshot({path:out+`after-${width}-${theme}-empty.png`});

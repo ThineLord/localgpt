@@ -21,7 +21,7 @@ module.exports = async(page)=>{
   await json('delete','/qwen-cn/gallery/'+message.id,{confirm:true});
   const other=await json('post','/qwen-cn/chats',{title:'Synthetic shared reference'});
   await json('patch','/qwen-cn/chats/'+other.id,{version:0,draft:{reference:image,prompt:'Synthetic shared draft'}});
-  await page.reload();await row.getByRole('button',{name:'永久删除',exact:true}).click();await page.locator('#confirmAccept').click();await page.locator('#confirmError').waitFor({state:'visible'});
+  await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await row.getByRole('button',{name:'永久删除',exact:true}).click();await page.locator('#confirmAccept').click();await page.locator('#confirmError').waitFor({state:'visible'});
   check((await api.get(url)).ok(),'Shared file deleted');await page.screenshot({path:(process.env.LOCALGPT_TEST_OUTPUT + '/shared-image-blocked.png')});await page.locator('#confirmCancel').click();
   const remote=await json('get','/qwen-cn/chats/'+other.id);await json('patch','/qwen-cn/chats/'+other.id,{version:remote.draft_version,draft:{}});
   await row.getByRole('button',{name:'永久删除',exact:true}).click();await page.locator('#confirmAccept').click();await page.locator('#confirmDialog').waitFor({state:'hidden'});

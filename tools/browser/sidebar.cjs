@@ -136,7 +136,7 @@ async function main() {
         localStorage.setItem("qwen-studio-theme", value);
         localStorage.setItem("qwen-studio-sidebar", "closed");
       }, theme);
-      await page.reload();
+      await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
       await page.locator("#prompt").waitFor();
       check(
         (await page.evaluate(() => document.documentElement.dataset.theme)) === theme,
@@ -475,7 +475,7 @@ async function main() {
       localStorage.setItem("qwen-studio-theme", "dark");
       localStorage.setItem("qwen-studio-sidebar", "closed");
     });
-    await page.reload();
+    await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
     await page.locator("#prompt").waitFor();
     await page.locator("#mobileMenu").click();
     await page.locator("#profileButton").click();

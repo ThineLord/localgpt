@@ -6,7 +6,7 @@ module.exports = async page => {
   const health = await (await page.request.get(base+'/qwen-cn/health')).json();
   assert.equal(health.demo, true);
   await page.addInitScript(()=>{localStorage.setItem('qwen-studio-language','zh');localStorage.setItem('qwen-studio-sidebar','open');});
-  await page.reload();
+  await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.locator('#prompt').fill('合成演示：请展示新的本地聊天流程。');
   await page.locator('#modelMenuTrigger').click();
   await page.locator('#modelMenu [data-value="chat"]').click();

@@ -7,7 +7,7 @@ module.exports = async(page)=>{
  const state=s=>page.waitForFunction(s=>document.querySelector('#sidebar').dataset.state===s,s);
  for(const [width,height]of[[1440,900],[1280,800],[390,844]])for(const theme of ['light','dark']){
   await page.setViewportSize({width,height});await page.goto(base+'/qwen-cn/');await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
-  await page.evaluate(t=>{localStorage.setItem('qwen-studio-theme',t);localStorage.setItem('qwen-studio-sidebar','closed');},theme);await page.reload();await page.locator('#prompt').waitFor();
+  await page.evaluate(t=>{localStorage.setItem('qwen-studio-theme',t);localStorage.setItem('qwen-studio-sidebar','closed');},theme);await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#prompt').waitFor();
   const chats=await(await page.request.get(base+'/qwen-cn/chats')).json();
   await page.goto(base+'/qwen-cn/#chat='+chats.find(c=>c.title==='Synthetic long conversation').id);await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('.user-message').first().waitFor();
   await page.locator('#chatScroll').evaluate(e=>e.scrollTop=300);await page.mouse.move(width-40,400);

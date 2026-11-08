@@ -39,7 +39,7 @@ module.exports = async page => {
   const payload=JSON.parse(fs.readFileSync(path.join(process.env.LOCALGPT_FIXTURE_ROOT,'last-model-request.json'),'utf8'));
   assert.match(JSON.stringify(payload.messages),/calibration budget is 452/);
   assert.match(payload.messages[0].content,/Synthetic project instruction/);
-  await page.reload();
+  await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);
   await page.getByText('Synthetic UI fixture — not a model-generated answer.',{exact:false}).first().waitFor();
   await page.screenshot({path:path.join(out,'project-chat.png')});
   await page.setViewportSize({width:390,height:844});

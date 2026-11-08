@@ -27,10 +27,10 @@ module.exports = async page=>{
   const original=await(await page.request.get(base+'/qwen-cn/chats/'+id)).json();
   const remoteDraft={...original.draft,prompt:'Newer remote draft '+keep};
   const remote=await page.request.patch(base+'/qwen-cn/chats/'+id,{data:{version:original.draft_version,draft:remoteDraft}});check(remote.ok(),'Remote edit setup failed');
-  await page.unroute('**/qwen-cn/chats/*');await page.reload();await page.locator('#draftConflict').waitFor({state:'visible'});
+  await page.unroute('**/qwen-cn/chats/*');await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#draftConflict').waitFor({state:'visible'});
   check(await page.locator('#prompt').inputValue()==='Local recovery '+keep,'Local input was lost');
   await page.locator('#prompt').fill('Local recovery edited '+keep);
-  await page.reload();await page.locator('#draftConflict').waitFor({state:'visible'});
+  await page.reload();await page.waitForFunction(() => typeof appReady !== 'undefined' && appReady);await page.locator('#draftConflict').waitFor({state:'visible'});
   check(await page.locator('#prompt').inputValue()==='Local recovery edited '+keep,'Repeated recovery lost edits');
   const unchanged=await(await page.request.get(base+'/qwen-cn/chats/'+id)).json();
   check(unchanged.draft.prompt===remoteDraft.prompt,'Recovery silently overwrote newer remote content');
