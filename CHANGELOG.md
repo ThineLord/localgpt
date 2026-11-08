@@ -5,6 +5,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 ## [Unreleased]
 
 - Show build version/commit and process-start identity; separately probe local model services on explicit diagnostic refresh.
+- Cache project source chunks/terms in SQLite and retrieve off the event loop; add scope, rebuild, rollback and performance regression checks.
 - Return keyboard focus to the memory-manager trigger after closing its dialog, while keeping Settings open.
 
 - Render and download demo images through the production image routes using labeled synthetic PNGs.

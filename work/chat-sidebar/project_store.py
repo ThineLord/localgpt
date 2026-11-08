@@ -3,6 +3,7 @@
 Existing chats/messages are never copied or re-keyed. All membership and project
 trash operations are transactional; removal is recoverable through restore.
 """
+import asyncio
 import hashlib
 import io
 import json
@@ -128,6 +129,16 @@ class ProjectStore:
                     sha256 TEXT NOT NULL,content BLOB NOT NULL,text TEXT NOT NULL,
                     created REAL NOT NULL,deleted_at REAL);
                 CREATE INDEX IF NOT EXISTS project_source_lookup ON project_sources(project_id,deleted_at);
+                CREATE TABLE IF NOT EXISTS project_source_chunks(
+                    id INTEGER PRIMARY KEY,source_id TEXT NOT NULL REFERENCES project_sources(id) ON DELETE CASCADE,
+                    offset INTEGER NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,offset));
+                CREATE TABLE IF NOT EXISTS project_source_terms(
+                    term TEXT NOT NULL,chunk_id INTEGER NOT NULL REFERENCES project_source_chunks(id) ON DELETE CASCADE,
+                    PRIMARY KEY(term,chunk_id)) WITHOUT ROWID;
+                CREATE INDEX IF NOT EXISTS project_terms_chunk ON project_source_terms(chunk_id);
+                CREATE TABLE IF NOT EXISTS project_source_index(
+                    source_id TEXT PRIMARY KEY REFERENCES project_sources(id) ON DELETE CASCADE,
+                    version INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS project_trash_chats(
                     chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
                     project_id TEXT NOT NULL REFERENCES projects(id),deleted_at REAL NOT NULL);
@@ -303,6 +314,7 @@ class ProjectStore:
             if db.execute('SELECT count(*) FROM project_sources WHERE project_id=? AND deleted_at IS NULL', (project_id,)).fetchone()[0] >= 100:
                 raise ValueError('每个项目最多 100 个来源。 / Maximum 100 sources per project.')
             db.execute('INSERT INTO project_sources(id,project_id,name,kind,mime,size,sha256,content,text,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (source_id, project_id, name, kind, mime, len(content), digest, content, text, time.time()))
+            self._index_source(db, source_id, name, text)
             db.execute('UPDATE projects SET updated=? WHERE id=?', (time.time(), project_id))
         return self.source(project_id, source_id)
 
@@ -354,17 +366,61 @@ class ProjectStore:
             path.chmod(0o600)
         return self._memories[project_id]
 
+    def _index_source(self, db, source_id, name, text):
+        # Derived data only. Source bytes/text remain authoritative and immutable.
+        db.execute('DELETE FROM project_source_chunks WHERE source_id=?', (source_id,))
+        for offset in range(0, len(text), 1000):
+            body = text[offset:offset + 1200]
+            chunk_id = db.execute('INSERT INTO project_source_chunks(source_id,offset,body) VALUES(?,?,?)',
+                                  (source_id, offset, body)).lastrowid
+            db.executemany('INSERT INTO project_source_terms(term,chunk_id) VALUES(?,?)',
+                           ((term, chunk_id) for term in terms(name + ' ' + body)))
+        db.execute('INSERT OR REPLACE INTO project_source_index VALUES(?,1)', (source_id,))
+
+    def _ensure_source_index(self, project_id):
+        # Lazy upgrade of existing sources. Recheck under the writer transaction
+        # so concurrent requests cannot duplicate/partially rebuild an index.
+        with self.store.connect() as db:
+            missing = [row[0] for row in db.execute("""SELECT s.id FROM project_sources s
+                LEFT JOIN project_source_index i ON i.source_id=s.id
+                WHERE s.project_id=? AND s.deleted_at IS NULL AND (i.version IS NULL OR i.version!=1)""", (project_id,))]
+        for source_id in missing:
+            with self.store.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                row = db.execute("""SELECT s.name,s.text FROM project_sources s
+                    LEFT JOIN project_source_index i ON i.source_id=s.id
+                    WHERE s.id=? AND s.project_id=? AND s.deleted_at IS NULL
+                    AND (i.version IS NULL OR i.version!=1)""", (source_id, project_id)).fetchone()
+                if row:
+                    self._index_source(db, source_id, row['name'], row['text'])
+
+    async def context_async(self, chat_id, query, budget=2200, include_history=True):
+        # SQLite connections are opened in the worker, never shared across threads.
+        return await asyncio.to_thread(self.context, chat_id, query, budget, include_history)
+
     def context(self, chat_id, query, budget=2200, include_history=True):
         project = self.for_chat(chat_id)
         if not project:
             return '', '', None
+        self._ensure_source_index(project['id'])
         query_terms, candidates = terms(query), []
         with self.store.connect() as db:
-            for source in db.execute('SELECT id,name,text FROM project_sources WHERE project_id=? AND deleted_at IS NULL ORDER BY created DESC', (project['id'],)):
-                for offset in range(0, len(source['text']), 1000):
-                    body = source['text'][offset:offset + 1200]
-                    score = len(query_terms & terms(source['name'] + ' ' + body))
-                    candidates.append((score + 1, 'source', source['id'], source['name'], body, offset))
+            db.execute('CREATE TEMP TABLE query_terms(term TEXT PRIMARY KEY) WITHOUT ROWID')
+            db.executemany('INSERT INTO query_terms VALUES(?)', ((term,) for term in query_terms))
+            # Sort lightweight metadata, then fetch bodies only when considering
+            # them for the budget. Later short chunks may fit when earlier ones do not.
+            rows = db.execute("""WITH hits AS (
+                SELECT t.chunk_id,count(*) AS score FROM query_terms q
+                JOIN project_source_terms t ON t.term=q.term
+                JOIN project_source_chunks c ON c.id=t.chunk_id
+                JOIN project_sources s ON s.id=c.source_id
+                WHERE s.project_id=? AND s.deleted_at IS NULL GROUP BY t.chunk_id
+            ) SELECT c.id,c.source_id,c.offset,s.name,s.created,COALESCE(h.score,0)+1 AS score
+                FROM project_source_chunks c JOIN project_sources s ON s.id=c.source_id
+                LEFT JOIN hits h ON h.chunk_id=c.id WHERE s.project_id=? AND s.deleted_at IS NULL
+                ORDER BY score DESC,s.created DESC,c.source_id,c.offset""", (project['id'], project['id']))
+            for row in rows:
+                candidates.append((row['score'], 'source', row['source_id'], row['name'], row['id'], row['offset']))
             for row in db.execute("SELECT m.id,m.chat_id,c.title,m.prompt,m.answer FROM messages m JOIN chats c ON c.id=m.chat_id JOIN project_chats pc ON pc.chat_id=c.id WHERE pc.project_id=? AND c.id!=? AND c.deleted_at IS NULL AND m.status='completed' AND m.kind='chat' ORDER BY m.created DESC LIMIT 150", (project['id'], chat_id)):
                 if not include_history:
                     break
@@ -372,25 +428,27 @@ class ProjectStore:
                 score = len(query_terms & terms(row['title'] + ' ' + body))
                 if score:
                     candidates.append((score, 'chat', row['chat_id'], row['title'], body[:4000], 0))
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        entries, source_ids, chat_ids, per_source = [], [], [], {}
-        for _, kind, identity, name, body, offset in candidates:
-            if budget < 120 or len(entries) >= 8:
-                break
-            if per_source.get(identity, 0) >= 2:
-                continue
-            # Bound per-entry size and total serialization cost, including names.
-            body = clip(body, min(650, budget - 100))
-            entry = {'kind': kind, 'id': identity, 'name': name, 'excerpt': body, 'offset': offset}
-            encoded = json.dumps(entry, ensure_ascii=False)
-            if cost(encoded) > budget:
-                continue
-            entries.append(entry)
-            per_source[identity] = per_source.get(identity, 0) + 1
-            budget -= cost(encoded) + 5
-            target = source_ids if kind == 'source' else chat_ids
-            if identity not in target:
-                target.append(identity)
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            entries, source_ids, chat_ids, per_source = [], [], [], {}
+            for _, kind, identity, name, body, offset in candidates:
+                if budget < 120 or len(entries) >= 8:
+                    break
+                if per_source.get(identity, 0) >= 2:
+                    continue
+                if kind == 'source':
+                    body = db.execute('SELECT body FROM project_source_chunks WHERE id=?', (body,)).fetchone()['body']
+                # Bound per-entry size and total serialization cost, including names.
+                body = clip(body, min(650, budget - 100))
+                entry = {'kind': kind, 'id': identity, 'name': name, 'excerpt': body, 'offset': offset}
+                encoded = json.dumps(entry, ensure_ascii=False)
+                if cost(encoded) > budget:
+                    continue
+                entries.append(entry)
+                per_source[identity] = per_source.get(identity, 0) + 1
+                budget -= cost(encoded) + 5
+                target = source_ids if kind == 'source' else chat_ids
+                if identity not in target:
+                    target.append(identity)
         data = json.dumps(entries, ensure_ascii=False) if entries else ''
         metadata = {'id': project['id'], 'name': project['name'], 'memory_mode': project['memory_mode'], 'source_ids': source_ids, 'chat_ids': chat_ids}
         return project['instructions'], data, metadata

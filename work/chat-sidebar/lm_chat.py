@@ -284,7 +284,7 @@ async def run_turn(core,message,settings,owner=None):
             if prompt_cost>remaining:raise ValueError('当前输入与回答长度超过 8192 上下文，请缩短输入或降低回答长度。')
             project_body = ''
             if project:
-                _, project_body, project_meta = projects.context(message['chat_id'], message['prompt'],
+                _, project_body, project_meta = await projects.context_async(message['chat_id'], message['prompt'],
                     budget=max(0, min(2200, remaining-prompt_cost-250)), include_history=bool(memory and memory.preferences()['enabled']))
                 prior = core.STORE.message(mid).get('memory') or {}
                 core.STORE.update(mid, memory_json=json.dumps({**prior, 'project': project_meta}, ensure_ascii=False))

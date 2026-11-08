@@ -21,7 +21,7 @@ Before using permanent deletion with an older extension, back up the store and u
 
 ## Daily use
 
-Create a conversation for text or image work. Drafts and history persist locally. Organize related conversations, instructions and sources into projects; project memory scope is chosen at creation. Files support local text/code, PDF text and DOCX paragraphs, with no OCR. See [Projects](PROJECTS.md) for limits and recovery.
+Create a conversation for text or image work. Drafts and history persist locally. Organize related conversations, instructions and sources into projects; project memory scope is chosen at creation. Files support local text/code, PDF text and DOCX paragraphs, with no OCR. Sources are indexed locally at import; older sources are indexed in the background on first use. See [Projects](PROJECTS.md) for limits and recovery.
 
 Settings controls language, appearance, avatar and saved memory. Automatic memory capture defaults off for new settings. Pausing recall preserves saved memories; deleting a memory affects future recall without rewriting old messages. Gallery and trash operations have their own confirmation and retention behavior; review the dialog before deleting.
 
