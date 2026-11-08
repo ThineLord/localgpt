@@ -16,7 +16,7 @@ Use macOS or Linux with Python 3.10 or newer. The demo works without models or a
 ```sh
 git clone https://github.com/ThineLord/localgpt.git
 cd localgpt
-git checkout v0.2.0
+git checkout v0.2.1
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python work/chat-sidebar/build.py
@@ -51,10 +51,10 @@ Models, personal databases, generated images, backups and local configuration st
 
 ## Versions and documentation
 
-Current version: **0.2.0**. This release adds interrupted-chat recovery, indexed project retrieval, working PNG demos, visible build identity and one-command acceptance. Read the coordinated upgrade notes before updating an existing installation.
+Current version: **0.2.1**. This patch clears completed stop feedback and keeps slow startup pending without duplicate processes. Read the coordinated upgrade notes before updating an existing installation.
 
 - [User guide](docs/user-guide.md) · [Agent guide](docs/agent-guide.md)
-- [Release notes](docs/releases/0.2.0.md) · [Changelog](CHANGELOG.md) · [GitHub Releases](https://github.com/ThineLord/localgpt/releases)
+- [Release notes](docs/releases/0.2.1.md) · [Changelog](CHANGELOG.md) · [GitHub Releases](https://github.com/ThineLord/localgpt/releases)
 - [Version and release policy](docs/versioning.md) · [Validation](docs/testing.md)
 - [Documentation index](docs/README.md)
 
