@@ -1,4 +1,5 @@
 import asyncio
+from unittest.mock import patch
 import json
 import sys
 import unittest
@@ -41,6 +42,34 @@ class UnifiedTests(unittest.IsolatedAsyncioTestCase):
             if m['status'] not in ('running','submitting'):return m
             await asyncio.sleep(.04)
         self.fail('Turn did not finish')
+    async def test_completed_is_published_after_async_session_cleanup(self):
+        closing, release = asyncio.Event(), asyncio.Event()
+        original = self.lm.aiohttp.ClientSession
+        class DelayedExit:
+            def __init__(self): self.session = original()
+            async def __aenter__(self): return await self.session.__aenter__()
+            async def __aexit__(self, *args):
+                await self.session.__aexit__(*args)
+                closing.set()
+                await release.wait()
+        chat = await self.create()
+        url = '/qwen-cn/chats/'+chat['id']+'/send'
+        with patch.object(self.lm.aiohttp, 'ClientSession', DelayedExit):
+            response = await self.client.post(url, json={'prompt':'First answer','mode':'chat','request_key':'delayed-session-exit'})
+            self.assertEqual(response.status,202)
+            message = await response.json()
+            try:
+                await asyncio.wait_for(closing.wait(),3)
+                self.assertEqual(self.backend.STORE.message(message['id'])['status'],'running')
+            finally:
+                release.set()
+            done = await self.wait_done(message['id'])
+            self.assertEqual(done['status'],'completed')
+        # A terminal response must not race the previous owner's async cleanup.
+        next_response = await self.client.post(url, json={'prompt':'Immediate next answer','mode':'chat','request_key':'after-session-exit'})
+        self.assertEqual(next_response.status,202,await next_response.text())
+        await self.wait_done((await next_response.json())['id'])
+
     async def test_stream_persistence_context_idempotence_and_options(self):
         c=await self.create();url='/qwen-cn/chats/'+c['id']+'/send'
         payload={'prompt':'你好，小林','mode':'auto','request_key':'unified-stream-1','temperature':1.2,'max_tokens':512,'thinking':'off'}
