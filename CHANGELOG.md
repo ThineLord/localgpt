@@ -4,6 +4,10 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear stop-request feedback when its generation reaches a terminal state; a late acknowledgement cannot restore the waiting notice or overwrite another status.
+
 ## [0.2.0] - 2026-11-09
 
 ### Fixed

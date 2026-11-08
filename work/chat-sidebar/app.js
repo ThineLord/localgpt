@@ -61,6 +61,8 @@ let dirty = false,
   connectionLabel = "连接中",
   refreshing = false,
   saveLabel = "";
+const STOP_WAITING = "已请求停止，正在等待当前计算结束…";
+let stopFeedback = null;
 const EN = {
   对话操作: "Chat actions",
   画室: "Studio",
@@ -1146,6 +1148,14 @@ async function newChat(projectId = null) {
   }
 }
 function updateActivity() {
+  if (stopFeedback) {
+    const stopped = current?.id === stopFeedback.chatId
+      ? current.messages.find((m) => m.id === stopFeedback.messageId) : null;
+    if (!stopped || !["running", "submitting"].includes(stopped.status)) {
+      stopFeedback = null;
+      if (lastStatus === STOP_WAITING) setStatus("");
+    }
+  }
   const active = current?.messages.find((m) =>
     ["running", "submitting"].includes(m.status),
   );
@@ -1153,7 +1163,7 @@ function updateActivity() {
   runStart = active ? active.created * 1000 : Date.now();
   setBusy(!!active || uploading || submitting);
   watchMessage(active);
-  $("cancel").disabled = !active;
+  $("cancel").disabled = !active || stopFeedback?.messageId === active.id;
   if (active) {
     activeId = active.id;
     setPhase(active.phase, active.step, active.total);
@@ -1391,14 +1401,20 @@ $("form").onsubmit = async (e) => {
 };
 $("cancel").onclick = async () => {
   if (!activeId) return;
+  const feedback = { chatId: current.id, messageId: activeId };
+  stopFeedback = feedback;
+  setStatus(STOP_WAITING);
   $("cancel").disabled = true;
   try {
-    await request(`/qwen-cn/messages/${activeId}/stop`, json("POST", {}));
-    setStatus("已请求停止，正在等待当前计算结束…");
+    await request(`/qwen-cn/messages/${feedback.messageId}/stop`, json("POST", {}));
   } catch (e) {
-    setStatus(e.message, true);
+    if (stopFeedback === feedback) {
+      stopFeedback = null;
+      if (current?.id === feedback.chatId && lastStatus === STOP_WAITING)
+        setStatus(e.message, true);
+    }
   } finally {
-    $("cancel").disabled = false;
+    updateActivity();
   }
 };
 window.addEventListener("pagehide", () => {
