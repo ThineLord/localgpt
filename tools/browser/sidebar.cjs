@@ -3,8 +3,8 @@
  * Pinned history plane. Round 8's rail-colored target was wrong.
  * Pinned history matches --canvas; the rail stays --sidebar. Synthetic demo only.
  *   python3 work/chat-sidebar/build.py
- *   python3 tools/round5_demo.py --port 8194
- *   node tools/round8_pinned_sidebar_acceptance.js
+ *   python3 tools/gallery_demo.py --port 8194
+ *   python tools/validate.py --case sidebar
  *
  * Asserts computed backgrounds and geometry at 1440×900 in light and dark.
  * Screenshots: output/playwright/round8/ (gitignored).

@@ -1,5 +1,5 @@
 // Current contract adapted from round5_scroll_acceptance.js. Run via tools/validate.py.
-// Synthetic only. Start tools/round5_demo.py on8194; use Playwright CLI run-code.
+// Synthetic only. Start tools/gallery_demo.py on8194; use Playwright CLI run-code.
 module.exports = async(page)=>{
  const base=process.env.LOCALGPT_TEST_BASE,check=(x,m)=>{if(!x)throw Error(m)};
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic demo required');

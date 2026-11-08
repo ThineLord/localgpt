@@ -1,5 +1,5 @@
 // Current contract adapted from round5_header_actions_acceptance.js. Run via tools/validate.py.
-// Use tools/round5_demo.py on8194. No production data.
+// Use tools/gallery_demo.py on8194. No production data.
 module.exports = async(page)=>{
  const base=process.env.LOCALGPT_TEST_BASE;
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic demo required');

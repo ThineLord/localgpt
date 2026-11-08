@@ -7,7 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
-for line in (ROOT/'requirements-test.txt').read_text().splitlines():
+for line in (ROOT/'tools/requirements-test.txt').read_text().splitlines():
     if not line or line.startswith('#'): continue
     name, expected = line.split('==')
     try: actual = importlib.metadata.version(name)

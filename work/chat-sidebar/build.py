@@ -22,7 +22,7 @@ def build(check=False):
         pass  # Source archives have a version but no provable Git commit.
     identity = f'<meta name="localgpt-version" content="{version}" />\n    <meta name="localgpt-build-sha" content="{sha}" />\n    <meta name="localgpt-build-dirty" content="{dirty}" />'
     template = template.replace('<!-- LOCALGPT_BUILD -->', identity)
-    mark = (ROOT.parent.parent / 'assets' / 'localgpt-mark.svg').read_text()
+    mark = (ROOT / 'localgpt-mark.svg').read_text()
     template = template.replace('<!-- HANZ_FAVICON -->', '<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,' + quote(mark, safe='') + '" />')
     styles = '\n'.join((ROOT / name).read_text() for name in ('studio.css', 'message-actions.css', 'gallery-ui.css', 'atelier.css', 'liquid-layers.css', 'settings-memory.css', 'local-profile.css', 'projects.css'))
     result = template.replace('/* STUDIO_STYLES */', styles)

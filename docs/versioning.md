@@ -8,7 +8,7 @@ Use `vMAJOR.MINOR.PATCH` for Git tags and GitHub Release names. Tags are immutab
 
 ## Preparing a release
 
-1. Work on a `codex/` branch. Update `VERSION.txt`, both home pages, `CHANGELOG.md` and `docs/releases/<version>.md` plus `<version>.zh-CN.md` together. Move the release changes out of `Unreleased`, leaving that section for future work. Include scope, compatibility, upgrade notes and known limitations.
+1. Work on a `codex/` branch. Update `VERSION.txt`, both home pages, `docs/CHANGELOG.md` and `docs/releases/<version>.md` plus `<version>.zh-CN.md` together. Move the release changes out of `Unreleased`, leaving that section for future work. Include scope, compatibility, upgrade notes and known limitations.
 2. Run `python3 tools/check_release.py` and the applicable checks in [testing](testing.md). Stage only intended source files; inspect the diff and run both source audits. Record exact commands and results in the PR. Documentation-only changes do not justify paid CI or real inference.
 3. Open a draft PR. A native subagent reviews the exact final commit, checks unresolved findings and repository requirements, then performs the authorized merge. Codex coordinates the release. Do not trigger bots or cloud agents.
 4. Fetch the merge result into a clean, isolated checkout. Confirm it is on `origin/main`, its tree matches the reviewed PR tree (or revalidate any difference), and rebuild and rerun the full current synthetic suite there (`.venv/bin/python tools/validate.py`), including release/build verification and source audits. Record the merge SHA. Never release an unmerged feature branch or use a moving branch name as the tag target.

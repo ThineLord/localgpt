@@ -1,8 +1,11 @@
 # Changelog
 
-Released versions follow [the version policy](docs/versioning.md). `VERSION.txt` is the application version; database schemas and historical Round numbers are separate identifiers.
+Released versions follow [the version policy](versioning.md). `VERSION.txt` is the application version; database schemas and historical Round numbers are separate identifiers.
 
 ## [Unreleased]
+
+- Simplify the repository landing page and navigation; keep earlier design records and superseded browser scripts in Git history.
+- Add two reviewed screenshots captured from an isolated synthetic demo, with bilingual README captions.
 
 ## [0.2.1] - 2026-11-09
 
@@ -32,7 +35,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ### Upgrade
 
-- Runtime release: upgrade both writers together on a local POSIX filesystem after quiescing work and taking a consistent backup. Additive ownership and derived index tables are not a license to mix old/new writers. See [English notes](docs/releases/0.2.0.md) / [中文说明](docs/releases/0.2.0.zh-CN.md).
+- Runtime release: upgrade both writers together on a local POSIX filesystem after quiescing work and taking a consistent backup. Additive ownership and derived index tables are not a license to mix old/new writers. See [English notes](releases/0.2.0.md) / [中文说明](releases/0.2.0.zh-CN.md).
 
 ## [0.1.0] - 2026-11-09
 

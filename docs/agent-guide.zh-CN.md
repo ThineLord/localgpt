@@ -10,13 +10,14 @@ Codex 负责组织、实现和仓库管理；原生 subagent 独立 review 最�
 | --- | --- |
 | `work/chat-sidebar/` | Python 运行时、浏览器源码、构建和后端测试 |
 | `tools/` | 审计、合成演示和验收工具 |
-| `assets/` | 已审查的源码素材 |
+| `docs/images/` | 两张经过审查的合成演示 README 截图 |
 | `docs/` | 当前用户／agent 指南和技术约定 |
-| `docs/history/` | 早期设计、协作和验收证据 |
+| `docs/reference/` | 架构、隐私、项目与恢复机制 |
+| `docs/history.md` | 指向历史记录的固定 Git 链接 |
 | `docs/releases/` | 每个版本的范围和升级说明 |
 | `VERSION.txt` | 应用版本的唯一来源 |
 
-生成的 `index.html`、虚拟环境、截图、运行数据和本地证据不进入 Git。外层 `Local_First` 是本地工作区，不是发布仓库；不要将其中的旧 checkout、输出或调查资料导入源码，也不要因整理源码而移动它们。
+生成的 `index.html`、虚拟环境、运行截图、运行数据和本地证据不进入 Git。截图仅允许 `docs/images/README.md` 中记录的两张已审合成演示预览，并由源码审计核对精确文件哈希。外层 `Local_First` 是本地工作区，不是发布仓库；不要将其中的旧 checkout、输出或调查资料导入源码，也不要因整理源码而移动它们。
 
 ## 修改流程
 
@@ -27,10 +28,10 @@ Codex 负责组织、实现和仓库管理；原生 subagent 独立 review 最�
 5. 任务授权合并时，由 subagent 核对 head/base、review 发现和必需检查，再将 PR 转为 ready 并合并。不要绕过仓库规则。同账号 agent review 必须如实说明，不能称为 GitHub APPROVED review。
 6. 发布任务继续执行[版本规则](versioning.md)；其他任务停在已验证、等待下一项授权的状态。
 
-历史 PR #26 保持独立；当前恢复实现基于现有主分支重新 review 和验收，不通过直接合并旧 PR 或启用旧 CI 流程跳过检查。升级前阅读[任务恢复与协调升级说明](APP03_RECOVERY.md)。
+历史 PR #26 保持独立；当前恢复实现基于现有主分支重新 review 和验收，不通过直接合并旧 PR 或启用旧 CI 流程跳过检查。升级前阅读[任务恢复与协调升级说明](reference/recovery.md)。
 
 ## 运行边界
 
 `/qwen-cn/` API、数据库路径、浏览器键、模型所有权标识及 `HanzAgent` 支持目录是兼容性标识，修改需要明确的迁移设计。更新源码和发布标签不会重启服务。安装、真实模型调用、数据迁移和生产维护须属于任务授权范围。
 
-修改存储或运行行为前先读[架构](ARCHITECTURE.md)、[隐私](PRIVACY.md)和[项目说明](PROJECTS.md)。不要为通过测试而放宽保护或修改真实模型设置；如实记录证据和剩余限制。
+修改存储或运行行为前先读[架构](reference/architecture.md)、[隐私](reference/privacy.md)和[项目说明](reference/projects.md)。不要为通过测试而放宽保护或修改真实模型设置；如实记录证据和剩余限制。

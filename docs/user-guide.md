@@ -21,7 +21,7 @@ Before using permanent deletion with an older extension, back up the store and u
 
 ## Daily use
 
-Create a conversation for text or image work. Drafts and history persist locally. Organize related conversations, instructions and sources into projects; project memory scope is chosen at creation. Files support local text/code, PDF text and DOCX paragraphs, with no OCR. Sources are indexed locally at import; older sources are indexed in the background on first use. See [Projects](PROJECTS.md) for limits and recovery.
+Create a conversation for text or image work. Drafts and history persist locally. Organize related conversations, instructions and sources into projects; project memory scope is chosen at creation. Files support local text/code, PDF text and DOCX paragraphs, with no OCR. Sources are indexed locally at import; older sources are indexed in the background on first use. See [Projects](reference/projects.md) for limits and recovery.
 
 Settings controls language, appearance, avatar and saved memory. Automatic memory capture defaults off for new settings. Pausing recall preserves saved memories; deleting a memory affects future recall without rewriting old messages. Gallery and trash operations have their own confirmation and retention behavior; review the dialog before deleting.
 
@@ -31,7 +31,7 @@ The existing SQLite database, uploads/output, project-memory directory, avatar d
 
 Use a release tag when installing. For an existing installation, first read the target release notes and inspect local changes. Fetch tags with `git fetch origin --tags`; switch versions only in a clean, inactive checkout. Installing a source release and upgrading a running service are separate operations. Back up the full data set and stop all writers before any separately planned data restoration. Do not overwrite current data with an older backup after new activity.
 
-Version 0.2.0 adds recovery for interrupted chat tasks created by upgraded writers. Partial answers remain visible and Retry is explicit; no model call is replayed automatically. Upgrade the UI and ComfyUI extension together, including `generation_ownership.py`, `build_info.py`, `diagnostics.py`. Unknown legacy tasks stay blocked for deliberate maintenance; do not delete database rows or the generation lock manually. See [recovery and upgrade requirements](APP03_RECOVERY.md). Version 0.1.0 itself remains the earlier documentation-only baseline.
+Version 0.2.0 adds recovery for interrupted chat tasks created by upgraded writers. Partial answers remain visible and Retry is explicit; no model call is replayed automatically. Upgrade the UI and ComfyUI extension together, including `generation_ownership.py`, `build_info.py`, `diagnostics.py`. Unknown legacy tasks stay blocked for deliberate maintenance; do not delete database rows or the generation lock manually. See [recovery and upgrade requirements](reference/recovery.md). Version 0.1.0 itself remains the earlier documentation-only baseline.
 
 The launcher waits for readiness for up to 120 seconds. If the process is still alive after that budget, it reports **still starting** and leaves it running; it does not claim success or open the browser yet. Run the launcher again to check the same process. A per-port startup lock prevents duplicate launches even before the server binds. Keep the lock file in place. `--wait-seconds` adjusts this foreground wait; it does not cancel startup.
 

@@ -16,7 +16,7 @@ class ReleaseChecks(unittest.TestCase):
         self.write('VERSION.txt', '0.1.0\n')
         for name in ('README.md', 'README.zh-CN.md'):
             self.write(name, '# Example\n\n**0.1.0**\ngit checkout v0.1.0\n')
-        self.write('CHANGELOG.md', '## [Unreleased]\n\n## [0.1.0] - 2026-11-09\n')
+        self.write('docs/CHANGELOG.md', '## [Unreleased]\n\n## [0.1.0] - 2026-11-09\n')
         for suffix in ('.md', '.zh-CN.md'):
             self.write('docs/releases/0.1.0' + suffix, '# LocalGPT 0.1.0\n')
         subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)

@@ -1,5 +1,5 @@
 // Current contract adapted from round5_gallery_integration.js. Run via tools/validate.py.
-// Synthetic only. Start tools/round5_demo.py on8194; use Playwright CLI run-code.
+// Synthetic only. Start tools/gallery_demo.py on8194; use Playwright CLI run-code.
 module.exports = async(page)=>{
 const base=process.env.LOCALGPT_TEST_BASE,out=(process.env.LOCALGPT_TEST_OUTPUT + '/');if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic demo required');const checks=[],errors=[];page.on('pageerror',e=>errors.push(e.message));const check=(x,m)=>{if(!x)throw Error(m)};
 for(const [width,height]of[[1440,900],[1280,800],[390,844]])for(const theme of ['light','dark']){
