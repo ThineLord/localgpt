@@ -11,7 +11,7 @@ LocalGPT 将 LM Studio 文本对话和 ComfyUI 图像工具整合到一个浏览
 
 ## 本地体验
 
-使用 Python 3.10 或更新版本。演示无需模型或 ComfyUI。
+使用 macOS 或 Linux，以及 Python 3.10 或更新版本；任务所有权依赖 POSIX 文件锁，暂不支持原生 Windows。演示无需模型或 ComfyUI。
 
 ```sh
 git clone https://github.com/ThineLord/localgpt.git

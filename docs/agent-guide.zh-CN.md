@@ -27,7 +27,7 @@ Codex 负责组织、实现和仓库管理；原生 subagent 独立 review 最�
 5. 任务授权合并时，由 subagent 核对 head/base、review 发现和必需检查，再将 PR 转为 ready 并合并。不要绕过仓库规则。同账号 agent review 必须如实说明，不能称为 GitHub APPROVED review。
 6. 发布任务继续执行[版本规则](versioning.md)；其他任务停在已验证、等待下一项授权的状态。
 
-待验收 PR #26 属于独立的崩溃恢复修改，有自己的验收条件。文档发布通过不代表它可以合并或已经包含在版本中。
+历史 PR #26 保持独立；当前恢复实现基于现有主分支重新 review 和验收，不通过直接合并旧 PR 或启用旧 CI 流程跳过检查。升级前阅读[任务恢复与协调升级说明](APP03_RECOVERY.md)。
 
 ## 运行边界
 
