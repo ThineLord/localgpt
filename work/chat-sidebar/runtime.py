@@ -18,6 +18,8 @@ from local_profile import install_profile
 from generation import image_path, clean_draft, graph
 import lm_chat
 import generation_ownership
+from build_info import build_identity
+from diagnostics import service_diagnostics
 from history_metadata import install as install_history_metadata
 from projects import install as install_projects
 
@@ -116,8 +118,12 @@ def install(app, backend, database, input_root, output_root):
         with store.connect() as db:
             db.execute('SELECT count(*) FROM chats').fetchone()
         recovery=generation_ownership.readiness(store)
-        return reply({**recovery, 'ready': recovery['generation_recovery_ready'], 'service': 'hanzagent', 'database_ready': True,
+        return reply({**build_identity(), **recovery, 'ready': recovery['generation_recovery_ready'], 'service': 'hanzagent', 'database_ready': True,
                       'database': str(path), 'output_directory': str(output_root)})
+
+    @routes.get('/qwen-cn/diagnostics')
+    async def diagnostics(r):
+        return reply({'application': build_identity(), **await service_diagnostics(lm_chat.LM_URL, backend)})
 
     @routes.get('/qwen-cn/chats')
     async def chats(r):return reply(store.chats())
