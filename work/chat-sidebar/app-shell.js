@@ -191,8 +191,7 @@
   const memoryButton = $("memoryNav");
   if (memoryButton && window.HanzMemory) {
     memoryButton.onclick = () => {
-      const dialog = $("preferencesDialog");
-      window.HanzMemory.open(null, dialog?.open ? dialog : memoryButton);
+      window.HanzMemory.open(null, memoryButton);
     };
   }
 
