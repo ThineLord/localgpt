@@ -9,6 +9,6 @@
 - Images remain files in configured ComfyUI input/output directories. SQLite contains reference descriptors, chat text, drafts, settings and memories. Legacy JSON and migration backups contain personal data. None belongs in Git or cloud contexts.
 - `demo.py` is an explicit separate process with a fresh temporary database, simulated SSE and authored vector fixture. It replaces inference only inside that demo process. Never use demo tests as proof of real inference.
 
-## Ownership during redesign
+## Current ownership
 
-Cloud agent owns template.html, studio.css, atelier.css/js, liquid-layers.css/js and build.py, plus new purely visual files if needed. Codex owns app.js, workspace.js, server/demo code, tests, privacy audit, launch configuration and local acceptance. Generated index.html must never be committed. Coordinate any boundary change before editing another owner's files.
+Codex coordinates implementation, file organization and release preparation. Native subagents independently review and perform authorized merges. Do not invoke bots, external bridges or cloud agents. Follow [AGENTS.md](../AGENTS.md) and the [agent guide](agent-guide.md); older collaboration roles are historical only.
