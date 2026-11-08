@@ -320,7 +320,9 @@ async def run_turn(core,message,settings,owner=None):
                 reasoning+='\n'.join(blocks)
                 answer=re.sub(r'<think>.*?</think>','',answer,flags=re.S).strip()
             if not answer.strip() and not reasoning.strip():raise ValueError('模型没有返回内容，请重试。')
-            core.STORE.update(mid,status='completed',answer=answer,reasoning=reasoning,finished=time.time(),seconds=time.time()-message['created'],phase='达到回答长度上限' if finish=='length' else '已完成')
+        # Publish completion only after the async HTTP session has released its resources.
+        # No await separates terminal persistence from ownership release in finally.
+        core.STORE.update(mid,status='completed',answer=answer,reasoning=reasoning,finished=time.time(),seconds=time.time()-message['created'],phase='达到回答长度上限' if finish=='length' else '已完成')
     except asyncio.CancelledError:
         # A successful queue submission belongs to the image monitor, not the cancelled chat task.
         current=core.STORE.message(mid)
