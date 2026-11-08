@@ -4,6 +4,8 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 
 ## [Unreleased]
 
+- Add a pinned, one-command synthetic acceptance suite with isolated fixtures and machine-readable evidence; archive obsolete Round browser scripts with a coverage map.
+
 - Show build version/commit and process-start identity; separately probe local model services on explicit diagnostic refresh.
 - Cache project source chunks/terms in SQLite and retrieve off the event loop; add scope, rebuild, rollback and performance regression checks.
 - Return keyboard focus to the memory-manager trigger after closing its dialog, while keeping Settings open.
