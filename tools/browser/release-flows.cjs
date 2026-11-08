@@ -14,6 +14,7 @@ module.exports = async page => {
   await page.locator('#cancel').waitFor({state:'visible'});
   await page.locator('#cancel').click();
   await page.locator('#cancel').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>!document.getElementById('status').textContent.includes('正在等待'));
   const chatId = new URLSearchParams(new URL(page.url()).hash.slice(1)).get('chat');
   let chat = await (await page.request.get(base+'/qwen-cn/chats/'+chatId)).json();
   assert.equal(chat.messages.at(-1).status, 'stopped');
@@ -27,7 +28,31 @@ module.exports = async page => {
   await page.locator('#prompt').fill('生成一张明确标注为模拟素材的演示图片');
   await page.locator('#prompt').press('Enter');
   await page.locator('#cancel').waitFor({state:'visible'});
+  // A terminal event can arrive before the stop HTTP acknowledgement.
+  let releaseStop, stopForwarded;
+  const forwarded = new Promise(resolve => { stopForwarded=resolve; });
+  const acknowledgement = new Promise(resolve => { releaseStop=resolve; });
+  await page.route('**/qwen-cn/messages/*/stop', async route => {
+    const response=await route.fetch(); stopForwarded();
+    await acknowledgement; await route.fulfill({response});
+  });
+  await page.locator('#cancel').click(); await forwarded;
+  await page.locator('#cancel').waitFor({state:'hidden'});
+  await page.waitForFunction(()=>!document.getElementById('status').textContent.includes('正在等待'));
+  releaseStop(); await page.unrouteAll({behavior:'wait'});
+  assert.equal(await page.locator('#status').innerText(),'');
+  chat = await (await page.request.get(base+'/qwen-cn/chats/'+chatId)).json();
+  assert.equal(chat.messages.at(-1).status,'stopped');
+  await page.locator('#prompt').fill(chat.messages.at(-1).prompt);
+  await page.locator('#prompt').press('Enter');
+  await page.locator('#cancel').waitFor({state:'visible'});
+  // Terminal updates must preserve an unrelated stop-request error.
+  await page.route('**/qwen-cn/messages/*/stop', route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"Synthetic stop unavailable"}'}));
+  await page.locator('#cancel').click();
+  await page.waitForFunction(()=>document.getElementById('status').textContent==='Synthetic stop unavailable');
+  await page.unrouteAll({behavior:'wait'});
   await page.locator('#cancel').waitFor({state:'hidden',timeout:15000});
+  assert.equal(await page.locator('#status').innerText(),'Synthetic stop unavailable');
   chat = await (await page.request.get(base+'/qwen-cn/chats/'+chatId)).json();
   const generated = chat.messages.at(-1);
   assert.equal(generated.status,'completed');
