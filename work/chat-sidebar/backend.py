@@ -14,7 +14,7 @@ from aiohttp import web
 from server import PromptServer
 import folder_paths
 from .storage import Store, Conflict
-from . import generation_ownership
+from . import generation_ownership, lm_chat
 from .build_info import build_identity
 from .diagnostics import service_diagnostics
 

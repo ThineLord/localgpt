@@ -103,6 +103,29 @@ class ExtensionDiagnosticsTests(unittest.IsolatedAsyncioTestCase):
     asyncSetUp = test_chats.APITests.asyncSetUp
     asyncTearDown = test_chats.APITests.asyncTearDown
 
+    async def test_extension_diagnostics_survives_cached_package_reload(self):
+        # ComfyUI/test harnesses can reload a package while its submodules stay cached.
+        import importlib.util
+        import sys
+        from aiohttp import web
+        name = self.backend.__name__
+        spec = importlib.util.spec_from_file_location(name, self.backend.__file__, submodule_search_locations=[str(Path(self.backend.__file__).parent)])
+        reloaded = importlib.util.module_from_spec(spec)
+        server = self.backend.PromptServer.instance
+        old_app, old_routes = server.app, server.routes
+        server.app, server.routes = web.Application(), web.RouteTableDef()
+        sys.modules[name] = reloaded
+        try:
+            spec.loader.exec_module(reloaded)
+            probe = AsyncMock(return_value={})
+            with patch.object(reloaded, 'service_diagnostics', probe):
+                response = await reloaded.diagnostics(None)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(probe.call_args.args[0], reloaded.lm_chat.LM_URL)
+        finally:
+            sys.modules[name] = self.backend
+            server.app, server.routes = old_app, old_routes
+
     async def test_extension_uses_actual_configured_comfy_port(self):
         self.backend.PromptServer.instance.port = 18456
         probe = AsyncMock(return_value={'lm_studio':{'status':'available'},'comfyui':{'status':'available'}})
