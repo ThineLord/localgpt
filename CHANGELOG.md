@@ -11,6 +11,7 @@ Released versions follow [the version policy](docs/versioning.md). `VERSION.txt`
 - Recover recognized abandoned chat/routing generations using shared POSIX ownership. Preserve partial output and request identity; never replay model calls or clear unknown legacy owners.
 - Generate clearly labeled synthetic PNGs through production preview/download routes. Production SVG rejection is unchanged.
 - Restore focus to the Memory settings trigger when closing its nested dialog.
+- Publish chat completion after asynchronous resource cleanup, avoiding a brief ownership conflict on the next send.
 - Keep extension diagnostics functional across cached package reloads and respect ComfyUI's configured port.
 
 ### Added

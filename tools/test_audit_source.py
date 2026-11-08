@@ -52,6 +52,21 @@ class SourceAuditTests(unittest.TestCase):
         self.git("add", "other.command")
         self.assertIn("other.command not approved", self.audit().stdout)
 
+    def test_only_browser_manifests_allow_json_and_still_scan_credentials(self):
+        folder = self.root / 'tools' / 'browser'
+        folder.mkdir(parents=True)
+        manifest = folder / 'package.json'
+        manifest.write_text('{"private":true}')
+        self.git('add', '.')
+        self.assertEqual(self.audit().returncode, 0)
+        manifest.write_text('password = ' + repr('SYNTHETIC' + '_MANIFEST_CREDENTIAL'))
+        self.git('add', '.')
+        self.assertEqual(self.audit().returncode, 1)
+        manifest.write_text('{"private":true}')
+        (folder / 'private.json').write_text('{}')
+        self.git('add', '.')
+        self.assertIn('private.json not approved', self.audit().stdout)
+
     def test_symlink_is_rejected_without_reading_its_target(self):
         marker = "SYNTHETIC_PRIVATE_RUNTIME_CONTENT"
         (self.root / "runtime.py").write_text(marker)

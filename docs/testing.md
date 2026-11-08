@@ -1,39 +1,26 @@
 # Local validation
 
-Run commands from the repository root with dependencies installed in `.venv`. Node.js is used only for JavaScript syntax/acceptance utilities; there is no npm frontend build.
+[English](testing.md) · [简体中文](testing.zh-CN.md)
 
-## Documentation and release changes
-
-```sh
-python3 tools/check_release.py
-.venv/bin/python work/chat-sidebar/build.py
-.venv/bin/python work/chat-sidebar/build.py --check
-git diff --check
-```
-
-Stage new documentation before the final release check so it is included in the Git source inventory. The release checker validates version syntax, bilingual release metadata and local Markdown file/fragment links across the source tree, including historical records. It makes no network calls. Build verification checks the generated page but does not start a service.
-
-After staging the intended changes, inspect `git diff --cached` and run:
+The current acceptance command is:
 
 ```sh
-python3 tools/audit_source.py
-python3 tools/audit_source.py --history
+python3 -m venv .venv
+.venv/bin/python tools/validate.py --setup
 ```
 
-The audit scans Git objects, not arbitrary runtime folders. It supplements human privacy review; it does not prove all arbitrary prose is free of personal data.
+This installs exact Python dependencies from `requirements-test.txt`, runs `npm ci` against the browser lockfile and installs Playwright's managed Chromium. The initial setup downloads dependencies; subsequent runs use `.venv/bin/python tools/validate.py`. Tested with Python 3.13 and Node 26 on macOS; the runtime ownership protocol requires macOS/Linux POSIX file locking. Node/npm are validation dependencies, not a frontend build system.
 
-## Runtime changes
+The full synthetic suite runs build consistency, release/Markdown links, all backend and tool tests, current JavaScript syntax, staged/worktree diff, source/index/history audits, the retrieval benchmark and fifteen browser/API contracts. Each browser case gets temporary data, its own server and an exact random fixture identity. All owned processes and temporary data are cleaned up on success, failure or interruption. Existing services and personal databases are not used.
 
-```sh
-.venv/bin/python -m unittest discover -s work/chat-sidebar -p 'test_*.py' -v
-.venv/bin/python -m unittest discover -s tools -p 'test_*.py' -v
-node --check work/chat-sidebar/app.js
-node --check work/chat-sidebar/workspace.js
-node --check work/chat-sidebar/projects.js
-```
+Results are written to `output/validation/report.json`, with per-check logs and per-case screenshots. `PASS` means all current synthetic checks passed; it does not mean real inference passed. Environment failures are `BLOCKED`, nonzero test exits are `FAIL`, timeouts are `TIMEOUT`; an interrupted run is `INTERRUPTED`. Failed or blocked checks return nonzero. Reports start as `RUNNING` with a unique run ID, so a prior pass is not reused. `--browser-only`, `--skip-browser` and `--case projects` are explicitly partial and can only produce `PARTIAL_PASS`.
 
-Check any other changed JavaScript modules too. UI changes also require browser checks with the synthetic demo. `tools/projects_demo.py` provides the project fixture on 8194. Live acceptance scripts contact local models and are separate from routine checks; run only when authorized. Earlier dated acceptance records do not validate a new version.
+The source audits inspect Git objects, so stage intended source changes before the final run. Review the staged diff for personal information too: pattern checks cannot prove arbitrary prose is safe. Source archives lack Git history and are not a substitute for clean-clone release acceptance.
 
-## Release evidence
+## Scope and evidence
 
-Record the exact PR head, command results, review findings and limitations in the PR; record the merged/tagged SHA with the release handoff. A skipped GitHub check is not a pass. If no remote workflow exists, report local validation explicitly. Source publication is not runtime deployment or real-model verification.
+See the [current browser contracts](../tools/browser/README.md) and [historical coverage map](../tools/history/browser/README.md). Historical scripts are retained for provenance and do not count as current passing acceptance. The project benchmark uses repeated synthetic text at 1×10k, 20×100k and 100×200k characters; its latency guard is a regression check for that fixture, not a guarantee for every document corpus.
+
+Live inference remains opt-in and separate: `tools/projects_live_acceptance.py` and `tools/round7_memory_live_acceptance.py` require running local model services and task authorization. Report connection failures as environment blockers. Do not start services, load models or alter production data merely to turn synthetic acceptance green.
+
+For a release, validate the final reviewed head, have an authorized native subagent merge, then rebuild and run the full suite on the exact merged/tagged commit. Record local results and limitations. A missing/skipped GitHub workflow is not a successful remote check; source publication is separate from runtime deployment.
