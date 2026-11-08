@@ -25,8 +25,8 @@ def fixture_install(*args, **kwargs):
     gallery=core.STORE.create('Synthetic image collection')
     for n,(w,h) in enumerate([(900,600),(600,900),(768,768),(1200,500),(600,800),(900,600)]*3):
         color=['#a8b8aa','#d6b39b','#b5b5d0','#92b6c5','#e0c483','#b1c7ae'][n%6]
-        name=f'r5-art-{n}.svg'
-        (root/'output'/name).write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}"><rect width="{w}" height="{h}" fill="{color}"/><circle cx="{w*.7}" cy="{h*.3}" r="{min(w,h)*.17}" fill="#ffffff" opacity=".65"/><path d="M0 {h*.8} Q{w*.4} {h*.2} {w} {h*.65} V{h} H0Z" fill="#263d43" opacity=".5"/><text x="24" y="{h-24}" font-family="sans-serif" font-size="20" fill="white">Synthetic {n+1:02d}</text></svg>')
+        name=f'r5-art-{n}.png'
+        demo.write_png(root/'output'/name,w,h,color,f'Synthetic {n+1:02d} - not model output')
         msg,_=core.STORE.reserve(gallery['id'],f'Synthetic landscape {n+1:02d}',None,w,h,15,'r5-fixture',f'r5-art-{n}',kind='image',model='demo')
         core.STORE.update(msg['id'],image_json=json.dumps({'filename':name,'subfolder':'','type':'output','metadata':{'width':w,'height':h}}),status='completed',finished=time.time())
     return core
