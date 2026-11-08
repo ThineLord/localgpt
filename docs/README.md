@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | Users | [User guide](user-guide.md) | [用户指南](user-guide.zh-CN.md) |
 | Agents | [Agent guide](agent-guide.md) | [Agent 指南](agent-guide.zh-CN.md) |
+| Release 0.2.1 | [Release notes](releases/0.2.1.md) | [版本说明](releases/0.2.1.zh-CN.md) |
 | Release 0.2.0 | [Release notes](releases/0.2.0.md) | [版本说明](releases/0.2.0.zh-CN.md) |
 | Validation | [Testing](testing.md) | [验收](testing.zh-CN.md) |
 
