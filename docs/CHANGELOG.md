@@ -4,6 +4,9 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+- The create-project example reads as a placeholder, so Create stays off until a real name is typed. Sidebar New project and + open that same dialog.
+- After a reply finishes or is stopped, the caret returns to the composer and Send is usable without clicking the field first.
+- English copy: “1 model”, a composer placeholder with room for “say”, and an English trashed-images section.
 - Simplify the repository landing page and navigation; keep earlier design records and superseded browser scripts in Git history.
 - Add two reviewed screenshots captured from an isolated synthetic demo, with bilingual README captions.
 

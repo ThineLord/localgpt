@@ -400,19 +400,23 @@ svg {
 }
 .composer-plus:hover { background: var(--row-hover); }
 .composer-card textarea {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: 24px;
+  min-height: 44px;
   max-height: 180px;
   margin: 0;
-  padding: 5px 4px;
+  padding: 8px 4px 10px;
   resize: none;
   border: 0;
   outline: none;
   background: transparent;
   color: var(--ink);
   font-size: 16px;
-  line-height: 26px;
+  line-height: 22px;
+  overflow-x: hidden;
+}
+.composer-card textarea::placeholder {
+  text-overflow: ellipsis;
 }
 .composer-card textarea:focus-visible { outline: none; }
 .composer-trailing {
@@ -464,7 +468,11 @@ svg {
   background: var(--button-fill);
   color: var(--on-button);
 }
-#generate:hover:not(:disabled) { opacity: 0.9; }
+#generate:hover:not(:disabled):not(.is-empty) { opacity: 0.9; }
+#generate.is-empty {
+  opacity: 0.45;
+  cursor: default;
+}
 #generateLabel {
   position: absolute;
   width: 1px;
@@ -918,7 +926,7 @@ dialog button.primary, #saveMemory {
   .composer { padding: 8px 0 64px; }
   .save-state { bottom: 28px; }
   .composer-card { display:grid; grid-template-columns:36px minmax(0,1fr); grid-template-rows:auto 36px; padding:8px 7px; gap:0; border-radius:28px; min-height:88px; }
-  .composer-card textarea { grid-column:1 / -1; grid-row:1; width:100%; min-height:34px; padding:4px 8px; }
+  .composer-card textarea { grid-column:1 / -1; grid-row:1; width:100%; min-height:44px; min-width:0; padding:8px 8px 10px; }
   .composer-plus { grid-column:1; grid-row:2; }
   .composer-trailing { grid-column:2; grid-row:2; justify-content:flex-end; }
   .model-menu-trigger { max-width:160px; }

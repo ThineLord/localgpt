@@ -651,6 +651,10 @@
   font-size: 14px;
   outline: none;
 }
+.project-name-input input::placeholder {
+  color: var(--ink-tertiary);
+  opacity: 1;
+}
 .project-name-input:focus-within {
   outline: 1px solid var(--ink-tertiary);
 }

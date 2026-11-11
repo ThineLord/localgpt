@@ -352,7 +352,7 @@
     const name = el("input");
     name.type = "text";
     name.maxLength = 100;
-    name.placeholder = tr("哥本哈根之旅", "Copenhagen Trip");
+    name.placeholder = tr("例如：周末计划", "e.g. Weekend plan");
     name.value = project?.name || "";
     name.setAttribute("aria-label", tr("项目名称", "Project name"));
     let selected = {
