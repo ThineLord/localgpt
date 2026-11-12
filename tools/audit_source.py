@@ -62,7 +62,7 @@ for name, oid, kind, mode in entries:
         if hashlib.sha256(data).hexdigest() not in APPROVED_SCREENSHOTS[name]:
             failures.add((name, 'unreviewed screenshot bytes'))
         continue
-    if p.suffix not in ('.py', '.js', '.cjs', '.css', '.html', '.md', '.txt', '.yml', '.yaml', '.example', '.svg') and name not in ('.gitignore', 'Start LocalGPT.command', 'tools/browser/package.json', 'tools/browser/package-lock.json'):
+    if p.suffix not in ('.py', '.js', '.cjs', '.css', '.html', '.md', '.txt', '.yml', '.yaml', '.example', '.svg') and name not in ('.gitignore', 'LICENSE', 'Start LocalGPT.command', 'tools/browser/package.json', 'tools/browser/package-lock.json'):
         failures.add((name, 'not approved source format'))
         continue
     if any(x in p.parts for x in ('output', 'outputs', 'data', 'backups', 'logs', '.playwright-cli')):
