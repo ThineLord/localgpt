@@ -182,6 +182,9 @@ Object.assign(EN, {
   搜索图片: "Search images",
   暂无图片: "No images yet",
   暂无已删除对话: "Trash is empty",
+  图片回收站: "Trashed images",
+  "恢复只影响图库显示；永久删除会移除选定图片的聊天引用和原文件。其他引用会阻止删除。":
+    "Restore only changes what the gallery shows. Permanent delete removes that image’s chat references and the original file. Other references block deletion.",
   删除对话: "Delete chat",
   恢复对话: "Restore chat",
   撤销: "Undo",
@@ -379,16 +382,18 @@ function applyLanguage(next, persist = true) {
   updateOptions();
   if (modelCatalog.length)
     $("modelStatus").textContent =
-      t("本地模型") +
-      " · " +
-      modelCatalog.length +
-      " " +
-      (language === "en" ? "models" : "个模型");
+      t("本地模型") + " · " + modelCountLabel(modelCatalog.length);
   if (persist) {
     try {
       localStorage.setItem("qwen-studio-language", language);
     } catch {}
   }
+}
+function modelCountLabel(count) {
+  const n = Number(count) || 0;
+  return language === "en"
+    ? n + " " + (n === 1 ? "model" : "models")
+    : n + " 个模型";
 }
 function imageURL(i) {
   return (
@@ -484,8 +489,24 @@ function setPhase(label, value = null, max = null) {
     $("percent").textContent = "";
   }
 }
+function focusComposerAfterTurn() {
+  if (busy || submitting) return;
+  const prompt = $("prompt");
+  const form = $("form");
+  if (!prompt || prompt.disabled || form.hidden) return;
+  if (document.querySelector("dialog[open], :popover-open")) return;
+  const active = document.activeElement;
+  const idle =
+    !active ||
+    active === document.body ||
+    active === document.documentElement ||
+    active.id === "cancel" ||
+    active.id === "generate";
+  if (idle) prompt.focus({ preventScroll: true });
+}
 function setBusy(v) {
   if (busy === v) return;
+  const finished = busy && !v;
   busy = v;
   document.body.classList.toggle("busy", v);
   [
@@ -520,6 +541,7 @@ function setBusy(v) {
     activeId = null;
     $("progressBar").style.width = "0%";
   }
+  if (finished) queueMicrotask(focusComposerAfterTurn);
 }
 function setReference(i, title = "参考图片", save = true) {
   reference = i;
@@ -572,6 +594,7 @@ function showDraft(d) {
   setReference(n.reference, "参考图片", false);
   showOptions(n);
   resizePrompt();
+  updateSendButton();
 }
 const transientDraftKey = "hanz-transient-draft";
 function stashTransientDraft() {
@@ -1397,6 +1420,10 @@ $("file").onchange = async () => {
 };
 $("form").onsubmit = async (e) => {
   e.preventDefault();
+  if (!$("prompt").value.trim()) {
+    $("prompt").focus();
+    return;
+  }
   await sendTurn();
 };
 $("cancel").onclick = async () => {
@@ -1880,11 +1907,7 @@ async function loadModels() {
     modelCatalog = data.models;
     const selected = $("chatModel").value || optionDefaults.model;
     $("modelStatus").textContent = data.online
-      ? t("本地模型") +
-        " · " +
-        modelCatalog.length +
-        " " +
-        (language === "en" ? "models" : "个模型")
+      ? t("本地模型") + " · " + modelCountLabel(modelCatalog.length)
       : t("模型离线");
     $("connectLM").hidden = data.online;
     if (data.online) {
@@ -2201,11 +2224,15 @@ function renderAnswer(entry, m) {
 
 function updateSendButton() {
   const other = chats.some((c) => c.active && c.id !== current?.id);
-  $("generate").disabled =
-    busy || submitting || other || !$("prompt").value.trim();
-  $("generate").title = other
+  const empty = !$("prompt").value.trim();
+  const blocked = busy || submitting || other;
+  const generate = $("generate");
+  generate.disabled = blocked;
+  generate.classList.toggle("is-empty", empty && !blocked);
+  generate.setAttribute("aria-disabled", String(blocked || empty));
+  generate.title = other
     ? t("另一个对话正在生成内容")
-    : !$("prompt").value.trim()
+    : empty
       ? t("输入消息后发送")
       : "";
   $("generateLabel").textContent = t(submitting ? "正在提交…" : "发送");
@@ -2246,6 +2273,11 @@ $("closeSettings").onclick = closeSettings;
 $("form").addEventListener(
   "invalid",
   (e) => {
+    if (e.target === $("prompt")) {
+      e.preventDefault();
+      if (!busy) $("prompt").focus();
+      return;
+    }
     if (settings.contains(e.target)) {
       LiquidLayers.openSettings();
       requestAnimationFrame(() => e.target.focus());
