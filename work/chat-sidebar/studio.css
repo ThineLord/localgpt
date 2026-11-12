@@ -847,6 +847,8 @@ dialog button.primary, #saveMemory {
 }
 .danger-link { color: var(--error); background: transparent; }
 .primary.danger { color: #fff; background: #b42318; border-color: transparent; }
+/* The shared dialog rule paints buttons transparent and would hide this white label. */
+#confirmAccept { color: #fff; background: #b42318; border-color: transparent; }
 .preview-close { position: absolute; top: 8px; right: 8px; }
 #galleryPreview {
   display: block;
