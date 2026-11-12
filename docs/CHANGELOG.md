@@ -4,6 +4,9 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+- After Stop, the stopped turn stays in the transcript: the prompt and any partial reply remain visible, and Send stays usable.
+- The memory delete confirmation shows its confirm label. Deletion still requires that confirmation.
+- English mid-generation status says “Generating” instead of the untranslated “正在生成”. Chinese status text is unchanged.
 - The create-project example reads as a placeholder, so Create stays off until a real name is typed. Sidebar New project and + open that same dialog.
 - After a reply finishes or is stopped, the caret returns to the composer and Send is usable without clicking the field first.
 - English copy: “1 model”, a composer placeholder with room for “say”, and an English trashed-images section.

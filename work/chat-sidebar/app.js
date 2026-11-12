@@ -120,6 +120,7 @@ const EN = {
   上传的参考图片: "Uploaded reference image",
   "参考图已就绪，请输入修改要求。": "Image ready. Describe your changes.",
   正在绘制: "Generating",
+  正在生成: "Generating",
   加载文本编码器: "Loading text encoder",
   理解图片与修改要求: "Reading image and instructions",
   理解中文描述: "Reading your prompt",
@@ -1207,6 +1208,27 @@ function connectionRecovered() {
   if (connectionFailure) { setStatus(''); connectionFailure = false; }
   if ($('retryConnection')) $('retryConnection').hidden = true;
 }
+function mergeTranscript(local, fresh) {
+  const previous = new Map((local || []).map((message) => [message.id, message]));
+  return (fresh || []).map((message) => {
+    const prior = previous.get(message.id);
+    if (!prior) return message;
+    const priorDone = !["running", "submitting"].includes(prior.status);
+    const freshLive = ["running", "submitting"].includes(message.status);
+    // A slow snapshot must not turn a stopped reply back into an in-progress one.
+    if (priorDone && freshLive) return prior;
+    const answer =
+      (prior.answer || "").length > (message.answer || "").length
+        ? prior.answer
+        : message.answer;
+    const reasoning =
+      (prior.reasoning || "").length > (message.reasoning || "").length
+        ? prior.reasoning
+        : message.reasoning;
+    if (answer === message.answer && reasoning === message.reasoning) return message;
+    return { ...message, answer, reasoning };
+  });
+}
 async function refresh() {
   if (refreshing) return;
   refreshing = true;
@@ -1228,6 +1250,8 @@ async function refresh() {
           if (chats.length) await selectChat(chats[0].id);
           else await newChat();
         }
+      } else if (Number(fresh.version) < Number(current.version)) {
+        // This response was read before the turn now on screen. Keep that turn.
       } else {
         if (
           !dirty &&
@@ -1241,6 +1265,7 @@ async function refresh() {
         if (!saving) {
           current = {
             ...fresh,
+            messages: mergeTranscript(current.messages, fresh.messages),
             draft_version: dirty ? current.draft_version : fresh.draft_version,
           };
           if (!dirty) baseDraft = normalized(fresh.draft);
