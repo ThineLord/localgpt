@@ -550,7 +550,7 @@ svg {
   z-index: 80;
   inset: auto;
   width: min(340px, calc(100vw - 24px));
-  max-height: min(70dvh, 520px);
+  max-height: calc(100dvh - 24px);
   margin: 0;
   padding: 14px;
   overflow: auto;

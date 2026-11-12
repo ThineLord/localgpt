@@ -533,11 +533,51 @@
     }
   };
 
+  async function applyPreference(key, value) {
+    const input = byId(key === "enabled" ? "memoryEnabled" : "memoryAutomatic");
+    if (memoryPending || !booted || snapshot.preferences_version == null) {
+      syncPreferences(snapshot.preferences || {});
+      if (!booted || snapshot.preferences_version == null)
+        settingsStatus(tr("还没有读到设置版本，未更改。", "Memory settings were not changed because the version is not loaded yet."), true);
+      return;
+    }
+    const version = snapshot.preferences_version;
+    memoryPending = true;
+    input.disabled = true;
+    input.checked = value;
+    try {
+      await request(
+        "/qwen-cn/memory/preferences",
+        json("PATCH", { [key]: value, preferences_version: version }),
+      );
+      hideConflict();
+      await refreshSnapshot();
+    } catch (error) {
+      input.checked = !value;
+      if (error.status === 409)
+        showConflict(
+          tr(
+            "记忆设置没有更改：版本已过期。请重新加载后再切换，不会自动重试。",
+            "Memory settings were not changed because the version is stale. Reload before switching again. It will not retry automatically.",
+          ),
+        );
+      else settingsStatus(error.message, true);
+      syncPreferences(snapshot.preferences || {});
+    } finally {
+      memoryPending = false;
+      syncPreferences({
+        enabled: byId("memoryEnabled").checked,
+        auto_capture: byId("memoryAutomatic").checked,
+      });
+      renderMemories();
+    }
+  }
+
   for (const [id, key] of [
     ["memoryEnabled", "enabled"],
     ["memoryAutomatic", "auto_capture"],
   ]) {
-    byId(id).addEventListener("change", async () => {
+    byId(id).addEventListener("change", () => {
       const input = byId(id);
       const value = input.checked;
       if (memoryPending) {
@@ -549,35 +589,20 @@
         settingsStatus(tr("还没有读到设置版本，未更改。", "Memory settings were not changed because the version is not loaded yet."), true);
         return;
       }
-      const version = snapshot.preferences_version;
-      memoryPending = true;
-      input.disabled = true;
-      try {
-        await request(
-          "/qwen-cn/memory/preferences",
-          json("PATCH", { [key]: value, preferences_version: version }),
+      if (key === "enabled" && value === false && snapshot.preferences?.enabled) {
+        input.checked = true;
+        askMemory(
+          tr("关闭全局记忆？", "Turn off personal memory?"),
+          tr(
+            "关闭后，新的回答不再记录或引用这些记忆。已有条目会保留，聊天记录不会改写。",
+            "New answers will no longer save or use these memories. Saved entries stay, and existing chats are not rewritten.",
+          ),
+          tr("确认关闭", "Turn off"),
+          () => applyPreference(key, false),
         );
-        hideConflict();
-        await refreshSnapshot();
-      } catch (error) {
-        input.checked = !value;
-        if (error.status === 409)
-          showConflict(
-            tr(
-              "记忆设置没有更改：版本已过期。请重新加载后再切换，不会自动重试。",
-              "Memory settings were not changed because the version is stale. Reload before switching again. It will not retry automatically.",
-            ),
-          );
-        else settingsStatus(error.message, true);
-        syncPreferences(snapshot.preferences || {});
-      } finally {
-        memoryPending = false;
-        syncPreferences({
-          enabled: byId("memoryEnabled").checked,
-          auto_capture: byId("memoryAutomatic").checked,
-        });
-        renderMemories();
+        return;
       }
+      applyPreference(key, value);
     });
   }
 

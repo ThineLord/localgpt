@@ -4,6 +4,9 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+- Regenerating a reply replaces that turn's answer. The same prompt is not added as another turn.
+- Turning global memory off asks for confirmation. Saved entries stay until they are deleted separately.
+- The generation settings panel uses the 1280×800 viewport, so quality, prompt strength, and seed stay on screen.
 - After Stop, the stopped turn stays in the transcript: the prompt and any partial reply remain visible, and Send stays usable.
 - A finished reply replaces the longer in-progress text. Think-tag cleanup stays: the answer is the final text and the reasoning stays separate. Longer partial text is kept only while the arriving snapshot is still in progress.
 - The memory delete confirmation shows its confirm label. Deletion still requires that confirmation.

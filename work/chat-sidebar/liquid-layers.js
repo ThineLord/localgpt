@@ -78,16 +78,17 @@
     const below = Math.max(0, innerHeight - origin.bottom - 22);
     const placeAbove = above >= below;
     if (mobile) panel.style.removeProperty("max-height");
-    else panel.style.maxHeight = `min(70dvh, 520px, ${placeAbove ? above : below}px)`;
+    else panel.style.maxHeight = Math.max(160, innerHeight - 24) + "px";
     const r = panel.getBoundingClientRect();
     const left = mobile
       ? 12
       : Math.max(12, Math.min(origin.left, innerWidth - r.width - 12));
-    const top = mobile
-      ? Math.max(12, innerHeight - r.height - 12)
+    const preferred = mobile
+      ? innerHeight - r.height - 12
       : placeAbove
-        ? Math.max(12, origin.top - r.height - 10)
+        ? origin.top - r.height - 10
         : origin.bottom + 10;
+    const top = Math.max(12, Math.min(preferred, innerHeight - r.height - 12));
     panel.style.inset = "auto";
     panel.style.left = `${left}px`;
     panel.style.top = `${top}px`;

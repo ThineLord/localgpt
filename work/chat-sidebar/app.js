@@ -1211,9 +1211,13 @@ function connectionRecovered() {
 function mergeTranscript(local, fresh) {
   const previous = new Map((local || []).map((message) => [message.id, message]));
   const live = (status) => ["running", "submitting"].includes(status);
+  const attempt = (message) => Number(message?.attempt || 1);
   return (fresh || []).map((message) => {
     const prior = previous.get(message.id);
     if (!prior) return message;
+    // A newer regenerate attempt replaces the previous answer. An older snapshot does not.
+    if (attempt(message) > attempt(prior)) return message;
+    if (attempt(message) < attempt(prior)) return prior;
     const priorLive = live(prior.status);
     const freshLive = live(message.status);
     // A slow snapshot must not turn a stopped reply back into an in-progress one.
@@ -2045,6 +2049,45 @@ function watchMessage(m) {
     }
   };
 }
+async function regenerateTurn(message) {
+  if (busy || submitting || !current || !message?.id) return;
+  if (chats.some((c) => c.active && c.id !== current.id)) return;
+  submitting = true;
+  updateSendButton();
+  const id = current.id;
+  try {
+    runStart = Date.now();
+    setBusy(true);
+    setPhase("理解你的请求");
+    document.querySelector("#form .settings").open = false;
+    const restarted = await request(
+      `/qwen-cn/messages/${message.id}/regenerate`,
+      json("POST", { request_key: crypto.randomUUID() }),
+    );
+    if (current?.id === id) {
+      const index = current.messages.findIndex((item) => item.id === message.id);
+      if (index >= 0) current.messages[index] = restarted;
+      render(true);
+    }
+    if (current?.id !== id) {
+      await refresh();
+      return;
+    }
+    const submitted = await request(`/qwen-cn/chats/${id}`);
+    if (current?.id !== id) return;
+    current = {
+      ...submitted,
+      messages: mergeTranscript(current.messages, submitted.messages),
+    };
+    await refresh();
+    render(true);
+  } catch (e) {
+    setStatus("生成失败：" + e.message, true);
+  } finally {
+    submitting = false;
+    updateActivity();
+  }
+}
 async function sendTurn(overrides) {
   if (busy || submitting || chats.some((c) => c.active && c.id !== current?.id))
     return;
@@ -2237,13 +2280,7 @@ function renderAnswer(entry, m) {
     retry.type = "button";
     messageAction(retry, "retry", "重新生成");
     retry.disabled = busy;
-    retry.onclick = () =>
-      sendTurn({
-        ...m.settings,
-        prompt: m.prompt,
-        reference: m.reference,
-        mode: m.kind === "chat" ? "chat" : m.settings.mode,
-      });
+    retry.onclick = () => regenerateTurn(m);
     actions.append(retry);
     window.ProjectWorkspace?.extendAnswer(actions, m);
     answer.append(actions);

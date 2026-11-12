@@ -87,6 +87,8 @@ class Store:
             columns = {r['name'] for r in db.execute('PRAGMA table_info(messages)')}
             if 'image_deleted' not in columns:db.execute('ALTER TABLE messages ADD COLUMN image_deleted INTEGER NOT NULL DEFAULT 0')
             if 'memory_json' not in columns:db.execute("ALTER TABLE messages ADD COLUMN memory_json TEXT NOT NULL DEFAULT '{}' ")
+            if 'attempt' not in columns:db.execute('ALTER TABLE messages ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1')
+            if 'regenerate_key' not in columns:db.execute('ALTER TABLE messages ADD COLUMN regenerate_key TEXT')
             db.executescript('CREATE TABLE IF NOT EXISTS gallery_archive(id TEXT PRIMARY KEY,payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS removed_sources(source TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS purged_imports(source TEXT PRIMARY KEY);')
             _ensure_pin_schema(db)
         # Additive protocol schema: all DDL is one transaction, no legacy rows adopted.
@@ -253,6 +255,39 @@ class Store:
             title = prompt.replace('\n',' ').strip()[:32] if chat['title']=='新对话' else chat['title']
             db.execute("UPDATE chats SET title=?,draft=?,version=version+1,draft_version=draft_version+1,updated=? WHERE id=?",(title,json.dumps({**(settings or {}),"prompt":"","reference":None},ensure_ascii=False),now,chat_id))
         return self.message(msg_id),True
+
+    def restart_answer(self, message_id, regenerate_key, owner):
+        """Replace one turn's answer. The prompt row is kept; memory is not applied again."""
+        if not isinstance(regenerate_key, str) or not 8 <= len(regenerate_key) <= 100:
+            raise ValueError('Missing prompt or request key')
+        if owner is not None:
+            owner.validate(self.path)
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT * FROM messages WHERE id=?', (message_id,)).fetchone()
+            if not row:
+                raise KeyError(message_id)
+            if row['regenerate_key'] == regenerate_key:
+                return self._message(row), False
+            if row['kind'] not in ('chat', 'routing'):
+                raise ValueError('只能重新生成对话回答。')
+            chat = db.execute('SELECT deleted_at FROM chats WHERE id=?', (row['chat_id'],)).fetchone()
+            if not chat or chat['deleted_at'] is not None:
+                raise KeyError(message_id)
+            if row['status'] in ('submitting', 'running') or db.execute("SELECT id FROM messages WHERE status IN ('submitting','running')").fetchone():
+                raise Conflict('本地模型正在处理其他任务，请等当前任务完成。')
+            now = time.time()
+            attempt = int(row['attempt'] or 1) + 1
+            db.execute('''UPDATE messages SET status='submitting', kind='routing', answer='', reasoning='',
+                error=NULL, finished=NULL, seconds=NULL, phase='理解你的请求', step=NULL, total=NULL,
+                prompt_id=NULL, attempt=?, regenerate_key=? WHERE id=?''', (attempt, regenerate_key, message_id))
+            if owner is not None:
+                db.execute('DELETE FROM generation_owners WHERE message_id=?', (message_id,))
+                db.execute("INSERT INTO generation_owners VALUES(?,?,?,?,?,?,?,?)",
+                    (message_id, owner.nonce, 1, *owner.database_identity, *owner.lock_identity, now))
+                owner.validate(self.path)
+            db.execute('UPDATE chats SET version=version+1,updated=? WHERE id=?', (now, row['chat_id']))
+        return self.message(message_id), True
 
     def message(self, message_id):
         with self.connect() as db:
