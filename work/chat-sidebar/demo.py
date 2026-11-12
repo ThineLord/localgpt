@@ -48,7 +48,7 @@ def create_demo():
         return await handler(request)
     app = web.Application(middlewares=[errors,fixture])
     async def run(core,message,settings,owner=None):
-        mid=message['id']; image=settings['mode']=='image'
+        mid=message['id']; image=settings.get('mode')=='image'
         core.STORE.update(mid,kind='image' if image else 'chat',status='running',phase='正在生成' if image else '正在回答')
         try:
             if image:

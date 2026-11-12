@@ -279,6 +279,12 @@ async function main() {
   await openManager();
   await closeManager();
   await page.locator("#memoryEnabled").click();
+  await page.locator("#confirmDialog").waitFor({ state: "visible" });
+  check((await page.locator("#confirmAccept").innerText()).trim() === "确认关闭", "memory off confirm label missing");
+  await page.locator("#confirmCancel").click();
+  await page.waitForFunction(() => !document.getElementById("confirmDialog").open && document.getElementById("memoryEnabled").checked);
+  await page.locator("#memoryEnabled").click();
+  await page.locator("#confirmAccept").click();
   await page.waitForFunction(() => document.getElementById("memorySettingsSummary").textContent.includes("已关闭"));
   const beforeDisable = (await api("/qwen-cn/memory")).payload.item_count;
   await closeSettings();
@@ -295,7 +301,7 @@ async function main() {
   check(!listed.items.some((item) => item.content.includes("霓虹紫")), "disabled text was stored");
   await showSection("memory");
   await page.locator("#memoryEnabled").click();
-  await page.waitForFunction(() => document.getElementById("memorySettingsSummary").textContent.includes("已开启"));
+  await page.waitForFunction(() => document.getElementById("memorySettingsSummary").textContent.includes("已开启") && !document.getElementById("confirmDialog").open);
   listed = (await api("/qwen-cn/memory")).payload;
   check(listed.preferences.enabled === true, "re-enable did not persist");
   check(listed.items.some((item) => item.content === pausedEdit), "re-enable dropped saved rows");

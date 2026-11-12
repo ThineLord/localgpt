@@ -81,3 +81,15 @@ process.stdout.write(JSON.stringify(merged));
         stopped = {"id": "m", "status": "stopped", "prompt": "SECOND", "answer": "这", "phase": "已停止"}
         running = {"id": "m", "status": "running", "prompt": "SECOND", "answer": "", "phase": "正在回答"}
         self.assertEqual(self.merge([stopped], [running]), [stopped])
+
+    def test_newer_attempt_replaces_the_finished_answer(self):
+        finished = {"id": "m", "attempt": 1, "status": "completed", "prompt": "same", "answer": "old answer"}
+        restarted = {"id": "m", "attempt": 2, "status": "submitting", "prompt": "same", "answer": "", "phase": "理解你的请求"}
+        merged = self.merge([finished], [restarted])
+        self.assertEqual(merged, [restarted])
+        self.assertEqual(len(merged), 1)
+
+    def test_older_attempt_cannot_restore_a_stopped_reply(self):
+        stopped = {"id": "m", "attempt": 2, "status": "stopped", "prompt": "same", "answer": "partial"}
+        stale = {"id": "m", "attempt": 1, "status": "running", "prompt": "same", "answer": "old answer"}
+        self.assertEqual(self.merge([stopped], [stale]), [stopped])

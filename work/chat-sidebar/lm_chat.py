@@ -441,6 +441,45 @@ def install(core):
         except KeyError:raise web.HTTPNotFound()
         except (ValueError,TypeError) as error:return core.reply({'error':str(error)},400)
 
+    @routes.post('/qwen-cn/messages/{message_id}/regenerate')
+    async def regenerate(request):
+        """Run the same turn again. The existing prompt stays; no second user row is stored."""
+        core.mutate(request)
+        try:
+            body=await request.json();key=body.get('request_key','');mid=request.match_info['message_id']
+            if not isinstance(key,str) or not 8<=len(key)<=100:raise ValueError('Missing prompt or request key')
+            async with core.SUBMIT_LOCK:
+                owner=GenerationLock(core.STORE.path)
+                transferred=False
+                try:
+                    if not owner.acquire():
+                        prior=core.STORE.message(mid)
+                        if prior.get('regenerate_key')==key:return core.reply(prior)
+                        raise core.Conflict('本地模型正在处理其他任务，请等当前任务完成。')
+                    recovery=core.STORE.reconcile_generation(owner)
+                    if not recovery['generation_recovery_ready']:
+                        raise core.Conflict('Generation ownership_unknown：旧任务所有权未知，需要协调升级；未自动恢复。')
+                    message,created=core.STORE.restart_answer(mid,key,owner)
+                    if not created:return core.reply(message)
+                    settings=message.get('settings') or {}
+                    turn=run_turn(core,message,settings,owner)
+                    try:
+                        task=asyncio.create_task(turn)
+                    except BaseException:
+                        turn.close()
+                        raise
+                    CHAT_TASKS[message['id']]=task
+                    task.add_done_callback(lambda done:finish_task(core,message['id'],owner,done))
+                    transferred=True
+                finally:
+                    if not transferred:
+                        owner.close()
+            return core.reply(message,202)
+        except core.Conflict as error:return core.reply({'error':str(error)},409)
+        except (sqlite3.Error,OSError):return core.reply({'error':'Generation storage or ownership unavailable; request retained if committed.', 'code':'generation_unavailable'},503)
+        except KeyError:raise web.HTTPNotFound()
+        except (ValueError,TypeError) as error:return core.reply({'error':str(error)},400)
+
     @routes.get('/qwen-cn/messages/{message_id}/events')
     async def events(request):
         mid=request.match_info['message_id']
