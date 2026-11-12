@@ -55,3 +55,5 @@ For real inference, follow [local service setup](docs/user-guide.md#local-servic
 Current application version: **0.2.1**. [Release notes](docs/releases/0.2.1.md) · [Changelog](docs/CHANGELOG.md) · [Testing](docs/testing.md)
 
 Personal data, models and local configuration stay outside this repository. See [privacy](docs/reference/privacy.md). This is an independent application built with Python/aiohttp, SQLite and plain JavaScript.
+
+Licensed under the [MIT License](LICENSE).
