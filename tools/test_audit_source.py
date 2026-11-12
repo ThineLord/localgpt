@@ -37,6 +37,24 @@ class SourceAuditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("Reviewed unique path/blob pairs: 1", result.stdout)
 
+    def test_root_license_is_allowed_and_still_scanned(self):
+        license_file = self.root / "LICENSE"
+        license_file.write_text("MIT License\nCopyright (c) 2026 Synthetic\n")
+        self.git("add", "LICENSE")
+        self.assertEqual(self.audit().returncode, 0)
+        marker = "SYNTHETIC" + "_LICENSE_CREDENTIAL"
+        license_file.write_text("password = " + repr(marker) + "\n")
+        self.git("add", "LICENSE")
+        result = self.audit()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("secret_assignment", result.stdout)
+        self.assertNotIn(marker, result.stdout)
+        nested = self.root / "docs"
+        nested.mkdir()
+        (nested / "LICENSE").write_text("MIT License\n")
+        self.git("add", "docs/LICENSE")
+        self.assertIn("docs/LICENSE not approved", self.audit().stdout)
+
     def test_only_named_launcher_is_allowed_and_still_scanned(self):
         launcher = self.root / "Start LocalGPT.command"
         launcher.write_text("#!/bin/zsh\nexec python3 work/chat-sidebar/launch.py\n")

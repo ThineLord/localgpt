@@ -55,3 +55,5 @@ python3 -m venv .venv
 当前应用版本：**0.2.1**。[版本说明](docs/releases/0.2.1.zh-CN.md) · [更新记录](docs/CHANGELOG.md) · [测试方法](docs/testing.zh-CN.md)
 
 个人数据、模型和本地配置不进入仓库，详见[隐私说明](docs/reference/privacy.md)。这是一个独立应用，使用 Python/aiohttp、SQLite 和原生 JavaScript 构建。
+
+采用 [MIT 许可证](LICENSE)。
