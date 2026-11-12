@@ -1210,13 +1210,17 @@ function connectionRecovered() {
 }
 function mergeTranscript(local, fresh) {
   const previous = new Map((local || []).map((message) => [message.id, message]));
+  const live = (status) => ["running", "submitting"].includes(status);
   return (fresh || []).map((message) => {
     const prior = previous.get(message.id);
     if (!prior) return message;
-    const priorDone = !["running", "submitting"].includes(prior.status);
-    const freshLive = ["running", "submitting"].includes(message.status);
+    const priorLive = live(prior.status);
+    const freshLive = live(message.status);
     // A slow snapshot must not turn a stopped reply back into an in-progress one.
-    if (priorDone && freshLive) return prior;
+    if (!priorLive && freshLive) return prior;
+    // Keep a longer partial only while this snapshot is still streaming.
+    // A finished snapshot is authoritative even after think-tag cleanup shortens it.
+    if (!(priorLive && freshLive)) return message;
     const answer =
       (prior.answer || "").length > (message.answer || "").length
         ? prior.answer

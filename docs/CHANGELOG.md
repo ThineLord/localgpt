@@ -5,6 +5,7 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 ## [Unreleased]
 
 - After Stop, the stopped turn stays in the transcript: the prompt and any partial reply remain visible, and Send stays usable.
+- A finished reply replaces the longer in-progress text. Think-tag cleanup stays: the answer is the final text and the reasoning stays separate. Longer partial text is kept only while the arriving snapshot is still in progress.
 - The memory delete confirmation shows its confirm label. Deletion still requires that confirmation.
 - English mid-generation status says “Generating” instead of the untranslated “正在生成”. Chinese status text is unchanged.
 - The create-project example reads as a placeholder, so Create stays off until a real name is typed. Sidebar New project and + open that same dialog.
