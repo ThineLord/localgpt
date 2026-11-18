@@ -85,6 +85,39 @@ class UnifiedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn({'role':'assistant','content':'你好，小林。'},body['messages'])
         events=await self.client.get('/qwen-cn/messages/'+m2['id']+'/events');self.assertIn('你好，小林。',await events.text())
         bad=await self.client.post(url,json={**payload,'temperature':0});self.assertEqual(bad.status,409)
+    async def test_regenerating_middle_turn_uses_original_history_and_fresh_timer(self):
+        chat = await self.create()
+        turns = []
+        for i, prompt in enumerate(("Earlier note", "Middle question", "Later note")):
+            response = await self.client.post(
+                f"/qwen-cn/chats/{chat['id']}/send",
+                json={"prompt": prompt, "mode": "chat", "request_key": f"history-turn-{i}"},
+            )
+            self.assertEqual(response.status, 202)
+            message = await response.json()
+            turns.append(await self.wait_done(message["id"]))
+
+        # Simulate reopening yesterday's conversation, preserving its display order.
+        with self.backend.STORE.connect() as db:
+            db.execute("UPDATE messages SET created=created-86400 WHERE chat_id=?", (chat["id"],))
+        middle = self.backend.STORE.message(turns[1]["id"])
+        response = await self.client.post(
+            f"/qwen-cn/messages/{middle['id']}/regenerate",
+            json={"request_key": "middle-turn-retry"},
+        )
+        self.assertEqual(response.status, 202)
+        result = await self.wait_done(middle["id"])
+        self.assertEqual(result["status"], "completed")
+        prompts = [m["content"] for m in self.payloads[-1]["messages"] if m["role"] == "user"]
+        with self.subTest("history"):
+            self.assertEqual(prompts[:-1], ["Earlier note"])
+            self.assertIn("Middle question", prompts[-1])
+        with self.subTest("clock"):
+            self.assertEqual(result["created"], middle["created"])
+            self.assertLess(result["seconds"], 60)
+            self.assertAlmostEqual(result["finished"] - result["attempt_started"], result["seconds"], places=2)
+        self.assertEqual(self.backend.STORE.message(turns[2]["id"])["attempt"], 1)
+
     async def test_stop_retains_partial_answer(self):
         self.long=True;c=await self.create()
         m=await (await self.client.post('/qwen-cn/chats/'+c['id']+'/send',json={'prompt':'继续说','mode':'chat','request_key':'stop-stream-test'})).json()

@@ -1184,7 +1184,7 @@ function updateActivity() {
     ["running", "submitting"].includes(m.status),
   );
   uploading = !!uploading;
-  runStart = active ? active.created * 1000 : Date.now();
+  runStart = active ? (active.attempt_started ?? active.created) * 1000 : Date.now();
   setBusy(!!active || uploading || submitting);
   watchMessage(active);
   $("cancel").disabled = !active || stopFeedback?.messageId === active.id;

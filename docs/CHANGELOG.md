@@ -4,6 +4,8 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+- Regenerating an earlier turn uses only its preceding conversation history. The elapsed timer starts at the new attempt while the turn keeps its place in the transcript.
+
 - Regenerating a reply replaces that turn's answer. The same prompt is not added as another turn.
 - Turning global memory off asks for confirmation. Saved entries stay until they are deleted separately.
 - The generation settings panel uses the 1280×800 viewport, so quality, prompt strength, and seed stay on screen.

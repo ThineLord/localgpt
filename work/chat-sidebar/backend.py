@@ -312,7 +312,7 @@ async def monitor():
                             pid=match[1] if match else next((pid for pid,h in history.items() if (h.get('prompt') or [None,None,None,{}])[3].get('qwen_chat_message')==mid),None)
                             if pid:
                                 message=STORE.update(mid,prompt_id=pid,status='running')
-                            elif time.time()-message['created']>30:
+                            elif time.time()-message['attempt_started']>30:
                                 STORE.update(mid,status='failed',error='生成已中断，描述已保存，请重试。',finished=time.time())
                                 continue
                             else:
@@ -330,7 +330,7 @@ async def monitor():
                             if result.get('status',{}).get('status_str')=='success' and images:
                                 image_path(images[0],output_only=True)
                                 stamps={kind:info.get('timestamp') for kind,info in result.get('status',{}).get('messages',[]) if isinstance(info,dict)}
-                                seconds=(stamps['execution_success']-stamps['execution_start'])/1000 if stamps.get('execution_success') and stamps.get('execution_start') else time.time()-message['created']
+                                seconds=(stamps['execution_success']-stamps['execution_start'])/1000 if stamps.get('execution_success') and stamps.get('execution_start') else time.time()-message['attempt_started']
                                 STORE.update(mid,status='completed',image_json=json.dumps(images[0],ensure_ascii=False),seconds=seconds,finished=time.time(),phase='已完成',step=None,total=None)
                             else:
                                 error=next((info.get('exception_message') for kind,info in result.get('status',{}).get('messages',[]) if kind=='execution_error'),'生成已停止，描述已保存。')
@@ -342,7 +342,7 @@ async def monitor():
                         else:
                             queue=await comfy(session,'/queue')
                             present=any(q[1]==pid for q in queue['queue_running']+queue['queue_pending'])
-                            if not present and time.time()-message['created']>15:
+                            if not present and time.time()-message['attempt_started']>15:
                                 STORE.update(mid,status='failed',error='生成已中断，描述已保存，请重试。',finished=time.time())
                                 listeners.pop(mid).cancel()
                             elif present:
