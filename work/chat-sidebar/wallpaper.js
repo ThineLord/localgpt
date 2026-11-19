@@ -31,39 +31,35 @@
     n = Math.imul(n ^ (n >>> 16), 0xc2b2ae35);
     return (n ^ (n >>> 16)) >>> 0;
   }
-  function scale(rgb, factor) {
-    return rgb.map((channel) => Math.max(0, Math.min(255, Math.round(channel * factor))));
-  }
-  function css(rgb) {
-    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
-  }
   function cellSize(width, height) {
-    const raw = Math.sqrt((width * height) / 14000);
-    return Math.max(5, Math.min(8, Math.round(raw)));
+    // Keep the relief fine on a laptop, and bound the scene size on larger displays.
+    return Math.max(4, Math.ceil(Math.sqrt(width * height / 58000)));
   }
   function metrics(cell) {
-    const top = Math.max(1, Math.round(cell * 0.34));
-    const lip = 1;
-    return { cell, top, lip, body: cell - top - lip, left: Math.floor(cell / 2) };
+    // One diamond cap and two shaded faces, sampled at pixel centers.
+    const relief = new Float32Array(cell * cell);
+    for (let y = 0; y < cell; y++) {
+      for (let x = 0; x < cell; x++) {
+        const u = (x + 0.5) / cell - 0.5;
+        const v = (y + 0.5) / cell;
+        const bevel = Math.abs(u) * 0.52;
+        let light = 0.83;
+        if (v >= bevel && v < 1 - bevel) {
+          light = v < 0.52 - bevel ? 1.13 : u < 0 ? 0.99 : 0.87;
+        }
+        relief[y * cell + x] = light;
+      }
+    }
+    return { cell, relief };
   }
   function graphite(u, v, col, row) {
-    let g = 214 - v * 28;
-    if (u < 0.16) g = 16 + v * 10;
-    if (u > 0.2 && u < 0.3 && v > 0.16 && v < 0.88) g = 242;
-    const dx = u - 0.68;
-    const dy = v - 0.4;
-    const d2 = dx * dx + dy * dy * 1.15;
-    if (d2 < 0.03) g = 248 - d2 * 900;
-    else if (d2 < 0.045) g = 28;
-    if (v > 0.82) g = 58;
-    if (v > 0.9) g = 196;
-    if (u > 0.36 && u < 0.56 && v > 0.22 && v < 0.72) {
-      const cu = Math.floor((u - 0.36) / 0.05);
-      const cv = Math.floor((v - 0.22) / 0.08);
-      g = (cu + cv) % 2 === 0 ? 132 : 46;
-      if (u < 0.375 || u > 0.545 || v < 0.24 || v > 0.7) g = 20;
-    }
-    g = Math.max(0, Math.min(255, g + (hash(col, row) % 11) - 5));
+    // Sweeping terraces of graphite. Curved crests catch the light on one edge.
+    const bend = v + 0.17 * Math.sin(4.2 * u + 0.7) - 0.23 * u;
+    const phase = 30 * bend + 1.4 * Math.sin(6.3 * u - 2 * v);
+    const crest = (1 + Math.cos(phase)) / 2;
+    const grain = hash(col, row) % 9 - 4;
+    const g = 138 + 28 * Math.cos(5 * bend) + 48 * crest ** 5
+      - 28 * Math.max(0, Math.sin(phase)) ** 4 + grain;
     return [g, g, g];
   }
   function mix(a, b, t) {
@@ -158,57 +154,17 @@
     if (name === "lilies") return lilies(u, v);
     return [0, 0, 0];
   }
-  function fillPixels(data, width, height, x, y, w, h, rgb) {
-    const x0 = Math.max(0, x | 0);
-    const y0 = Math.max(0, y | 0);
-    const x1 = Math.min(width, (x + w) | 0);
-    const y1 = Math.min(height, (y + h) | 0);
-    for (let yy = y0; yy < y1; yy++) {
-      let i = (yy * width + x0) * 4;
-      for (let xx = x0; xx < x1; xx++) {
-        data[i] = rgb[0];
-        data[i + 1] = rgb[1];
-        data[i + 2] = rgb[2];
+  function stamp(data, width, height, x, y, rgb, { cell, relief }) {
+    for (let dy = 0; dy < Math.min(cell, height - y); dy++) {
+      let i = ((y + dy) * width + x) * 4;
+      for (let dx = 0; dx < Math.min(cell, width - x); dx++, i += 4) {
+        const light = relief[dy * cell + dx];
+        data[i] = rgb[0] * light;
+        data[i + 1] = rgb[1] * light;
+        data[i + 2] = rgb[2] * light;
         data[i + 3] = 255;
-        i += 4;
       }
     }
-  }
-  function stamp(data, width, height, x, y, rgb, box) {
-    const top = scale(rgb, 1.35);
-    const left = scale(rgb, 0.98);
-    const right = scale(rgb, 0.55);
-    const lip = scale(rgb, 0.32);
-    fillPixels(data, width, height, x, y, box.cell, box.top, top);
-    fillPixels(data, width, height, x, y + box.top, box.left, box.body, left);
-    fillPixels(data, width, height, x + box.left, y + box.top, box.cell - box.left, box.body, right);
-    fillPixels(data, width, height, x, y + box.cell - box.lip, box.cell, box.lip, lip);
-  }
-  function paintCube(x, y, rgb, box) {
-    const top = scale(rgb, 1.35);
-    const left = scale(rgb, 0.98);
-    const right = scale(rgb, 0.55);
-    const lip = scale(rgb, 0.32);
-    ctx.fillStyle = css(top);
-    ctx.fillRect(x, y, box.cell, box.top);
-    ctx.fillStyle = css(left);
-    ctx.fillRect(x, y + box.top, box.left, box.body);
-    ctx.fillStyle = css(right);
-    ctx.fillRect(x + box.left, y + box.top, box.cell - box.left, box.body);
-    ctx.fillStyle = css(lip);
-    ctx.fillRect(x, y + box.cell - box.lip, box.cell, box.lip);
-  }
-  function popPixels(col, row, time) {
-    const h = hash(col >> 1, row >> 1);
-    const period = 6400 + (h % 4200);
-    const dur = 640 + (h % 280);
-    const u = (time + (h % period)) % period;
-    if (u > dur) return 0;
-    const wave = Math.sin(Math.PI * (u / dur));
-    const amp = 1 + (h % 2);
-    if (wave > 0.55) return amp;
-    if (wave > 0.2) return 1;
-    return 0;
   }
   function readStyle() {
     try {
@@ -263,19 +219,28 @@
   function paintFrame() {
     if (!ctx || !scene) return;
     paintSettled();
-    const { colors, cols, rows, box } = scene;
+    const { base, cols, rows, box } = scene;
     const cell = box.cell;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const lift = popPixels(col, row, elapsed);
-        if (!lift) continue;
-        const i = (row * cols + col) * 3;
-        const rgb = [colors[i], colors[i + 1], colors[i + 2]];
-        const x = col * cell;
-        const y = row * cell;
-        ctx.fillStyle = css(scale(rgb, 0.35));
-        ctx.fillRect(x, y, cell, cell);
-        paintCube(x, y - lift, rgb, box);
+    // Small groups rise in sequence. Copy the already shaded faces from the
+    // cached painting so animation work depends on the pulses, not canvas area.
+    ctx.fillStyle = "rgba(0,0,0,.21)";
+    for (let p = 0; p < 96; p++) {
+      const seed = hash(p, 13);
+      const cycle = elapsed / (3600 + seed % 3400) + (seed % 997) / 997;
+      const t = cycle % 1;
+      if (t > 0.32) continue;
+      const location = hash(p, Math.floor(cycle));
+      const x = (location % cols) * cell;
+      const y = (hash(location % 8191, p) % rows) * cell;
+      for (let k = 0; k < 5; k++) {
+        const pulse = (t - k * 0.018) / 0.22;
+        if (pulse <= 0 || pulse >= 1) continue;
+        const dx = x + (k % 3) * cell;
+        const dy = y + Math.floor(k / 3) * cell;
+        if (dx + cell > base.width || dy + cell > base.height) continue;
+        const lift = Math.sin(pulse * Math.PI) ** 2 * cell * 0.6;
+        ctx.fillRect(dx, dy, cell, cell);
+        ctx.drawImage(base, dx, dy, cell, cell, dx, dy - lift, cell, cell);
       }
     }
   }
@@ -317,22 +282,17 @@
     base.height = height;
     const baseCtx = base.getContext("2d", { alpha: false });
     const image = baseCtx.createImageData(width, height);
-    const colors = new Uint8ClampedArray(cols * rows * 3);
     const data = image.data;
     for (let row = 0; row < rows; row++) {
       const v = (row * box.cell + box.cell / 2) / height;
       for (let col = 0; col < cols; col++) {
         const u = (col * box.cell + box.cell / 2) / width;
         const rgb = sample(name, u, v, col, row);
-        const i = (row * cols + col) * 3;
-        colors[i] = rgb[0];
-        colors[i + 1] = rgb[1];
-        colors[i + 2] = rgb[2];
         stamp(data, width, height, col * box.cell, row * box.cell, rgb, box);
       }
     }
     baseCtx.putImageData(image, 0, 0);
-    return { base, colors, cols, rows, box, style: name };
+    return { base, cols, rows, box, style: name };
   }
   function ensureField() {
     if (field && field.isConnected) return field;

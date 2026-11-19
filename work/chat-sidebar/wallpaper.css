@@ -90,11 +90,8 @@ html[data-wallpaper="lilies"] :is(.collection-heading, .empty-collection, .empty
 }
 
 .wallpaper-swatch-graphite {
-  background:
-    linear-gradient(#111 0 0) 10% 18% / 16% 68% no-repeat,
-    linear-gradient(#f5f5f5 0 0) 30% 28% / 12% 48% no-repeat,
-    radial-gradient(circle at 72% 42%, #fff 0 16%, #161616 17% 26%, transparent 27%),
-    linear-gradient(#c5c5c5, #8d8d8d);
+  background: repeating-radial-gradient(ellipse at 10% 100%,
+    #a6a6a6 0, #d6d6d6 12%, #888 17%, #bbb 22%);
 }
 
 .wallpaper-swatch-starry {
@@ -129,3 +126,6 @@ html[data-wallpaper="lilies"] :is(.collection-heading, .empty-collection, .empty
   #settingsPanelAppearance .wallpaper-row { min-height: 0; }
   .wallpapers { justify-content: flex-start; }
 }
+
+html[data-wallpaper="graphite"] #wallpaperField { opacity: .32; }
+html[data-theme="dark"][data-wallpaper="graphite"] #wallpaperField { opacity: .19; }
