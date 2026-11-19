@@ -129,3 +129,6 @@ html[data-wallpaper="lilies"] :is(.collection-heading, .empty-collection, .empty
 
 html[data-wallpaper="graphite"] #wallpaperField { opacity: .32; }
 html[data-theme="dark"][data-wallpaper="graphite"] #wallpaperField { opacity: .19; }
+
+html:is([data-wallpaper="starry"], [data-wallpaper="lilies"]) #wallpaperField { opacity: .48; }
+html[data-theme="dark"]:is([data-wallpaper="starry"], [data-wallpaper="lilies"]) #wallpaperField { opacity: .64; }

@@ -58,8 +58,8 @@
     const phase = 30 * bend + 1.4 * Math.sin(6.3 * u - 2 * v);
     const crest = (1 + Math.cos(phase)) / 2;
     const grain = hash(col, row) % 9 - 4;
-    const g = 138 + 28 * Math.cos(5 * bend) + 48 * crest ** 5
-      - 28 * Math.max(0, Math.sin(phase)) ** 4 + grain;
+    const g = 129 + 48 * Math.cos(5 * bend) + 48 * crest ** 5
+      - 52 * Math.max(0, Math.sin(phase)) ** 4 + grain;
     return [g, g, g];
   }
   function mix(a, b, t) {
@@ -76,41 +76,55 @@
     const cream = [236, 226, 186];
     const gold = [244, 196, 72];
     const yellow = [255, 230, 120];
-    const s1 = Math.sin(u * 10.5 + Math.sin(v * 9) * 2.2 + v * 2);
-    const s2 = Math.sin(v * 12 + Math.cos(u * 7.5) * 1.8);
-    const s3 = Math.sin((u + v) * 16 + Math.sin(u * 5) * 3);
-    let color = mix(navy, blue, 0.5 + 0.5 * s1);
-    color = mix(color, cyan, Math.max(0, s2) ** 2 * 0.55);
-    color = mix(color, cream, Math.max(0, s3) ** 3 * 0.35);
-    for (const [sx, sy, amount] of [
-      [0.33, 0.18, 1], [0.52, 0.12, 0.8], [0.67, 0.24, 1.15], [0.8, 0.14, 0.7],
-      [0.46, 0.34, 0.85], [0.22, 0.3, 0.55], [0.74, 0.4, 0.6], [0.58, 0.22, 0.45],
+    // Bend horizontal strokes around two vortices, then pick out broken
+    // ridges of lighter pigment along the direction of the wind.
+    let x = u, y = v;
+    for (const [cx, cy, twist, radius] of [[0.56, 0.32, 6.6, 0.22], [0.31, 0.27, -4.8, 0.14]]) {
+      const dx = (x - cx) * 1.6, dy = y - cy;
+      const angle = twist * Math.exp(-(dx * dx + dy * dy) / (radius * radius));
+      x = cx + (dx * Math.cos(angle) - dy * Math.sin(angle)) / 1.6;
+      y = cy + dx * Math.sin(angle) + dy * Math.cos(angle);
+    }
+    const wind = y + 0.083 * Math.sin(8 * x) + 0.04 * Math.sin(17 * x + y);
+    const stroke = (1 + Math.cos(117 * wind + 0.48 * Math.sin(49 * x))) / 2;
+    const broken = (1 + Math.cos(64 * x + 7 * Math.sin(70 * wind))) / 2;
+    let color = mix(navy, blue, 0.5 + 0.5 * Math.cos(37 * wind));
+    color = mix(color, cyan, stroke ** 2 * (0.28 + 0.66 * broken));
+    color = mix(color, cream, stroke ** 6 * broken * (0.26 + 0.24 * Math.cos(23 * wind)));
+    for (const [sx, sy, radius] of [
+      [0.18,0.18,0.044], [0.37,0.12,0.061], [0.49,0.10,0.029], [0.67,0.15,0.048],
+      [0.74,0.36,0.038], [0.84,0.08,0.024], [0.92,0.19,0.084], [0.43,0.46,0.034],
     ]) {
-      const d = Math.hypot((u - sx) * 1.15, (v - sy) * 1.35);
-      color = mix(color, yellow, Math.min(1, Math.exp(-d * d * 900 / amount) * 1.3));
-      color = mix(color, gold, Math.min(1, Math.exp(-(((d - 0.035 * amount) * 28) ** 2)) * 0.85));
-      color = mix(color, cream, Math.min(1, Math.exp(-(((d - 0.06 * amount) * 22) ** 2)) * 0.45));
+      const dx = (u - sx) * 1.55, dy = v - sy;
+      const r = Math.hypot(dx, dy) / radius;
+      if (r > 1.7) continue;
+      const theta = Math.atan2(dy, dx);
+      const ring = (1 + Math.cos(22 * r + 0.7 * Math.sin(4 * theta))) / 2;
+      color = mix(color, gold, Math.exp(-1.6 * r * r) * (0.42 + 0.58 * ring));
+      color = mix(color, yellow, Math.max(0, 1 - r * 2.2));
+      color = mix(color, cream, Math.max(0, 1 - r * 7));
     }
-    const moon = Math.hypot((u - 0.86) * 1.1, v - 0.1);
-    color = mix(color, [255, 236, 170], Math.exp(-moon * moon * 500));
-    color = mix(color, gold, Math.exp(-(((moon - 0.045) * 40) ** 2)));
-    const flame = Math.abs(u - (0.07 + Math.sin(v * 22) * 0.012 + Math.sin(v * 7) * 0.02));
-    const flameWidth = 0.055 * (1.15 - v * 0.4) + Math.max(0, Math.sin(v * 30)) * 0.01;
-    if (v < 0.86 && flame < flameWidth) color = mix([6, 20, 18], [12, 42, 36], v);
-    const hill = 0.66 + Math.sin(u * 7.5) * 0.035 + Math.sin(u * 2.2 + 1) * 0.02;
-    if (v > hill) {
-      color = mix([16, 48, 86], [8, 24, 52], (v - hill) / (1 - hill));
-      color = mix(color, [20, 70, 90], Math.max(0, Math.sin(u * 18 + v * 4)) * 0.25);
+    const ridge = 0.7 + 0.043 * Math.sin(11 * u) + 0.023 * Math.sin(29 * u + 1);
+    if (v > ridge) {
+      const layer = Math.sin((v - ridge) * 97 + 2 * Math.cos(15 * u));
+      color = mix([23, 44, 80], [53, 101, 125], 0.48 + 0.45 * layer);
     }
-    if (v > 0.74 && u > 0.22 && u < 0.78) {
-      const roof = 0.78 + ((Math.floor(u * 28) % 3) - 1) * 0.015;
-      if (v > roof) {
-        color = mix([18, 36, 78], [30, 48, 90], 0.4);
-        const wx = Math.abs((u * 36) % 1 - 0.5);
-        const wy = Math.abs((v * 28) % 1 - 0.5);
-        if (wx < 0.12 && wy < 0.14 && (Math.floor(u * 36) + Math.floor(v * 28)) % 2 === 0) color = [255, 186, 64];
+    const block = Math.floor(u * 54), roofX = Math.abs((u * 54) % 1 - 0.5);
+    const street = 0.84 + 0.03 * Math.sin(8 * u) + (hash(block, 3) % 17) / 700;
+    if (u > 0.37 && u < 0.94 && v > street + roofX * 0.037 && v < street + 0.075) {
+      color = v < street + 0.023 ? [31,45,66] : [58,73,91];
+      if (roofX < 0.12 && v > street + 0.039 && v < street + 0.047) color = gold;
+    }
+    if (Math.abs(u - 0.65) < Math.min(0.007, (v - 0.68) * 0.06) && v < 0.88) color = [24,39,61];
+    // Asymmetric cypress silhouettes reach up from the foreground.
+    for (const [root, tip, breadth] of [[0.33, 0.18, 0.046], [0.304, 0.48, 0.034], [0.36, 0.57, 0.026]]) {
+      if (v < tip) continue;
+      const h = (v - tip) / (1 - tip);
+      const axis = root + 0.012 * Math.sin(10 * h) + 0.004 * Math.sin(35 * h);
+      const edge = breadth * h ** 0.81 * (0.85 + 0.15 * Math.sin(42 * h));
+      if (Math.abs(u - axis) < edge) {
+        color = mix([14,30,43], [44,73,68], 0.45 + 0.4 * Math.sin(460 * (u - axis) + 16 * h));
       }
-      if (u > 0.47 && u < 0.52 && v > 0.62 && v < 0.8) color = [12, 28, 64];
     }
     return clampRgb(color);
   }
@@ -146,6 +160,9 @@
         color = mix(color, [214, 132, 154], 0.35 * (1 - reflection / 0.12) * (1 - Math.abs(u - fx) / 0.03));
       }
     }
+    const reflectionStroke = Math.sin(185 * v + 2 * Math.sin(18 * u) + 0.8 * Math.sin(47 * u));
+    const fleck = Math.max(0, reflectionStroke) ** 5 * (0.5 + 0.5 * Math.sin(63 * u + 20 * v));
+    color = mix(color, [185, 185, 199], fleck * 0.42);
     return clampRgb(color);
   }
   function sample(name, u, v, col, row) {

@@ -242,7 +242,8 @@ module.exports = async (page) => {
   check(fetched.length === 0, "wallpaper fetched an image " + fetched.join(","));
 
   await page.setViewportSize({ width: 390, height: 844 });
-  if (await page.locator("#sidebarShade").isVisible()) await page.locator("#sidebarShade").click();
+  // Crossing the mobile breakpoint closes the desktop sidebar asynchronously.
+  await page.locator("#sidebarShade").waitFor({ state: "hidden" });
   await page.locator("#prompt").click();
   check(await page.evaluate(() => {
     const prompt = document.getElementById("prompt");
