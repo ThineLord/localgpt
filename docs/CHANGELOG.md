@@ -4,6 +4,8 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+- Appearance can leave the background plain or show a dynamic wallpaper drawn in the browser. It stays off until chosen. The first styles are a black-white-gray cube field, Starry Night, and Water Lilies. The choice is kept in this browser, follows the interface language, and the motion pauses while the tab is hidden or when reduced motion is requested.
+
 - Regenerating an earlier turn uses only its preceding conversation history. The elapsed timer starts at the new attempt while the turn keeps its place in the transcript.
 
 - Regenerating a reply replaces that turn's answer. The same prompt is not added as another turn.

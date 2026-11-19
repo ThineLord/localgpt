@@ -1,0 +1,134 @@
+/* Dynamic wallpaper sits behind the shell. Rules apply only after a style is chosen. */
+
+#wallpaperField {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+html[data-wallpaper="graphite"] .shell,
+html[data-wallpaper="starry"] .shell,
+html[data-wallpaper="lilies"] .shell {
+  /* Above the field (z-index 0) and below the sidebar (40) and dialogs. */
+  z-index: 1;
+  background: transparent;
+}
+
+html[data-wallpaper="graphite"] .assistant-message,
+html[data-wallpaper="starry"] .assistant-message,
+html[data-wallpaper="lilies"] .assistant-message {
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--canvas) 92%, transparent);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--canvas) 92%, transparent);
+}
+
+html[data-wallpaper="graphite"] :is(.collection-heading, .empty-collection, .empty-memory, .status, .activity),
+html[data-wallpaper="starry"] :is(.collection-heading, .empty-collection, .empty-memory, .status, .activity),
+html[data-wallpaper="lilies"] :is(.collection-heading, .empty-collection, .empty-memory, .status, .activity) {
+  text-shadow: 0 0 2px var(--canvas), 0 0 8px var(--canvas);
+}
+
+#settingsPanelAppearance .settings-group > .settings-row { border-bottom: 0; }
+#settingsPanelAppearance .settings-group > .settings-row + .settings-row { border-top: 1px solid var(--line); }
+#settingsPanelAppearance .wallpaper-row {
+  min-height: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.wallpapers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wallpaper-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+  padding: 4px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-secondary);
+}
+
+.wallpaper-preview[aria-pressed="true"] {
+  outline: 2px solid #5289ff;
+  outline-offset: -2px;
+  color: var(--ink);
+}
+
+.wallpaper-swatch {
+  display: block;
+  width: 72px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.wallpaper-name {
+  font-size: 11px;
+  line-height: 13px;
+  text-align: center;
+}
+
+.wallpaper-swatch-off {
+  background:
+    linear-gradient(135deg, transparent 46%, var(--ink-tertiary) 46% 54%, transparent 54%),
+    var(--canvas);
+}
+
+.wallpaper-swatch-graphite {
+  background: repeating-radial-gradient(ellipse at 10% 100%,
+    #a6a6a6 0, #d6d6d6 12%, #888 17%, #bbb 22%);
+}
+
+.wallpaper-swatch-starry {
+  background:
+    radial-gradient(circle at 30% 28%, #ffe38a 0 3px, transparent 4px),
+    radial-gradient(circle at 62% 22%, #fff1b0 0 2px, #f0c14a 3px 6px, transparent 8px),
+    radial-gradient(circle at 80% 16%, #ffe9a0 0 7px, transparent 9px),
+    linear-gradient(#06140f 0 0) 0 40% / 14% 70% no-repeat,
+    linear-gradient(#0c2458, #16388a 55%, #102040);
+}
+
+.wallpaper-swatch-lilies {
+  background:
+    radial-gradient(circle at 35% 48%, #f4c2d0 0 5px, transparent 6px),
+    radial-gradient(circle at 62% 42%, #fff 0 4px, #e7a0b4 5px 8px, transparent 9px),
+    radial-gradient(ellipse at 40% 58%, #2f7a45 0 14px, transparent 15px),
+    radial-gradient(ellipse at 68% 62%, #3e8f55 0 12px, transparent 13px),
+    linear-gradient(#1c4a48, #6eae96);
+}
+
+.wallpaper-motion {
+  min-width: var(--hit);
+  height: var(--hit);
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+#wallpaperMotionRow { min-height: 52px; }
+
+@media (max-width: 760px) {
+  #settingsPanelAppearance .wallpaper-row { min-height: 0; }
+  .wallpapers { justify-content: flex-start; }
+}
+
+html[data-wallpaper="graphite"] #wallpaperField { opacity: .32; }
+html[data-theme="dark"][data-wallpaper="graphite"] #wallpaperField { opacity: .19; }
+
+html:is([data-wallpaper="starry"], [data-wallpaper="lilies"]) #wallpaperField { opacity: .48; }
+html[data-theme="dark"]:is([data-wallpaper="starry"], [data-wallpaper="lilies"]) #wallpaperField { opacity: .64; }
