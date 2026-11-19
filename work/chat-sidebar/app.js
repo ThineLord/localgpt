@@ -315,6 +315,7 @@ Object.assign(EN, {
   "Enter 发送，Shift+Enter 换行":"Enter to send, Shift+Enter for newline",
   通用: "General", 外观: "Appearance", 个人: "Personal", 视觉样式: "Visual style",
   记忆: "Memory", 外观模式: "Mode",
+  动态壁纸: "Dynamic wallpaper", 无壁纸: "Off", 黑白灰: "Graphite",
   模型与生成: "Models & generation", 连接状态: "Connection status", 界面语言: "Language",
   返回对话: "Back to chat", 打开设置导航: "Open settings navigation", 关闭设置导航: "Close settings navigation",
   打开生成与对话参数: "Open generation and chat settings", 打开回收站: "Open trash",
