@@ -84,7 +84,10 @@ class Store:
                 if name not in columns:
                     db.execute(f'ALTER TABLE messages ADD COLUMN {name} {definition}')
         with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
             columns = {r['name'] for r in db.execute('PRAGMA table_info(messages)')}
+            if 'attempt_started' not in columns:
+                db.execute('ALTER TABLE messages ADD COLUMN attempt_started REAL')
             if 'image_deleted' not in columns:db.execute('ALTER TABLE messages ADD COLUMN image_deleted INTEGER NOT NULL DEFAULT 0')
             if 'memory_json' not in columns:db.execute("ALTER TABLE messages ADD COLUMN memory_json TEXT NOT NULL DEFAULT '{}' ")
             if 'attempt' not in columns:db.execute('ALTER TABLE messages ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1')
@@ -135,6 +138,8 @@ class Store:
 
     def _message(self, row):
         result = dict(row)
+        if result.get('attempt_started') is None:
+            result['attempt_started'] = result['created']
         result['reference'] = json.loads(result.pop('reference_json') or 'null')
         result['image'] = json.loads(result.pop('image_json') or 'null')
         result['settings'] = json.loads(result.pop('settings_json') or '{}')
@@ -280,7 +285,7 @@ class Store:
             attempt = int(row['attempt'] or 1) + 1
             db.execute('''UPDATE messages SET status='submitting', kind='routing', answer='', reasoning='',
                 error=NULL, finished=NULL, seconds=NULL, phase='理解你的请求', step=NULL, total=NULL,
-                prompt_id=NULL, attempt=?, regenerate_key=? WHERE id=?''', (attempt, regenerate_key, message_id))
+                prompt_id=NULL, attempt_started=?, attempt=?, regenerate_key=? WHERE id=?''', (now, attempt, regenerate_key, message_id))
             if owner is not None:
                 db.execute('DELETE FROM generation_owners WHERE message_id=?', (message_id,))
                 db.execute("INSERT INTO generation_owners VALUES(?,?,?,?,?,?,?,?)",

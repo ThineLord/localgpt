@@ -224,10 +224,14 @@ async def run_turn(core,message,settings,owner=None):
         reply=command_reply(message.get('prompt') or '', message.get('memory') or {})
         if reply:
             # The send path already applied the command once. Do not call the model or mutate again.
-            core.STORE.update(mid,kind='chat',status='completed',answer=reply,phase='已完成',finished=time.time(),seconds=max(0,time.time()-(message.get('created') or time.time())))
+            core.STORE.update(mid,kind='chat',status='completed',answer=reply,phase='已完成',finished=time.time(),seconds=max(0,time.time()-message['attempt_started']))
             return
         async with aiohttp.ClientSession() as session:
-            previous=[m for m in core.STORE.chat(message['chat_id'])['messages'] if m['id']!=mid]
+            previous = []
+            for turn in core.STORE.chat(message['chat_id'])['messages']:
+                if turn['id'] == mid:
+                    break
+                previous.append(turn)
             last_image=next((m['image'] for m in reversed(previous) if m.get('image')),None)
             reference=message['reference'];intent=direct_intent(message['prompt'],settings['mode'],bool(last_image or reference))
             identifier=None;model=None
@@ -322,7 +326,7 @@ async def run_turn(core,message,settings,owner=None):
             if not answer.strip() and not reasoning.strip():raise ValueError('模型没有返回内容，请重试。')
         # Publish completion only after the async HTTP session has released its resources.
         # No await separates terminal persistence from ownership release in finally.
-        core.STORE.update(mid,status='completed',answer=answer,reasoning=reasoning,finished=time.time(),seconds=time.time()-message['created'],phase='达到回答长度上限' if finish=='length' else '已完成')
+        core.STORE.update(mid,status='completed',answer=answer,reasoning=reasoning,finished=time.time(),seconds=time.time()-message['attempt_started'],phase='达到回答长度上限' if finish=='length' else '已完成')
     except asyncio.CancelledError:
         # A successful queue submission belongs to the image monitor, not the cancelled chat task.
         current=core.STORE.message(mid)
