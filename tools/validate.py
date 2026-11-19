@@ -25,6 +25,7 @@ CASES = {
     'avatar': 'gallery', 'navigation': 'gallery', 'media': 'demo',
     'gallery': 'gallery', 'memory-api': 'demo', 'memory-ui': 'demo',
     'sidebar': 'gallery', 'release-flows': 'demo', 'projects': 'projects',
+    'wallpaper': 'demo',
 }
 STANDALONE = {'memory-api', 'memory-ui', 'sidebar'}
 

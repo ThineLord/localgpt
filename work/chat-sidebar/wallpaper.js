@@ -2,15 +2,19 @@
 (() => {
   "use strict";
   const KEY = "qwen-studio-wallpaper";
-  const STYLES = ["off", "graphite"];
+  const PAUSE_KEY = "qwen-studio-wallpaper-paused";
+  const STYLES = ["off", "graphite", "starry", "lilies"];
   const BUTTONS = [
     ["wallpaperOff", "off"],
     ["wallpaperGraphite", "graphite"],
+    ["wallpaperStarry", "starry"],
+    ["wallpaperLilies", "lilies"],
   ];
   if (!document.getElementById("wallpaperOff")) return;
 
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   let style = "off";
+  let paused = false;
   let field = null;
   let ctx = null;
   let scene = null;
@@ -62,8 +66,96 @@
     g = Math.max(0, Math.min(255, g + (hash(col, row) % 11) - 5));
     return [g, g, g];
   }
+  function mix(a, b, t) {
+    const k = t < 0 ? 0 : t > 1 ? 1 : t;
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  }
+  function clampRgb(channels) {
+    return channels.map((n) => Math.max(0, Math.min(255, Math.round(n))));
+  }
+  function starry(u, v) {
+    const navy = [8, 22, 72];
+    const blue = [25, 62, 148];
+    const cyan = [70, 140, 196];
+    const cream = [236, 226, 186];
+    const gold = [244, 196, 72];
+    const yellow = [255, 230, 120];
+    const s1 = Math.sin(u * 10.5 + Math.sin(v * 9) * 2.2 + v * 2);
+    const s2 = Math.sin(v * 12 + Math.cos(u * 7.5) * 1.8);
+    const s3 = Math.sin((u + v) * 16 + Math.sin(u * 5) * 3);
+    let color = mix(navy, blue, 0.5 + 0.5 * s1);
+    color = mix(color, cyan, Math.max(0, s2) ** 2 * 0.55);
+    color = mix(color, cream, Math.max(0, s3) ** 3 * 0.35);
+    for (const [sx, sy, amount] of [
+      [0.33, 0.18, 1], [0.52, 0.12, 0.8], [0.67, 0.24, 1.15], [0.8, 0.14, 0.7],
+      [0.46, 0.34, 0.85], [0.22, 0.3, 0.55], [0.74, 0.4, 0.6], [0.58, 0.22, 0.45],
+    ]) {
+      const d = Math.hypot((u - sx) * 1.15, (v - sy) * 1.35);
+      color = mix(color, yellow, Math.min(1, Math.exp(-d * d * 900 / amount) * 1.3));
+      color = mix(color, gold, Math.min(1, Math.exp(-(((d - 0.035 * amount) * 28) ** 2)) * 0.85));
+      color = mix(color, cream, Math.min(1, Math.exp(-(((d - 0.06 * amount) * 22) ** 2)) * 0.45));
+    }
+    const moon = Math.hypot((u - 0.86) * 1.1, v - 0.1);
+    color = mix(color, [255, 236, 170], Math.exp(-moon * moon * 500));
+    color = mix(color, gold, Math.exp(-(((moon - 0.045) * 40) ** 2)));
+    const flame = Math.abs(u - (0.07 + Math.sin(v * 22) * 0.012 + Math.sin(v * 7) * 0.02));
+    const flameWidth = 0.055 * (1.15 - v * 0.4) + Math.max(0, Math.sin(v * 30)) * 0.01;
+    if (v < 0.86 && flame < flameWidth) color = mix([6, 20, 18], [12, 42, 36], v);
+    const hill = 0.66 + Math.sin(u * 7.5) * 0.035 + Math.sin(u * 2.2 + 1) * 0.02;
+    if (v > hill) {
+      color = mix([16, 48, 86], [8, 24, 52], (v - hill) / (1 - hill));
+      color = mix(color, [20, 70, 90], Math.max(0, Math.sin(u * 18 + v * 4)) * 0.25);
+    }
+    if (v > 0.74 && u > 0.22 && u < 0.78) {
+      const roof = 0.78 + ((Math.floor(u * 28) % 3) - 1) * 0.015;
+      if (v > roof) {
+        color = mix([18, 36, 78], [30, 48, 90], 0.4);
+        const wx = Math.abs((u * 36) % 1 - 0.5);
+        const wy = Math.abs((v * 28) % 1 - 0.5);
+        if (wx < 0.12 && wy < 0.14 && (Math.floor(u * 36) + Math.floor(v * 28)) % 2 === 0) color = [255, 186, 64];
+      }
+      if (u > 0.47 && u < 0.52 && v > 0.62 && v < 0.8) color = [12, 28, 64];
+    }
+    return clampRgb(color);
+  }
+  function lilies(u, v) {
+    const rip = Math.sin(v * 48 + Math.sin(u * 10) * 1.4);
+    const rip2 = Math.sin(u * 16 + v * 5);
+    let color = mix([28, 78, 74], [64, 122, 104], 0.5 + 0.5 * rip);
+    color = mix(color, [168, 196, 176], Math.max(0, rip2) * 0.22);
+    if (v < 0.22 && (u < 0.2 || u > 0.82)) {
+      const edge = u < 0.5 ? u : 1 - u;
+      if (edge < 0.16 && Math.abs(Math.sin(u * 40 + v * 8)) > 0.2) color = mix(color, [16, 48, 32], 0.75 * (1 - v / 0.22));
+    }
+    for (const [px, py, rx, ry] of [
+      [0.32, 0.42, 0.11, 0.045], [0.48, 0.5, 0.13, 0.05], [0.62, 0.4, 0.1, 0.04],
+      [0.4, 0.62, 0.12, 0.046], [0.7, 0.6, 0.09, 0.038], [0.22, 0.58, 0.08, 0.034], [0.55, 0.72, 0.1, 0.04],
+    ]) {
+      const ellipse = ((u - px) / rx) ** 2 + ((v - py) / ry) ** 2;
+      if (ellipse < 1) {
+        color = mix(ellipse > 0.72 ? [18, 70, 40] : [36, 110, 62], [120, 168, 90], ellipse < 0.45 ? 0.55 : 0.2);
+        if (Math.abs(Math.atan2(v - py, u - px) - 0.8) < 0.25 && ellipse > 0.2) color = mix(color, [64, 122, 104], 0.7);
+      }
+    }
+    for (const [fx, fy] of [[0.34, 0.4], [0.5, 0.48], [0.63, 0.38], [0.42, 0.6], [0.24, 0.55], [0.58, 0.7]]) {
+      for (let petal = 0; petal < 6; petal++) {
+        const angle = petal / 6 * Math.PI * 2 + fx;
+        const dx = u - (fx + Math.cos(angle) * 0.02);
+        const dy = v - (fy + Math.sin(angle) * 0.012);
+        if (dx * dx / 0.00035 + dy * dy / 0.00018 < 1) color = mix(color, petal % 2 ? [214, 132, 154] : [244, 236, 228], 0.9);
+      }
+      if ((u - fx) ** 2 / 0.00012 + (v - fy) ** 2 / 0.00006 < 1) color = [232, 186, 84];
+      const reflection = v - (fy + 0.08);
+      if (reflection > 0 && reflection < 0.12 && Math.abs(u - fx) < 0.03) {
+        color = mix(color, [214, 132, 154], 0.35 * (1 - reflection / 0.12) * (1 - Math.abs(u - fx) / 0.03));
+      }
+    }
+    return clampRgb(color);
+  }
   function sample(name, u, v, col, row) {
     if (name === "graphite") return graphite(u, v, col, row);
+    if (name === "starry") return starry(u, v);
+    if (name === "lilies") return lilies(u, v);
     return [0, 0, 0];
   }
   function fillPixels(data, width, height, x, y, w, h, rgb) {
@@ -126,11 +218,33 @@
       return "off";
     }
   }
+  function readPaused() {
+    try { return localStorage.getItem(PAUSE_KEY) === "1"; } catch { return false; }
+  }
   function motionMode() {
     if (style === "off") return "off";
     if (reduce.matches) return "reduced";
     if (document.hidden) return "hidden";
+    if (paused) return "paused";
     return "running";
+  }
+  function syncMotion() {
+    const row = document.getElementById("wallpaperMotionRow");
+    const button = document.getElementById("wallpaperMotion");
+    const label = document.getElementById("wallpaperMotionLabel");
+    if (row) row.hidden = style === "off";
+    if (!button || !label) return;
+    const key = paused ? "继续壁纸动效" : "暂停壁纸动效";
+    const text = tr(key);
+    button.setAttribute("aria-pressed", String(paused));
+    button.setAttribute("aria-label", text);
+    label.textContent = text;
+  }
+  function applyMotion() {
+    syncMotion();
+    if (style === "off") return;
+    if (motionMode() === "running") start();
+    else halt(motionMode() !== "hidden");
   }
   function publish() {
     if (!field) return;
@@ -269,29 +383,31 @@
       try { localStorage.setItem(KEY, style); } catch {}
     }
     pressButtons();
-    if (style === "off") {
-      clearField();
-      return;
+    if (style === "off") clearField();
+    else {
+      document.documentElement.dataset.wallpaper = style;
+      ensureField();
+      scene = null;
+      rebuild();
     }
-    document.documentElement.dataset.wallpaper = style;
-    ensureField();
-    scene = null;
-    rebuild();
+    syncMotion();
   }
   for (const [id, value] of BUTTONS) {
     const button = document.getElementById(id);
     if (button) button.addEventListener("click", () => applyStyle(value, true));
   }
-  reduce.addEventListener("change", () => {
-    if (style === "off") return;
-    if (motionMode() === "running") start();
-    else halt(motionMode() !== "hidden");
+  document.getElementById("wallpaperMotion")?.addEventListener("click", () => {
+    paused = !paused;
+    try { localStorage.setItem(PAUSE_KEY, paused ? "1" : "0"); } catch {}
+    applyMotion();
   });
+  reduce.addEventListener("change", applyMotion);
   document.addEventListener("visibilitychange", () => {
     if (style === "off") return;
     if (motionMode() === "running") start();
     else halt(false);
   });
+  addEventListener("hanzlanguage", syncMotion);
   let resizeTimer = 0;
   addEventListener("resize", () => {
     clearTimeout(resizeTimer);
@@ -299,6 +415,11 @@
   }, { passive: true });
   addEventListener("storage", (event) => {
     if (event.key === KEY || event.key === null) applyStyle(event.key === null ? readStyle() : event.newValue, false);
+    if (event.key === PAUSE_KEY || event.key === null) {
+      paused = readPaused();
+      applyMotion();
+    }
   });
+  paused = readPaused();
   applyStyle(readStyle(), false);
 })();

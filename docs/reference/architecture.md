@@ -1,6 +1,6 @@
 # Verified architecture and ownership
 
-- `template.html` + `studio.css`, `atelier.css`, `liquid-layers.css`, `app.js`, `workspace.js`, motion scripts -> `build.py` -> ignored/generated `index.html`.
+- `template.html` + `studio.css`, `wallpaper.css`, `atelier.css`, `liquid-layers.css`, `app.js`, `wallpaper.js`, `workspace.js`, motion scripts -> `build.py` -> ignored/generated `index.html`.
 - `serve.py` binds 127.0.0.1:8190, serves workspace HTML, validates same-origin requests, discovers backend paths; forwards image endpoints/download/upload to existing ComfyUI 8188.
 - `runtime.py` installs SQLite conversation/memory routes and local chat routing; ComfyUI owns queued image monitoring. Chat/routing ownership is coordinated with a sibling POSIX lock and additive SQLite ownership/recovery records; unknown legacy rows fail closed. See [recovery](recovery.md).
 - `lm_chat.py` calls LM Studio 1234 OpenAI-compatible streaming completion, captures chunks in SQLite; browser subscribes to `/qwen-cn/messages/{id}/events` via EventSource (SSE). Periodic refresh every 3 seconds reconciles state. Image backend observes ComfyUI WebSocket progress; frontend does not directly use WebSocket.
