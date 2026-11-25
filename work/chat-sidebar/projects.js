@@ -45,7 +45,8 @@
     section = "chats",
     query = "",
     pageSignature = "",
-    projectReadEpoch = 0;
+    projectReadEpoch = 0,
+    pendingProjectLeave = null;
   let expanded = new Set(),
     collapsed = false,
     modalOrigin = null,
@@ -211,6 +212,40 @@
   function projectReadCurrent(epoch, nav) {
     return epoch === projectReadEpoch && nav === navigationVersion;
   }
+  function deletedProjectStillOpen(pending) {
+    return (
+      !!pending &&
+      navigationFlight === 0 &&
+      pending.epoch === projectReadEpoch &&
+      pending.nav === navigationVersion &&
+      view === "project" &&
+      detail?.id === pending.id &&
+      !projects.some((project) => project.id === pending.id)
+    );
+  }
+  async function leaveDeletedProject() {
+    detail = null;
+    await newChat();
+    report(
+      new Error(tr("项目已移入回收站。", "This project was moved to trash.")),
+    );
+  }
+  function finishPendingProjectLeave(pending) {
+    if (navigationFlight > 0) {
+      pendingProjectLeave = pending;
+      return;
+    }
+    if (!deletedProjectStillOpen(pending)) return;
+    leaveDeletedProject().catch(report);
+  }
+  onNavigationIdle = () => {
+    if (!pendingProjectLeave || navigationFlight > 0) return;
+    const pending = pendingProjectLeave;
+    pendingProjectLeave = null;
+    // After the navigation's own error handler, so a failed open does not
+    // overwrite the trash notice for the project that is still on screen.
+    setTimeout(() => finishPendingProjectLeave(pending), 0);
+  };
   async function refreshProjects() {
     const epoch = ++projectReadEpoch;
     const nav = navigationVersion;
@@ -246,13 +281,16 @@
     } else {
       if (!projectReadCurrent(epoch, nav)) return;
       if (detail?.id !== viewedId || view !== "project") return;
-      detail = null;
-      await newChat();
-      report(
-        new Error(
-          tr("项目已移入回收站。", "This project was moved to trash."),
-        ),
-      );
+      // The project still painted on screen is not the user's target while a
+      // foreground navigation is between its version bump and its finish.
+      // newChat() would bump navigationVersion again and cancel that open.
+      // If the open fails and this project is still showing, leave afterwards.
+      if (navigationFlight > 0) {
+        pendingProjectLeave = { id: viewedId, epoch, nav };
+        return;
+      }
+      pendingProjectLeave = null;
+      await leaveDeletedProject();
     }
   }
   async function changed() {
@@ -526,69 +564,77 @@
     name.focus();
   }
   async function open(id) {
-    const version = ++navigationVersion;
-    if (!(await saveDraft()) || version !== navigationVersion) return;
-    await window.AppShell?.leaveSettingsForNavigation?.();
-    let fresh;
+    const version = beginNavigation();
     try {
-      fresh = await request("/qwen-cn/projects/" + id);
-    } catch (error) {
-      if (version !== navigationVersion) return;
-      if (error.status !== 404) throw error;
-      await openIndex();
-      report(
-        new Error(
-          tr(
-            "此项目不存在或已移入回收站。",
-            "This project is missing or in trash.",
+      if (!(await saveDraft()) || version !== navigationVersion) return;
+      await window.AppShell?.leaveSettingsForNavigation?.();
+      let fresh;
+      try {
+        fresh = await request("/qwen-cn/projects/" + id);
+      } catch (error) {
+        if (version !== navigationVersion) return;
+        if (error.status !== 404) throw error;
+        await openIndex();
+        report(
+          new Error(
+            tr(
+              "此项目不存在或已移入回收站。",
+              "This project is missing or in trash.",
+            ),
           ),
-        ),
-      );
-      return;
+        );
+        return;
+      }
+      if (version !== navigationVersion) return;
+      const draftChat = fresh.chats.find((c) => c.count === 0);
+      const saved = draftChat
+        ? await request("/qwen-cn/chats/" + draftChat.id)
+        : null;
+      if (version !== navigationVersion) return;
+      detail = fresh;
+      section = "chats";
+      query = "";
+      activeProjectId = id;
+      current = saved;
+      dirty = false;
+      conflict = null;
+      $("draftConflict").hidden = true;
+      baseDraft = normalized(saved?.draft);
+      showDraft(saved?.draft);
+      setSave("");
+      setStatus("");
+      $("projectStatus").hidden = true;
+      view = "project";
+      showView();
+      updateActivity();
+      history.replaceState(null, "", "#project=" + encodeURIComponent(id));
+      expanded.add(id);
+      renderSidebar(true);
+      refreshView(true);
+      if (innerWidth <= 760) setSidebar(false);
+      restoreTransientDraft();
+    } finally {
+      endNavigation();
     }
-    if (version !== navigationVersion) return;
-    const draftChat = fresh.chats.find((c) => c.count === 0);
-    const saved = draftChat
-      ? await request("/qwen-cn/chats/" + draftChat.id)
-      : null;
-    if (version !== navigationVersion) return;
-    detail = fresh;
-    section = "chats";
-    query = "";
-    activeProjectId = id;
-    current = saved;
-    dirty = false;
-    conflict = null;
-    $("draftConflict").hidden = true;
-    baseDraft = normalized(saved?.draft);
-    showDraft(saved?.draft);
-    setSave("");
-    setStatus("");
-    $("projectStatus").hidden = true;
-    view = "project";
-    showView();
-    updateActivity();
-    history.replaceState(null, "", "#project=" + encodeURIComponent(id));
-    expanded.add(id);
-    renderSidebar(true);
-    refreshView(true);
-    if (innerWidth <= 760) setSidebar(false);
-    restoreTransientDraft();
   }
   async function openIndex() {
-    const version = ++navigationVersion;
-    if (!(await saveDraft()) || version !== navigationVersion) return;
-    await window.AppShell?.leaveSettingsForNavigation?.();
-    await refreshProjects();
-    if (version !== navigationVersion) return;
-    view = "projects";
-    query = "";
-    showView();
-    $("projectStatus").hidden = true;
-    history.replaceState(null, "", "#projects");
-    renderSidebar(true);
-    refreshView(true);
-    if (innerWidth <= 760) setSidebar(false);
+    const version = beginNavigation();
+    try {
+      if (!(await saveDraft()) || version !== navigationVersion) return;
+      await window.AppShell?.leaveSettingsForNavigation?.();
+      await refreshProjects();
+      if (version !== navigationVersion) return;
+      view = "projects";
+      query = "";
+      showView();
+      $("projectStatus").hidden = true;
+      history.replaceState(null, "", "#projects");
+      renderSidebar(true);
+      refreshView(true);
+      if (innerWidth <= 760) setSidebar(false);
+    } finally {
+      endNavigation();
+    }
   }
   function syncHeading() {
     const project = projects.find((p) => p.id === activeProjectId);

@@ -1,5 +1,8 @@
 // Delayed project list and detail reads must not replace a completed navigation
-// or a newer read. Run via tools/validate.py --case project-refresh.
+// or a newer read. A list that returns while a project open is already in
+// flight must not cancel that open, even if the project still on screen was
+// deleted. If that open fails and the deleted project is still showing, the
+// refresh leaves it. Run via tools/validate.py --case project-refresh.
 module.exports = async (page) => {
   const base = process.env.LOCALGPT_TEST_BASE;
   if (!(await (await page.request.get(base + "/qwen-cn/health")).json()).database)
@@ -383,6 +386,100 @@ module.exports = async (page) => {
   check(deletedLate.projectHidden === true, JSON.stringify(deletedLate));
   check(!deletedLate.hash.includes(slow.id), deletedLate.hash);
   results.push("real-deletion-delayed-list");
+
+  const origin = await createProject("Nav Origin");
+  const destination = await createProject("Nav Destination");
+  await prepare("#project=" + origin.id);
+  await waitForTitle(origin.name);
+  const opening = hold("detail", destination.id);
+  await page.evaluate((id) => {
+    location.hash = "#project=" + id;
+  }, destination.id);
+  await opening.ready;
+  await deleteProject(await readProject(origin.id));
+  const duringOpen = await startRefresh();
+  check(duringOpen.status === "ok", JSON.stringify(duringOpen));
+  check(!duringOpen.statusText.includes("回收站"), duringOpen.statusText);
+  check(duringOpen.projectHidden === false, "in-flight open left the project page");
+  check(duringOpen.title === origin.name + " · LocalGPT", duringOpen.title);
+  check(duringOpen.hash === "#project=" + destination.id, duringOpen.hash);
+  opening.release();
+  await waitForTitle(destination.name);
+  await expectEditName(destination.name);
+  const keptOpen = await page.evaluate(() => ({
+    status: "ok",
+    title: document.title,
+    hash: location.hash,
+    connection: document.getElementById("connection").textContent,
+    statusText: document.getElementById("status").textContent,
+    projectHidden: document.getElementById("projectView").hidden,
+  }));
+  stayOn(destination, keptOpen);
+  await page.evaluate(() => refresh());
+  check(
+    (await page.title()) === destination.name + " · LocalGPT",
+    "refresh after the kept open left the project",
+  );
+  results.push("inflight-open-keeps-navigation");
+
+  const failedOrigin = await createProject("Nav Failed Open");
+  await prepare("#project=" + failedOrigin.id);
+  await waitForTitle(failedOrigin.name);
+  const failingOpen = hold("detail", destination.id, "fail");
+  await page.evaluate((id) => {
+    location.hash = "#project=" + id;
+  }, destination.id);
+  await failingOpen.ready;
+  await deleteProject(await readProject(failedOrigin.id));
+  const duringFailure = await startRefresh();
+  check(duringFailure.status === "ok", JSON.stringify(duringFailure));
+  check(!duringFailure.statusText.includes("项目已移入回收站"), duringFailure.statusText);
+  check(duringFailure.projectHidden === false, JSON.stringify(duringFailure));
+  check(duringFailure.title === failedOrigin.name + " · LocalGPT", duringFailure.title);
+  failingOpen.release();
+  await page.waitForFunction(() => {
+    const status = document.getElementById("status").textContent;
+    return (
+      document.getElementById("projectView").hidden &&
+      status.includes("项目已移入回收站")
+    );
+  });
+  const afterFailedOpen = await page.evaluate(() => location.hash);
+  check(!afterFailedOpen.includes(failedOrigin.id), afterFailedOpen);
+  check(!afterFailedOpen.includes(destination.id), afterFailedOpen);
+  results.push("inflight-open-failure-leaves");
+
+  const lateOrigin = await createProject("Nav Late Failure");
+  await prepare("#project=" + lateOrigin.id);
+  await waitForTitle(lateOrigin.name);
+  const lateOpen = hold("detail", destination.id, "fail");
+  await page.evaluate((id) => {
+    location.hash = "#project=" + id;
+  }, destination.id);
+  await lateOpen.ready;
+  await deleteProject(await readProject(lateOrigin.id));
+  const lateList = hold("list", "", "pause");
+  const lateRefresh = startRefresh();
+  await lateList.ready;
+  lateOpen.release();
+  await page.waitForFunction(() =>
+    document.getElementById("status").textContent.includes("项目暂时无法刷新"),
+  );
+  check(
+    (await page.title()) === lateOrigin.name + " · LocalGPT",
+    "failed open left before its list returned",
+  );
+  check(
+    (await page.evaluate(() => document.getElementById("projectView").hidden)) === false,
+    "failed open hid the project before its list returned",
+  );
+  lateList.release();
+  const lateResult = await lateRefresh;
+  check(lateResult.status === "ok", JSON.stringify(lateResult));
+  check(lateResult.statusText.includes("项目已移入回收站"), JSON.stringify(lateResult));
+  check(lateResult.projectHidden === true, JSON.stringify(lateResult));
+  check(!lateResult.hash.includes(lateOrigin.id), lateResult.hash);
+  results.push("refresh-after-open-failure");
 
   return { results };
 };

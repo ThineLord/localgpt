@@ -4,8 +4,18 @@ let modelCatalog = [],
   liveMessageId = null,
   submitting = false;
 let navigationVersion = 0,
+  navigationFlight = 0,
+  onNavigationIdle = null,
   creatingChat = false,
   galleryPending = false;
+function beginNavigation() {
+  navigationFlight++;
+  return ++navigationVersion;
+}
+function endNavigation() {
+  if (navigationFlight > 0) navigationFlight--;
+  if (navigationFlight === 0 && onNavigationIdle) onNavigationIdle();
+}
 let preferences = {};
 try {
   preferences = JSON.parse(localStorage.getItem("hanzagent-options") || "{}");
@@ -1201,38 +1211,42 @@ function render(force = false) {
 }
 async function selectChat(id) {
   if (id === current?.id && view === "chat") return;
-  const version = ++navigationVersion;
-  if (!(await saveDraft())) return;
-  await window.AppShell?.leaveSettingsForNavigation?.();
-  const fresh = await request(`/qwen-cn/chats/${id}`);
-  if (version !== navigationVersion) return;
-  if (fresh.deleted_at) {
-    await setView("trash");
-    return;
+  const version = beginNavigation();
+  try {
+    if (!(await saveDraft())) return;
+    await window.AppShell?.leaveSettingsForNavigation?.();
+    const fresh = await request(`/qwen-cn/chats/${id}`);
+    if (version !== navigationVersion) return;
+    if (fresh.deleted_at) {
+      await setView("trash");
+      return;
+    }
+    current = fresh;
+    activeProjectId = window.ProjectWorkspace?.projectForChat(id)?.id || null;
+    dirty = false;
+    conflict = null;
+    $("draftConflict").hidden = true;
+    baseDraft = normalized(fresh.draft);
+    showDraft(fresh.draft);
+    setSave("");
+    setStatus("");
+    view = "chat";
+    showView();
+    history.replaceState(null, "", "#chat=" + encodeURIComponent(id));
+    setChatTitle();
+    renderSidebar(true);
+    updateActivity();
+    render(true);
+    if (innerWidth < 761) setSidebar(false);
+    else temporarySidebar(false);
+    restoreTransientDraft();
+  } finally {
+    endNavigation();
   }
-  current = fresh;
-  activeProjectId = window.ProjectWorkspace?.projectForChat(id)?.id || null;
-  dirty = false;
-  conflict = null;
-  $("draftConflict").hidden = true;
-  baseDraft = normalized(fresh.draft);
-  showDraft(fresh.draft);
-  setSave("");
-  setStatus("");
-  view = "chat";
-  showView();
-  history.replaceState(null, "", "#chat=" + encodeURIComponent(id));
-  setChatTitle();
-  renderSidebar(true);
-  updateActivity();
-  render(true);
-  if (innerWidth < 761) setSidebar(false);
-  else temporarySidebar(false);
-  restoreTransientDraft();
 }
 async function newChat(projectId = null) {
   if (creatingChat) return;
-  const version = ++navigationVersion;
+  const version = beginNavigation();
   creatingChat = true;
   $("newChat").disabled = true;
   try {
@@ -1272,6 +1286,7 @@ async function newChat(projectId = null) {
   } finally {
     creatingChat = false;
     $("newChat").disabled = false;
+    endNavigation();
   }
 }
 function updateActivity() {
@@ -1652,25 +1667,29 @@ function showView() {
   window.ProjectWorkspace?.syncView();
 }
 async function setView(next) {
-  const version = ++navigationVersion;
-  if (!(await saveDraft()) || version !== navigationVersion) return;
-  await window.AppShell?.leaveSettingsForNavigation?.();
-  setStatus("");
-  view = next;
-  showView();
-  history.replaceState(
-    null,
-    "",
-    next === "chat"
-      ? "#chat=" + encodeURIComponent(current?.id || "")
-      : "#" + next,
-  );
-  renderSidebar(true);
-  if (next === "gallery") await loadGallery();
-  else if (next === "trash") await loadTrash();
-  else render(true);
-  if (innerWidth < 761) setSidebar(false);
-  else temporarySidebar(false);
+  const version = beginNavigation();
+  try {
+    if (!(await saveDraft()) || version !== navigationVersion) return;
+    await window.AppShell?.leaveSettingsForNavigation?.();
+    setStatus("");
+    view = next;
+    showView();
+    history.replaceState(
+      null,
+      "",
+      next === "chat"
+        ? "#chat=" + encodeURIComponent(current?.id || "")
+        : "#" + next,
+    );
+    renderSidebar(true);
+    if (next === "gallery") await loadGallery();
+    else if (next === "trash") await loadTrash();
+    else render(true);
+    if (innerWidth < 761) setSidebar(false);
+    else temporarySidebar(false);
+  } finally {
+    endNavigation();
+  }
 }
 async function deleteChat(id) {
   if (id === current?.id && !(await saveDraft())) return;

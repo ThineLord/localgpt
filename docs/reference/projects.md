@@ -45,7 +45,11 @@ pixel equivalence or access to ChatGPT's private backend.
   trash. An older detail does not replace the project now on screen, or a newer
   title already shown for the same project. A failed refresh is reported only
   for the read that is still current. Deleting the project that is still open
-  still leaves the page and says it was moved to trash.
+  still leaves the page and says it was moved to trash. A list refresh that
+  starts while a project open is already in progress does not treat the project
+  still painted on screen as the one to leave, and does not cancel that open.
+  If the open fails and that deleted project is still the one on screen, a
+  refresh leaves the page and says it was moved to trash.
 
 ## Retrieval and file limits
 
@@ -118,6 +122,9 @@ search, reload persistence, project memory controls, deletion/restore, themes an
 mobile layout. `project-refresh` covers a delayed detail or list response that
 must not replace a completed navigation or a newer read, a delayed failure for a
 request that is no longer current, and deletion of the project still on screen.
+It also covers a list that returns while a project open is already in flight,
+including when the project still on screen was deleted, and a refresh after
+that open fails.
 Production acceptance must separately verify the deployed build,
 service restart, SQLite integrity, preserved original rows and gallery assets.
 
