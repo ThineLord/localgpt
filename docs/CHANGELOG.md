@@ -4,6 +4,10 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+### Fixed
+
+- Confirming an input-method candidate in the project name field no longer creates or renames the project. Enter with `isComposing` set, or with key code 229, does not call `preventDefault` and does not save, for both create and edit. An ordinary Enter or the save button still saves once.
+
 ## [0.3.0] - 2026-11-19
 
 - Appearance can leave the background plain or show a dynamic wallpaper drawn in the browser. It stays off until chosen. The first styles are a black-white-gray cube field, Starry Night, and Water Lilies. The choice is kept in this browser, follows the interface language, and can be paused or resumed in Appearance. A hidden tab or a system request for reduced motion also suspends animation.
