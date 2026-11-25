@@ -90,8 +90,10 @@ The saved draft is not replaced, including when another page has changed the
 saved text back to the original base. One pending draft is stored in the
 original single-record shape. When more than one chat or project is waiting,
 including a new chat that does not have an id yet, those drafts share the same
-key and are restored only in their own scope. An explicit save or an explicit
-choice removes only that scope.
+key and are restored only in their own scope. An ordinary edit or save of a
+chat that already has an id does not claim the same-project record that still
+has no chat id. That claim happens only in the successful POST that creates
+the new chat. An explicit save or an explicit choice removes only that scope.
 
 ## Validation and rollback
 

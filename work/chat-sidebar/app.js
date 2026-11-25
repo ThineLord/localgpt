@@ -640,15 +640,17 @@ function writeTransientRecords(records) {
     records.length === 1 ? encode(records[0]) : { records: records.map(encode) },
   ));
 }
-function stashTransientDraft(base = baseDraft, create = false) {
+function stashTransientDraft(base = baseDraft, create = false, createdChatId = null) {
   try {
     const records = readTransientRecords();
     const chatId = current?.id || null;
     const project = activeProjectId || null;
     let index = records.findIndex((record) => sameTransientScope(record, chatId, project));
-    // A just-created chat adopts the unsaved draft for this project. An
-    // unrelated conflict must not take that slot.
-    if (index < 0 && chatId && !conflict)
+    // Only this POST's newly created chat may adopt the same-project record
+    // that still has no chat id. An ordinary edit or save of a chat that
+    // already has an id must leave that record alone, including when the
+    // chat is not in conflict.
+    if (index < 0 && createdChatId && chatId === createdChatId && !conflict)
       index = records.findIndex((record) => sameTransientScope(record, null, project) && !record.awaitingChoice);
     const pending = index >= 0 ? records[index] : null;
     // A saved chat is stored only when its draft first conflicts. Later edits
@@ -735,7 +737,9 @@ async function saveDraft() {
     saving = request("/qwen-cn/chats", json("POST", {project_id: activeProjectId})).then(fresh => {
       current = fresh;
       baseDraft = normalized(fresh.draft);
-      stashTransientDraft();
+      // Pass this POST's id so the claim is the creation result, not an
+      // ordinary edit of a chat that already has an id.
+      stashTransientDraft(baseDraft, false, fresh.id);
       window.ProjectWorkspace?.chatCreated(fresh, activeProjectId);
       if (view !== 'project') history.replaceState(null, "", "#chat=" + encodeURIComponent(fresh.id));
       setChatTitle();

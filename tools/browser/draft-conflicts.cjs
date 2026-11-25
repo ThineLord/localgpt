@@ -3,6 +3,8 @@
 // An already saved chat must keep an unresolved conflict across same-tab reloads.
 // A waiting choice also survives a return to the original base, sidebar selectChat,
 // project entry, and a second chat's own conflict in the same sessionStorage key.
+// An unsaved new chat also survives a same-tab load of an existing chat before
+// the 450ms autosave, including after that existing chat is typed and saved.
 module.exports = async page=>{
  const base=process.env.LOCALGPT_TEST_BASE;
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic only');
@@ -414,5 +416,40 @@ module.exports = async page=>{
   check(await page.locator('#prompt').inputValue()==='localA','The parked chat lost its local draft after the new chat was recovered');
   Object.assign(unsentNewChat,{restoredBeforeAutosave:true,parkedChoiceKept:true});
  }
- return {noEmptyOptionRows:true,noClearedTransientRows:true,conflictResolution:receipts,existingChatConflictResolution:existingChoices,existingChatIsolation:isolation,returnedToBase,sidebarReturn,projectEntry,twoConflicts,unsentNewChat};
+ const navigateBeforeAutosave={};
+ {
+  const idB=await openSaved('已有对话乙','');
+  await page.evaluate(()=>sessionStorage.removeItem('hanz-transient-draft'));
+  const before=await count();
+  await page.goto(base+'/qwen-cn/?scope=unsent-a');await ready(page);
+  check(chatFrom(page)===null,'The new chat already had an id');
+  check(await page.locator('#prompt').inputValue()==='','The new chat did not start empty');
+  const text='尚未获得聊天编号的新草稿 A';
+  const next=base+'/qwen-cn/?scope=existing-b#chat='+encodeURIComponent(idB);
+  await page.locator('#prompt').fill(text);
+  await page.goto(next);await ready(page);
+  check(await count()===before,'The 450ms autosave created a chat before navigation');
+  check(chatFrom(page)===idB,'Navigation did not open existing chat B');
+  check(await page.locator('#prompt').inputValue()==='','Chat B opened with the unsaved new draft');
+  check(await page.locator('#draftConflict').isHidden(),'Chat B showed a conflict');
+  const parked=await readRecords(page);
+  check(parked.length===1&&(parked[0].chatId||null)===null&&!parked[0].awaitingChoice&&parked[0].draft.prompt===text,'Navigation did not keep the unsaved new draft: '+JSON.stringify(parked));
+  const typed='已有对话乙的正常保存';
+  await page.locator('#prompt').fill(typed);
+  await page.waitForFunction(()=>!dirty&&!saving);
+  check(await page.locator('#prompt').inputValue()===typed,'Chat B did not keep its own typed draft');
+  const savedB=await draftOf(idB);
+  check(savedB.draft.prompt===typed,'Chat B normal save did not persist its own text');
+  const afterSave=await readRecords(page);
+  check(afterSave.length===1&&(afterSave[0].chatId||null)===null&&afterSave[0].draft.prompt===text&&!afterSave[0].awaitingChoice,'Saving chat B claimed the unsaved new draft: '+JSON.stringify(afterSave));
+  check(!afterSave.some(record=>record.chatId===idB),'Ordinary save of chat B stored a transient record');
+  await page.goto(base+'/qwen-cn/?scope=return-unsent-a');await ready(page);
+  check(chatFrom(page)===null,'Returning did not open the new chat');
+  check(await page.locator('#prompt').inputValue()===text,'Returning to the new chat did not restore A');
+  check(await page.locator('#draftConflict').isHidden(),'The restored new chat showed a conflict');
+  const stillB=await draftOf(idB);
+  check(stillB.draft.prompt===typed&&stillB.draft_version===savedB.draft_version,'Returning to the new chat changed chat B');
+  Object.assign(navigateBeforeAutosave,{restoredA:true,existingSaveLeftA:true,existingDataKept:true});
+ }
+ return {noEmptyOptionRows:true,noClearedTransientRows:true,conflictResolution:receipts,existingChatConflictResolution:existingChoices,existingChatIsolation:isolation,returnedToBase,sidebarReturn,projectEntry,twoConflicts,unsentNewChat,navigateBeforeAutosave};
 }
