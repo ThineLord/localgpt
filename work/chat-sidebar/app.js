@@ -2244,10 +2244,24 @@ function escapeHTML(text) {
   );
 }
 function inlineMarkdown(text) {
-  return escapeHTML(text)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
+  // Hold each code span out of emphasis so markers inside it stay literal.
+  // Bold or italic can still wrap one or more of those spans.
+  const escaped = escapeHTML(text);
+  let marker = "\u0000";
+  while (escaped.includes(marker)) marker += "\u0000";
+  const codes = [];
+  const held = escaped.replace(/`([^`]+)`/g, (_, body) => {
+    const token = marker + codes.length + marker;
+    codes.push(body);
+    return token;
+  });
+  const marked = held
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  return marked.replace(
+    new RegExp(marker + "(\\d+)" + marker, "g"),
+    (_, index) => "<code>" + codes[index] + "</code>",
+  );
 }
 function markdown(target, text) {
   const parts = text.split(/```([^\n`]*)\n([\s\S]*?)(?:```|$)/g);
