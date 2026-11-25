@@ -543,6 +543,7 @@
     renderSidebar(true);
     refreshView(true);
     if (innerWidth <= 760) setSidebar(false);
+    restoreTransientDraft();
   }
   async function openIndex() {
     const version = ++navigationVersion;

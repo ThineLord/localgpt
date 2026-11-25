@@ -83,10 +83,15 @@ keys, model ownership prefix and local connector configuration remain compatible
 New project expansion state uses `localgpt-projects-expanded`. Transient draft
 recovery checks both chat and project identity to avoid crossing memory scopes.
 A conflict on a chat that already has a saved draft is kept in that same
-`hanz-transient-draft` sessionStorage record, with the local text and the
-original base. Reloading the tab asks again and does not overwrite the server.
-The record is removed only after an explicit save or an explicit choice.
-Opening another chat or project does not apply it or delete it.
+`hanz-transient-draft` sessionStorage key, with the local text, the original
+base, and a choice that is still waiting. Reloading the tab, choosing the chat
+again in the sidebar, opening its project, or starting on that chat asks again.
+The saved draft is not replaced, including when another page has changed the
+saved text back to the original base. One pending draft is stored in the
+original single-record shape. When more than one chat or project is waiting,
+including a new chat that does not have an id yet, those drafts share the same
+key and are restored only in their own scope. An explicit save or an explicit
+choice removes only that scope.
 
 ## Validation and rollback
 

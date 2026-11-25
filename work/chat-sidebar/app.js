@@ -601,39 +601,107 @@ function showDraft(d) {
   updateSendButton();
 }
 const transientDraftKey = "hanz-transient-draft";
-function stashTransientDraft(base = baseDraft) {
+function transientScope(id) {
+  return id || null;
+}
+function sameTransientScope(record, chatId, projectId) {
+  return !!record
+    && transientScope(record.chatId) === transientScope(chatId)
+    && transientScope(record.projectId) === transientScope(projectId);
+}
+function readTransientRecords() {
+  const raw = sessionStorage.getItem(transientDraftKey);
+  if (!raw) return [];
+  const parsed = JSON.parse(raw);
+  // One pending draft keeps the original single-record shape. Several chats
+  // share this same key, including a new chat that does not have an id yet.
+  if (Array.isArray(parsed?.records))
+    return parsed.records.filter((record) => record && typeof record === "object");
+  if (parsed && typeof parsed === "object" && ("chatId" in parsed || parsed.draft))
+    return [parsed];
+  return [];
+}
+function writeTransientRecords(records) {
+  if (!records.length) {
+    sessionStorage.removeItem(transientDraftKey);
+    return;
+  }
+  const encode = (record) => {
+    const stored = {
+      chatId: transientScope(record.chatId),
+      projectId: transientScope(record.projectId),
+      baseDraft: record.baseDraft,
+      draft: record.draft,
+    };
+    if (record.awaitingChoice) stored.awaitingChoice = true;
+    return stored;
+  };
+  sessionStorage.setItem(transientDraftKey, JSON.stringify(
+    records.length === 1 ? encode(records[0]) : { records: records.map(encode) },
+  ));
+}
+function stashTransientDraft(base = baseDraft, create = false) {
   try {
-    // Same sessionStorage key as before. A new chat is stored immediately. An
-    // existing chat is stored once its draft conflicts, then later edits keep
-    // the original base. Another chat or project must not replace that record.
-    const raw = sessionStorage.getItem(transientDraftKey);
-    let pending = null;
-    if (raw) {
-      try { pending = JSON.parse(raw); } catch { pending = null; }
-    }
+    const records = readTransientRecords();
     const chatId = current?.id || null;
     const project = activeProjectId || null;
-    const sameScope = !!pending && pending.chatId === chatId && (pending.projectId || null) === project;
-    const materializing = !!pending && pending.chatId === null && chatId !== null && (pending.projectId || null) === project;
-    if (pending && !sameScope && !materializing) return;
-    if (!pending && current && !conflict) return;
-    const baseToStore = sameScope && conflict && pending.baseDraft ? pending.baseDraft : base;
-    sessionStorage.setItem(transientDraftKey, JSON.stringify({
+    let index = records.findIndex((record) => sameTransientScope(record, chatId, project));
+    // A just-created chat adopts the unsaved draft for this project. An
+    // unrelated conflict must not take that slot.
+    if (index < 0 && chatId && !conflict)
+      index = records.findIndex((record) => sameTransientScope(record, null, project) && !record.awaitingChoice);
+    const pending = index >= 0 ? records[index] : null;
+    // A saved chat is stored only when its draft first conflicts. Later edits
+    // update that scope and must not copy it onto a different chat or project.
+    if (!pending && current && !(conflict && create)) return;
+    const awaitingChoice = !!(conflict || pending?.awaitingChoice);
+    const baseToStore = pending && awaitingChoice && pending.baseDraft ? pending.baseDraft : base;
+    const next = {
       chatId,
-      projectId: activeProjectId,
+      projectId: project,
       baseDraft: normalized(baseToStore),
       draft: draft(),
-    }));
+      awaitingChoice,
+    };
+    if (index >= 0) records[index] = next;
+    else records.push(next);
+    writeTransientRecords(records);
   } catch {}
 }
 function clearTransientDraft(chatId = current?.id || null) {
   try {
-    const raw = sessionStorage.getItem(transientDraftKey);
-    if (!raw) return;
-    const pending = JSON.parse(raw);
-    if (pending.chatId !== chatId || (pending.projectId || null) !== (activeProjectId || null)) return;
-    sessionStorage.removeItem(transientDraftKey);
+    const records = readTransientRecords();
+    const next = records.filter((record) => !sameTransientScope(record, chatId, activeProjectId));
+    if (next.length === records.length) return;
+    writeTransientRecords(next);
   } catch {}
+}
+function restoreTransientDraft() {
+  if (!["chat", "project"].includes(view)) return;
+  let pending = null;
+  try {
+    pending = readTransientRecords().find((record) =>
+      sameTransientScope(record, current?.id || null, activeProjectId));
+  } catch { return; }
+  if (!pending?.draft) return;
+  if (current && same(current.draft, pending.draft)) {
+    clearTransientDraft(current.id);
+    return;
+  }
+  showDraft(pending.draft);
+  const remoteDiffers = current && (!pending.baseDraft || !same(current.draft, pending.baseDraft));
+  // Once a choice is waiting, do not save merely because the server text
+  // matches the original base again.
+  if (current && (pending.awaitingChoice || remoteDiffers)) {
+    baseDraft = normalized(pending.baseDraft);
+    dirty = true;
+    conflict = current;
+    $("draftConflict").hidden = false;
+    setStatus("其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。", true);
+    if (!pending.awaitingChoice) stashTransientDraft(pending.baseDraft || baseDraft);
+    return;
+  }
+  scheduleSave();
 }
 function scheduleSave() {
   resizePrompt();
@@ -661,10 +729,7 @@ async function saveDraft() {
     if (!$("prompt").value.trim() && !reference) {
       dirty = false;
       setSave("");
-      try {
-        const pending = JSON.parse(sessionStorage.getItem(transientDraftKey));
-        if (pending?.chatId === null) sessionStorage.removeItem(transientDraftKey);
-      } catch {}
+      clearTransientDraft(null);
       return true;
     }
     saving = request("/qwen-cn/chats", json("POST", {project_id: activeProjectId})).then(fresh => {
@@ -695,7 +760,7 @@ async function saveDraft() {
         const remote = await request(`/qwen-cn/chats/${id}`);
         if (!same(remote.draft, oldBase) && !same(remote.draft, snapshot)) {
           conflict = remote;
-          stashTransientDraft(oldBase);
+          stashTransientDraft(oldBase, true);
           $("draftConflict").hidden = false;
           setStatus(
             "其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。",
@@ -1159,6 +1224,7 @@ async function selectChat(id) {
   render(true);
   if (innerWidth < 761) setSidebar(false);
   else temporarySidebar(false);
+  restoreTransientDraft();
 }
 async function newChat(projectId = null) {
   if (creatingChat) return;
@@ -1198,6 +1264,7 @@ async function newChat(projectId = null) {
     if (innerWidth < 761) setSidebar(false);
   else temporarySidebar(false);
     $("prompt").focus();
+    restoreTransientDraft();
   } finally {
     creatingChat = false;
     $("newChat").disabled = false;
@@ -1872,8 +1939,6 @@ async function init() {
     await window.ProjectWorkspace?.refresh();
     const id = new URLSearchParams(location.hash.slice(1)).get("chat");
     const projectId = new URLSearchParams(location.hash.slice(1)).get("project");
-    let pendingDraft;
-    try { pendingDraft = JSON.parse(sessionStorage.getItem(transientDraftKey)); } catch {}
     if (projectId) {
       if (new URLSearchParams(location.hash.slice(1)).get('new')) await newChat(projectId);
       else await window.ProjectWorkspace?.open(projectId);
@@ -1885,26 +1950,6 @@ async function init() {
       const existing = chats.some(c => c.id === id);
       if (existing) await selectChat(id);
       else await newChat();
-    }
-    // Recover only in the original chat AND project scope. In particular an
-    // unsaved project-only draft must never appear in an ordinary new chat.
-    if (['chat', 'project'].includes(view) && pendingDraft?.draft &&
-        pendingDraft.chatId === (current?.id || null) &&
-        (pendingDraft.projectId || null) === activeProjectId) {
-        if (current && same(current.draft, pendingDraft.draft)) {
-          try { sessionStorage.removeItem(transientDraftKey); } catch {}
-        } else {
-          showDraft(pendingDraft.draft);
-          if (current && (!pendingDraft.baseDraft || !same(current.draft, pendingDraft.baseDraft))) {
-            // Recovery must compare against the original base, not silently
-            // adopt a newer server version and overwrite another tab's edits.
-            baseDraft = normalized(pendingDraft.baseDraft);
-            dirty = true;
-            conflict = current;
-            $("draftConflict").hidden = false;
-            setStatus("其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。", true);
-          } else scheduleSave();
-        }
     }
     connectionRecovered();
     appReady = true;

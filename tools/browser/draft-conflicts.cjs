@@ -1,6 +1,8 @@
 // Current contract adapted from round3_review_regressions.js. Run via tools/validate.py.
 // Mason's two MEDIUM findings: empty option changes and conflicting recovery.
 // An already saved chat must keep an unresolved conflict across same-tab reloads.
+// A waiting choice also survives a return to the original base, sidebar selectChat,
+// project entry, and a second chat's own conflict in the same sessionStorage key.
 module.exports = async page=>{
  const base=process.env.LOCALGPT_TEST_BASE;
  if(!(await(await page.request.get(base+'/qwen-cn/health')).json()).demo)throw Error('Synthetic only');
@@ -46,6 +48,13 @@ module.exports = async page=>{
  const chatFrom=target=>new URLSearchParams(new URL(target.url()).hash.slice(1)).get('chat');
  const transient=async target=>target.evaluate(()=>sessionStorage.getItem('hanz-transient-draft'));
  const readTransient=async target=>target.evaluate(()=>{const raw=sessionStorage.getItem('hanz-transient-draft');return raw?JSON.parse(raw):null;});
+ const readRecords=async target=>target.evaluate(()=>{
+  const raw=sessionStorage.getItem('hanz-transient-draft');
+  if(!raw)return [];
+  const parsed=JSON.parse(raw);
+  if(Array.isArray(parsed.records))return parsed.records;
+  return parsed&&(Object.prototype.hasOwnProperty.call(parsed,'chatId')||parsed.draft)?[parsed]:[];
+ });
  const draftOf=async id=>(await(await page.request.get(base+'/qwen-cn/chats/'+id)).json());
  async function holdPatch(id){
   let release=()=>{};
@@ -76,6 +85,38 @@ module.exports = async page=>{
   check(await page.locator('#prompt').inputValue()===prompt,'Saved draft was not restored from the server');
   check(chatFrom(page)===id,'Reload left the saved chat');
   return id;
+ }
+ async function openSaved(title,prompt){
+  const created=await(await page.request.post(base+'/qwen-cn/chats',{data:{title}})).json();
+  const patched=await page.request.patch(base+'/qwen-cn/chats/'+created.id,{data:{version:created.draft_version,draft:{prompt}}});
+  check(patched.ok(),'Saved chat setup failed');
+  await page.goto(base+'/qwen-cn/?open='+encodeURIComponent(created.id)+'#chat='+encodeURIComponent(created.id));await ready(page);
+  check(await page.locator('#prompt').inputValue()===prompt,'Saved draft was not shown');
+  check(!(await readRecords(page)).some(record=>record.chatId===created.id),'Opened chat already had its own transient draft');
+  return created.id;
+ }
+ async function causeConflict(id,localPrompt,remotePrompt){
+  let other,otherContext,held;
+  try{
+   held=await holdPatch(id);
+   ({context:otherContext,other}=await openOther());
+   await other.goto(base+'/qwen-cn/#chat='+encodeURIComponent(id));await ready(other);
+   await page.locator('#prompt').fill(localPrompt);
+   await held.pending;
+   await other.locator('#prompt').fill(remotePrompt);
+   await other.waitForFunction(expected=>!dirty&&!saving&&current?.draft?.prompt===expected,remotePrompt);
+   const remote=await draftOf(id);
+   check(remote.draft.prompt===remotePrompt,'Conflict remote save failed');
+   held.release();
+   await page.locator('#draftConflict').waitFor({state:'visible'});
+   check(await page.locator('#prompt').inputValue()===localPrompt,'Conflict cleared the local input');
+   await held.stop();held=null;
+   await otherContext.close();otherContext=null;
+   return remote;
+  }finally{
+   if(held)await held.stop();
+   if(otherContext)await otherContext.close().catch(()=>{});
+  }
  }
  const existingChoices=[];
  for(const keep of [false,true]){
@@ -207,5 +248,171 @@ module.exports = async page=>{
   if(heldIsolation)await heldIsolation.stop();
   if(otherContext)await otherContext.close().catch(()=>{});
  }
- return {noEmptyOptionRows:true,noClearedTransientRows:true,conflictResolution:receipts,existingChatConflictResolution:existingChoices,existingChatIsolation:isolation};
+ await page.locator('#useRemoteDraft').click();
+ await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+ check(await transient(page)===null,'Isolation choice did not clear the recovery record');
+ const returnedToBase={};
+ {
+  const id=await openSaved('回到基线','baseOne');
+  const remote=await causeConflict(id,'localOne','remoteOne');
+  const stored=await readTransient(page);
+  check(stored&&!stored.records&&stored.awaitingChoice&&stored.chatId===id&&stored.baseDraft.prompt==='baseOne'&&stored.draft.prompt==='localOne','Conflict did not persist a single-record choice');
+  const reverted=await page.request.patch(base+'/qwen-cn/chats/'+id,{data:{version:remote.draft_version,draft:stored.baseDraft}});
+  check(reverted.ok(),'Returning the remote draft to the original base failed');
+  const before=await draftOf(id);
+  check(before.draft.prompt==='baseOne'&&before.draft_version===remote.draft_version+1,'Remote base was not restored before refresh');
+  check(before.draft_version===3,'Expected baseOne at draft version 3 before refresh');
+  await page.reload();await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  await page.waitForTimeout(700);
+  check(await page.locator('#prompt').inputValue()==='localOne','Refresh dropped the local draft after the remote returned to the base');
+  check(await page.locator('#draftConflict').isVisible(),'Refresh dismissed the choice after the remote returned to the base');
+  const after=await draftOf(id);
+  check(after.draft.prompt==='baseOne'&&after.draft_version===before.draft_version,'Refresh auto-saved when the server text matched the original base');
+  check(await page.evaluate(()=>{
+   const pending=JSON.parse(sessionStorage.getItem('hanz-transient-draft'));
+   return !!pending&&!pending.records&&pending.awaitingChoice&&same(current.draft,pending.baseDraft)&&!same(draft(),pending.baseDraft);
+  }),'The waiting choice was not the original base versus the local draft');
+  check(await page.evaluate(()=>localStorage.getItem('hanz-transient-draft'))===null,'Draft recovery used localStorage');
+  await page.locator('#keepDraft').click();
+  await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+  check(await transient(page)===null,'Explicit save left the recovery copy');
+  check((await draftOf(id)).draft.prompt==='localOne','Explicit save did not keep the local draft');
+  Object.assign(returnedToBase,{versionBeforeRefresh:before.draft_version,keptChoice:true,explicitSaveCleared:true});
+ }
+ const sidebarReturn={};
+ {
+  const idA=await openSaved('侧栏甲','navBase');
+  const idB=await openSaved('侧栏乙','navB');
+  await page.goto(base+'/qwen-cn/?scope=sidebar-a#chat='+encodeURIComponent(idA));await ready(page);
+  const remote=await causeConflict(idA,'navLocal','navRemote');
+  const record=await transient(page);
+  await page.goto(base+'/qwen-cn/?scope=sidebar-b#chat='+encodeURIComponent(idB));await ready(page);
+  check(await page.locator('#prompt').inputValue()==='navB','The other chat showed the conflicted draft');
+  check(await page.locator('#draftConflict').isHidden(),'The other chat showed this conflict');
+  check(await transient(page)===record,'Opening the other chat changed the recovery record');
+  await page.locator('#chatList button.chat-item',{hasText:'侧栏甲'}).click();
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(chatFrom(page)===idA,'Sidebar selectChat did not return to the conflicted chat');
+  check(await page.locator('#prompt').inputValue()==='navLocal','selectChat showed the remote draft');
+  check((await draftOf(idA)).draft_version===remote.draft_version,'selectChat wrote the conflicted chat');
+  await page.locator('#prompt').fill('navLocal edited');
+  await page.waitForTimeout(700);
+  check(await page.locator('#draftConflict').isVisible(),'An edit after selectChat dismissed the choice');
+  const still=await readTransient(page);
+  check(still&&!still.records&&still.chatId===idA&&still.awaitingChoice&&still.baseDraft.prompt==='navBase'&&still.draft.prompt==='navLocal edited','An edit after selectChat cleared the recovery copy');
+  const saved=await draftOf(idA);
+  check(saved.draft.prompt==='navRemote'&&saved.draft_version===remote.draft_version,'An edit after selectChat overwrote the saved draft');
+  await page.locator('#useRemoteDraft').click();
+  await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+  check(await transient(page)===null,'Discarding the sidebar choice left the recovery copy');
+  check(await page.locator('#prompt').inputValue()==='navRemote','Discard did not show the saved draft');
+  Object.assign(sidebarReturn,{selectChat:true,editKeptChoice:true,discardCleared:true});
+ }
+ const projectEntry={};
+ {
+  const project=await(await page.request.post(base+'/qwen-cn/projects',{data:{name:'合成项目',memory_mode:'default'}})).json();
+  const created=await(await page.request.post(base+'/qwen-cn/chats',{data:{title:'项目草稿',project_id:project.id}})).json();
+  const patched=await page.request.patch(base+'/qwen-cn/chats/'+created.id,{data:{version:created.draft_version,draft:{prompt:'projectBase'}}});
+  check(patched.ok(),'Project chat setup failed');
+  await page.goto(base+'/qwen-cn/#project='+encodeURIComponent(project.id));await ready(page);
+  check(chatFrom(page)===null,'Project entry put the chat id in the address');
+  check(await page.evaluate(()=>current?.id)===created.id,'Project entry did not open the saved chat');
+  check(await page.locator('#prompt').inputValue()==='projectBase','Project entry did not show the saved draft');
+  const remote=await causeConflict(created.id,'projectLocal','projectRemote');
+  const stored=await readTransient(page);
+  check(stored&&stored.chatId===created.id&&stored.projectId===project.id&&stored.awaitingChoice&&stored.draft.prompt==='projectLocal'&&stored.baseDraft.prompt==='projectBase','Project conflict was not stored in its own scope');
+  await page.goto(base+'/qwen-cn/?scope=leave-project');await ready(page);
+  check(await page.locator('#prompt').inputValue()==='','Leaving the project showed its local draft');
+  check(await page.locator('#draftConflict').isHidden(),'Leaving the project showed its conflict');
+  check((await readRecords(page)).some(record=>record.chatId===created.id&&record.draft.prompt==='projectLocal'),'Leaving the project deleted its recovery copy');
+  await page.evaluate(id=>window.ProjectWorkspace.open(id),project.id);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.evaluate(()=>current?.id)===created.id,'Project open did not return to the conflicted chat');
+  check(await page.locator('#prompt').inputValue()==='projectLocal','Project open showed the remote draft');
+  check((await draftOf(created.id)).draft_version===remote.draft_version,'Project open wrote the conflicted chat');
+  await page.reload();await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='projectLocal','Startup project entry dropped the local draft');
+  check((await draftOf(created.id)).draft.prompt==='projectRemote'&&(await draftOf(created.id)).draft_version===remote.draft_version,'Startup project entry overwrote the saved draft');
+  await page.locator('#useRemoteDraft').click();
+  await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+  check(await transient(page)===null,'Project discard left the recovery copy');
+  Object.assign(projectEntry,{open:true,startup:true,projectScope:true});
+ }
+ const twoConflicts={};
+ {
+  const idA=await openSaved('双稿甲','baseA');
+  const idB=await openSaved('双稿乙','baseB');
+  await page.goto(base+'/qwen-cn/?scope=two-a#chat='+encodeURIComponent(idA));await ready(page);
+  const remoteA=await causeConflict(idA,'local1','remote1');
+  await page.goto(base+'/qwen-cn/?scope=two-b#chat='+encodeURIComponent(idB));await ready(page);
+  check(await page.locator('#prompt').inputValue()==='baseB','Chat B showed chat A\'s local draft');
+  check(await page.locator('#draftConflict').isHidden(),'Chat B showed chat A\'s conflict');
+  check((await readRecords(page)).some(record=>record.chatId===idA&&record.awaitingChoice&&record.draft.prompt==='local1'),'Opening chat B dropped chat A\'s pending choice');
+  const remoteB=await causeConflict(idB,'local2','remote2');
+  const both=await readRecords(page);
+  check(both.length===2,'The second conflict replaced the first pending choice');
+  check(both.some(record=>record.chatId===idA&&record.projectId===null&&record.awaitingChoice&&record.draft.prompt==='local1'&&record.baseDraft.prompt==='baseA'),'Chat A\'s pending choice was lost when chat B conflicted');
+  check(both.some(record=>record.chatId===idB&&record.projectId===null&&record.awaitingChoice&&record.draft.prompt==='local2'&&record.baseDraft.prompt==='baseB'),'Chat B\'s conflict was not stored');
+  await page.goto(base+'/qwen-cn/?scope=two-b-refresh#chat='+encodeURIComponent(idB));await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='local2','Refreshing chat B showed the remote draft');
+  check((await draftOf(idB)).draft.prompt==='remote2'&&(await draftOf(idB)).draft_version===remoteB.draft_version,'Refreshing chat B overwrote its saved draft');
+  await page.goto(base+'/qwen-cn/?scope=two-a-return#chat='+encodeURIComponent(idA));await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='local1','Opening chat A showed only chat B\'s recovery');
+  check((await draftOf(idA)).draft.prompt==='remote1'&&(await draftOf(idA)).draft_version===remoteA.draft_version,'Opening chat A overwrote its saved draft');
+  await page.locator('#useRemoteDraft').click();
+  await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+  const left=await readRecords(page);
+  check(left.length===1&&left[0].chatId===idB&&left[0].draft.prompt==='local2'&&left[0].awaitingChoice,'Discarding chat A cleared chat B');
+  check((await draftOf(idA)).draft.prompt==='remote1','Discarding chat A changed its saved draft unexpectedly');
+  await page.goto(base+'/qwen-cn/?scope=two-b-kept#chat='+encodeURIComponent(idB));await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='local2','Chat B\'s choice was gone after chat A was discarded');
+  await page.locator('#keepDraft').click();
+  await page.waitForFunction(()=>!dirty&&!conflict&&!saving);
+  check(await transient(page)===null,'Saving chat B left a recovery copy');
+  const keptB=await draftOf(idB);
+  check(keptB.draft.prompt==='local2'&&keptB.draft_version>remoteB.draft_version,'Saving chat B did not keep its local draft');
+  check((await draftOf(idA)).draft.prompt==='remote1'&&(await draftOf(idA)).draft_version===remoteA.draft_version,'Saving chat B wrote chat A');
+  Object.assign(twoConflicts,{bothRestored:true,discardClearedOnlyThatScope:true,saveClearedOnlyThatScope:true});
+ }
+ const unsentNewChat={};
+ {
+  const idA=await openSaved('未发送甲','basePark');
+  await page.goto(base+'/qwen-cn/?scope=park-a#chat='+encodeURIComponent(idA));await ready(page);
+  const remoteA=await causeConflict(idA,'localA','remoteA');
+  await page.goto(base+'/qwen-cn/?scope=unsent-new');await ready(page);
+  check(await page.locator('#prompt').inputValue()==='','A new chat showed the parked draft');
+  check(await page.locator('#draftConflict').isHidden(),'A new chat showed the parked conflict');
+  const before=await count();
+  await page.evaluate(()=>{
+   const native=window.setTimeout;
+   window.setTimeout=(fn,delay,...args)=>delay===450?0:native(fn,delay,...args);
+  });
+  await page.locator('#prompt').fill('unsentNewB');
+  await page.waitForTimeout(800);
+  check(await count()===before,'Autosave created a chat before the refresh');
+  const parked=await readRecords(page);
+  check(parked.some(record=>record.chatId===idA&&record.awaitingChoice&&record.draft.prompt==='localA'&&record.baseDraft.prompt==='basePark'),'Typing a new chat replaced the parked choice');
+  check(parked.some(record=>(record.chatId||null)===null&&!record.awaitingChoice&&record.draft.prompt==='unsentNewB'),'The new chat was not stored before autosave');
+  await page.reload();await ready(page);
+  check(await page.locator('#prompt').inputValue()==='unsentNewB','Refresh dropped the new chat text saved before autosave');
+  check(await page.locator('#draftConflict').isHidden(),'The unsaved new chat showed a conflict');
+  await page.waitForFunction(()=>!!current&&!dirty&&!saving);
+  check(await page.locator('#prompt').inputValue()==='unsentNewB','Immediate recovery replaced the new chat text');
+  check(await count()===before+1,'Immediate recovery did not save the new chat');
+  const created=chatFrom(page);
+  check((await draftOf(created)).draft.prompt==='unsentNewB','The recovered new chat was not saved');
+  const remaining=await readRecords(page);
+  check(remaining.length===1&&remaining[0].chatId===idA&&remaining[0].awaitingChoice&&remaining[0].draft.prompt==='localA','Saving the new chat cleared or replaced the parked choice');
+  check((await draftOf(idA)).draft.prompt==='remoteA'&&(await draftOf(idA)).draft_version===remoteA.draft_version,'Recovering the new chat wrote the parked chat');
+  await page.goto(base+'/qwen-cn/?scope=park-return#chat='+encodeURIComponent(idA));await ready(page);
+  await page.locator('#draftConflict').waitFor({state:'visible'});
+  check(await page.locator('#prompt').inputValue()==='localA','The parked chat lost its local draft after the new chat was recovered');
+  Object.assign(unsentNewChat,{restoredBeforeAutosave:true,parkedChoiceKept:true});
+ }
+ return {noEmptyOptionRows:true,noClearedTransientRows:true,conflictResolution:receipts,existingChatConflictResolution:existingChoices,existingChatIsolation:isolation,returnedToBase,sidebarReturn,projectEntry,twoConflicts,unsentNewChat};
 }
