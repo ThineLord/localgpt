@@ -38,6 +38,14 @@ pixel equivalence or access to ChatGPT's private backend.
   memories. Projects → Deleted projects restores the collection, excluding chats
   already in trash before the project was deleted. Ordinary chat restore requires
   restoring its parent project first. No permanent project-delete action exists.
+- The project list and the open project's detail refresh with the rest of the
+  page about every three seconds. A list or detail response is applied only when
+  that read is still the newest one and the page has not navigated since it
+  started. An older list does not treat a project opened afterward as moved to
+  trash. An older detail does not replace the project now on screen, or a newer
+  title already shown for the same project. A failed refresh is reported only
+  for the read that is still current. Deleting the project that is still open
+  still leaves the page and says it was moved to trash.
 
 ## Retrieval and file limits
 
@@ -107,7 +115,10 @@ random source fact and project-specific instruction on a disposable database.
 Browser acceptance uses `projects_demo.py`, with explicitly synthetic responses:
 creation/customization, instructions, uploads/downloads, source undo, chat moves,
 search, reload persistence, project memory controls, deletion/restore, themes and
-mobile layout. Production acceptance must separately verify the deployed build,
+mobile layout. `project-refresh` covers a delayed detail or list response that
+must not replace a completed navigation or a newer read, a delayed failure for a
+request that is no longer current, and deletion of the project still on screen.
+Production acceptance must separately verify the deployed build,
 service restart, SQLite integrity, preserved original rows and gallery assets.
 
 For a code rollback, stop only the owned UI service after its queue is idle,

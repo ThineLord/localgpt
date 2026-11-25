@@ -44,7 +44,8 @@
     detail = null,
     section = "chats",
     query = "",
-    pageSignature = "";
+    pageSignature = "",
+    projectReadEpoch = 0;
   let expanded = new Set(),
     collapsed = false,
     modalOrigin = null,
@@ -207,22 +208,51 @@
     return { bar, save };
   }
   const projectForChat = (id) => projects.find((p) => p.chat_ids.includes(id));
+  function projectReadCurrent(epoch, nav) {
+    return epoch === projectReadEpoch && nav === navigationVersion;
+  }
   async function refreshProjects() {
-    projects = await request("/qwen-cn/projects");
+    const epoch = ++projectReadEpoch;
+    const nav = navigationVersion;
+    let listed;
+    try {
+      listed = await request("/qwen-cn/projects");
+    } catch (error) {
+      if (!projectReadCurrent(epoch, nav)) return;
+      throw error;
+    }
+    // The list and the detail are separate reads. Apply each only if this
+    // refresh is still the latest one and navigation has not moved on.
+    if (!projectReadCurrent(epoch, nav)) return;
+    const viewedId = view === "project" ? detail?.id : null;
+    projects = listed;
     if (current && view === "chat")
       activeProjectId = projectForChat(current.id)?.id || null;
-    if (detail && view === "project") {
-      if (projects.some((p) => p.id === detail.id))
-        detail = await request("/qwen-cn/projects/" + detail.id);
-      else {
-        detail = null;
-        await newChat();
-        report(
-          new Error(
-            tr("项目已移入回收站。", "This project was moved to trash."),
-          ),
-        );
+    if (!viewedId || detail?.id !== viewedId || view !== "project") return;
+    if (listed.some((project) => project.id === viewedId)) {
+      let fresh;
+      try {
+        fresh = await request("/qwen-cn/projects/" + viewedId);
+      } catch (error) {
+        if (!projectReadCurrent(epoch, nav)) return;
+        if (detail?.id !== viewedId || view !== "project") return;
+        throw error;
       }
+      if (!projectReadCurrent(epoch, nav)) return;
+      if (detail?.id !== viewedId || view !== "project") return;
+      // This snapshot was read before the title already on screen.
+      if (Number(fresh.version) < Number(detail.version)) return;
+      detail = fresh;
+    } else {
+      if (!projectReadCurrent(epoch, nav)) return;
+      if (detail?.id !== viewedId || view !== "project") return;
+      detail = null;
+      await newChat();
+      report(
+        new Error(
+          tr("项目已移入回收站。", "This project was moved to trash."),
+        ),
+      );
     }
   }
   async function changed() {

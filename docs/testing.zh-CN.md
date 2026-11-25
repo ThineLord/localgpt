@@ -11,7 +11,7 @@ python3 -m venv .venv
 
 首次会按 `tools/requirements-test.txt` 安装固定 Python 依赖、按浏览器 lockfile 执行 `npm ci` 并下载 Playwright 配套 Chromium；之后只需 `.venv/bin/python tools/validate.py`。已在 macOS、Python 3.13、Node 26 验证；运行时任务所有权依赖 macOS/Linux POSIX 文件锁。Node/npm 仅用于验收，前端无 npm 构建流程。
 
-完整合成验收包含构建一致性、版本/文档链接、全部后端和工具测试、当前 JS 语法、暂存/工作区 diff、源码及历史审计、检索性能回归和 16 个浏览器/API 套件。每个浏览器套件使用独立临时数据、服务和随机身份校验；成功、失败或中断都会清理自己创建的进程和数据，不使用已有服务或个人数据库。
+完整合成验收包含构建一致性、版本/文档链接、全部后端和工具测试、当前 JS 语法、暂存/工作区 diff、源码及历史审计、检索性能回归和 17 个浏览器/API 套件。每个浏览器套件使用独立临时数据、服务和随机身份校验；成功、失败或中断都会清理自己创建的进程和数据，不使用已有服务或个人数据库。
 
 默认报告为 `output/validation/report.json`，附各项日志和各套件截图。`PASS` 仅表示当前合成套件全部通过，不代表真实推理成功。依赖/环境阻塞为 `BLOCKED`，断言失败为 `FAIL`，超时为 `TIMEOUT`，中断为 `INTERRUPTED`；失败和阻塞返回非零退出码。开始即写入带唯一标识的 `RUNNING`，不会复用旧通过结果。`--browser-only`、`--skip-browser`、`--case projects` 明确为局部测试，最多得到 `PARTIAL_PASS`。
 
