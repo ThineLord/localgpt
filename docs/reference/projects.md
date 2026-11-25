@@ -82,6 +82,11 @@ The existing `/qwen-cn/` routes, database location, localStorage/sessionStorage
 keys, model ownership prefix and local connector configuration remain compatible.
 New project expansion state uses `localgpt-projects-expanded`. Transient draft
 recovery checks both chat and project identity to avoid crossing memory scopes.
+A conflict on a chat that already has a saved draft is kept in that same
+`hanz-transient-draft` sessionStorage record, with the local text and the
+original base. Reloading the tab asks again and does not overwrite the server.
+The record is removed only after an explicit save or an explicit choice.
+Opening another chat or project does not apply it or delete it.
 
 ## Validation and rollback
 

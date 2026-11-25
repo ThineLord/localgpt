@@ -7,6 +7,7 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 ### Fixed
 
 - Confirming an input-method candidate in the project name field no longer creates or renames the project. Enter with `isComposing` set, or with key code 229, does not call `preventDefault` and does not save, for both create and edit. An ordinary Enter or the save button still saves once.
+- Reloading a chat that already has a saved draft keeps an unresolved conflict in the existing `hanz-transient-draft` sessionStorage record: the local text and the original base stay until an explicit save or an explicit choice. Refreshing again does not overwrite the server, and another chat or project does not apply or delete that record.
 
 ## [0.3.0] - 2026-11-19
 

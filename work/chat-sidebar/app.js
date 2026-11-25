@@ -601,10 +601,38 @@ function showDraft(d) {
   updateSendButton();
 }
 const transientDraftKey = "hanz-transient-draft";
-function stashTransientDraft() {
+function stashTransientDraft(base = baseDraft) {
   try {
-    if (!current || sessionStorage.getItem(transientDraftKey))
-      sessionStorage.setItem(transientDraftKey, JSON.stringify({chatId: current?.id || null, projectId: activeProjectId, baseDraft: normalized(baseDraft), draft: draft()}));
+    // Same sessionStorage key as before. A new chat is stored immediately. An
+    // existing chat is stored once its draft conflicts, then later edits keep
+    // the original base. Another chat or project must not replace that record.
+    const raw = sessionStorage.getItem(transientDraftKey);
+    let pending = null;
+    if (raw) {
+      try { pending = JSON.parse(raw); } catch { pending = null; }
+    }
+    const chatId = current?.id || null;
+    const project = activeProjectId || null;
+    const sameScope = !!pending && pending.chatId === chatId && (pending.projectId || null) === project;
+    const materializing = !!pending && pending.chatId === null && chatId !== null && (pending.projectId || null) === project;
+    if (pending && !sameScope && !materializing) return;
+    if (!pending && current && !conflict) return;
+    const baseToStore = sameScope && conflict && pending.baseDraft ? pending.baseDraft : base;
+    sessionStorage.setItem(transientDraftKey, JSON.stringify({
+      chatId,
+      projectId: activeProjectId,
+      baseDraft: normalized(baseToStore),
+      draft: draft(),
+    }));
+  } catch {}
+}
+function clearTransientDraft(chatId = current?.id || null) {
+  try {
+    const raw = sessionStorage.getItem(transientDraftKey);
+    if (!raw) return;
+    const pending = JSON.parse(raw);
+    if (pending.chatId !== chatId || (pending.projectId || null) !== (activeProjectId || null)) return;
+    sessionStorage.removeItem(transientDraftKey);
   } catch {}
 }
 function scheduleSave() {
@@ -667,6 +695,7 @@ async function saveDraft() {
         const remote = await request(`/qwen-cn/chats/${id}`);
         if (!same(remote.draft, oldBase) && !same(remote.draft, snapshot)) {
           conflict = remote;
+          stashTransientDraft(oldBase);
           $("draftConflict").hidden = false;
           setStatus(
             "其他页面已更新此草稿。你的输入仍保留，请选择要使用的版本。",
@@ -684,7 +713,7 @@ async function saveDraft() {
         baseDraft = normalized(fresh.draft);
         if (same(draft(), snapshot)) {
           dirty = false;
-          try { sessionStorage.removeItem(transientDraftKey); } catch {}
+          clearTransientDraft(id);
         }
         setSave(dirty ? "正在保存…" : "草稿已保存");
       }
@@ -711,7 +740,7 @@ async function resolveConflict(keep) {
     if (await saveDraft()) setStatus("");
   } else {
     dirty = false;
-    try { sessionStorage.removeItem(transientDraftKey); } catch {}
+    clearTransientDraft();
     showDraft(remote.draft);
     setStatus("");
     setSave("草稿已保存");
