@@ -29,6 +29,40 @@ print(message)
 
 A long line should wrap without pushing the composer or sidebar outside the viewport. 这段中英混排文字用于验证可读性、自然换行和流式输出时的滚动行为。'''
 
+INLINE_CODE_ANSWER = "\n".join([
+    "Paragraph `a * b * c`, `**literal**`, and `*.py and *.js`.",
+    "",
+    "**Use `x < y & z` now**",
+    "",
+    "**Keep `a * b * c` literal**",
+    "",
+    "*Wrap `x < y & z` once* and **use `one` plus `two` together**",
+    "",
+    "Outside **bold**, *italic*, and ***both***.",
+    "",
+    "- item `a * b * c`",
+    "- item `**literal**`",
+    "- item `*.py and *.js`",
+    "",
+    "## heading `a * b * c` `**literal**` `*.py and *.js`",
+    "",
+    "Span `a * b * c",
+    "**literal**` then **bold** and *italic*.",
+    "",
+    "Before fence `not closed",
+    "",
+    "```python",
+    "a * b * c",
+    "**literal**",
+    "*.py and *.js",
+    "x < y & z",
+    "```",
+    "",
+    "After fence **bold** and *italic* still work.",
+    "",
+    'Quotes `say "hi" & \'ok\' <tag>`.',
+])
+
 def create_demo():
     root = Path(tempfile.mkdtemp(prefix='localgpt-demo-'))
     (root/'input').mkdir(); (root/'output').mkdir()
@@ -72,6 +106,9 @@ def create_demo():
     old=core.STORE.create('布局与排版示例')
     msg,_=core.STORE.reserve(old['id'],'如何让本地创作更简单？',None,512,512,15,'demo-client','demo-example-key',kind='chat',model='qwen3-8b')
     core.STORE.update(msg['id'],answer=ANSWER,status='completed',finished=time.time())
+    inline=core.STORE.create('Synthetic inline code')
+    inline_msg,_=core.STORE.reserve(inline['id'],'Show the inline code literals.',None,512,512,15,'demo-client','demo-inline-code',kind='chat',model='qwen3-8b')
+    core.STORE.update(inline_msg['id'],answer=INLINE_CODE_ANSWER,status='completed',finished=time.time())
     core.STORE.create('新对话')
     async def index(r):return web.FileResponse(Path(__file__).with_name('index.html'),headers={'Cache-Control':'no-store'})
     async def upload(r):

@@ -6,6 +6,7 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ### Fixed
 
+- Inline code keeps the characters inside it. Asterisks in fragments such as `a * b * c`, `**literal**`, and `*.py and *.js` stay visible in paragraphs, lists, and headings. Bold and italic outside that code still apply, including emphasis around one or more code spans, and fenced blocks still copy their original text.
 - A slow project list or project detail refresh no longer replaces the project already open, and an older successful snapshot no longer replaces a newer title for that same project. A delayed failure is shown only for the refresh that is still current: it does not appear on another project or on an ordinary chat. Deleting the project that is still open still leaves the page and reports that it was moved to trash.
 - A project list refresh that starts after another project has already begun to open does not treat the project still on screen as the one to leave, so it does not cancel that open. If the open fails and the deleted project is still on screen, the page then leaves it and reports that it was moved to trash.
 - Confirming an input-method candidate in the project name field no longer creates or renames the project. Enter with `isComposing` set, or with key code 229, does not call `preventDefault` and does not save, for both create and edit. An ordinary Enter or the save button still saves once.
