@@ -15,6 +15,61 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from memory_store import MemoryStore
 from project_store import ProjectStore, cost, extract
+
+WML = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+DOCX_EXPECTED = '项目\t金额\n运输\t120\n相邻文本'
+DOCX_STALE = '项目金额运输120\n相邻文本'
+
+
+def docx_bytes(body):
+    """Minimal DOCX package. document.xml matches ordinary python-docx run markup."""
+    document = io.BytesIO()
+    with zipfile.ZipFile(document, 'w') as archive:
+        archive.writestr('word/document.xml',
+                         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                         f'<w:document {WML}><w:body>{body}</w:body></w:document>')
+    return document.getvalue()
+
+
+def ascii_report_pdf():
+    """Plain-ASCII PDF. Page text is 26 characters; the file itself is 645 bytes."""
+    text = 'Project budget is 452 DKK.'
+    stream = f'BT /F1 12 Tf 20 250 Td ({text}) Tj ET'
+    objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+        f'<< /Length {len(stream)} >>\nstream\n{stream}\nendstream',
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ]
+    parts = ['%PDF-1.3\n', '%' + (' ' * 42) + '\n']
+    offsets = [0]
+    for number, body in enumerate(objects, 1):
+        offsets.append(sum(map(len, parts)))
+        parts.append(f'{number} 0 obj\n{body}\nendobj\n')
+    xref_at = sum(map(len, parts))
+    parts.append(f'xref\n0 {len(objects) + 1}\n')
+    parts.append('0000000000 65535 f \n')
+    for offset in offsets[1:]:
+        parts.append(f'{offset:010d} 00000 n \n')
+    parts.append(f'trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n')
+    return ''.join(parts).encode('ascii')
+
+
+def ledger_docx():
+    # Separate runs, as python-docx writes add_run / add_tab / add_break.
+    separate = (
+        '<w:p>'
+        '<w:r><w:t>项目</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>金额</w:t></w:r>'
+        '<w:r><w:br/></w:r><w:r><w:t>运输</w:t></w:r><w:r><w:tab/></w:r><w:r><w:t>120</w:t></w:r>'
+        '</w:p><w:p><w:r><w:t>相邻</w:t></w:r><w:r><w:t>文本</w:t></w:r></w:p>'
+    )
+    # One run, as python-docx writes a string that already contains tab and newline.
+    embedded = (
+        '<w:p><w:r><w:t>项目</w:t><w:tab/><w:t>金额</w:t><w:br/><w:t>运输</w:t><w:tab/><w:t>120</w:t></w:r></w:p>'
+        '<w:p><w:r><w:t>相邻</w:t></w:r><w:r><w:t>文本</w:t></w:r></w:p>'
+    )
+    return docx_bytes(separate), docx_bytes(embedded)
 from storage import Conflict, Store
 import test_memory_runtime as fixtures
 
@@ -107,7 +162,7 @@ class ProjectStoreTests(unittest.TestCase):
         document = io.BytesIO()
         with zipfile.ZipFile(document, 'w') as archive:
             archive.writestr('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Example text</w:t></w:r></w:p></w:body></w:document>')
-        self.assertIn('Example text', extract('x.docx', document.getvalue())[0])
+        self.assertEqual(extract('x.docx', document.getvalue())[0], 'Example text')
         for name, data in [('x.png', b'image'), ('x.md', b'\xff'), ('x.txt', b'a\x00b'), ('x.docx', b'bad')]:
             with self.assertRaises(ValueError):
                 extract(name, data)
@@ -124,6 +179,157 @@ class ProjectStoreTests(unittest.TestCase):
         page[NameObject('/Contents')] = writer._add_object(stream)
         pdf = io.BytesIO(); writer.write(pdf)
         self.assertIn('452 DKK', extract('budget.pdf', pdf.getvalue())[0])
+
+    def test_docx_keeps_tabs_soft_breaks_paragraphs_and_adjacent_runs(self):
+        separate, embedded = ledger_docx()
+        self.assertEqual(extract('ledger.docx', separate)[0], DOCX_EXPECTED)
+        self.assertEqual(extract('ledger.docx', embedded)[0], DOCX_EXPECTED)
+        self.assertNotIn('项目金额', DOCX_EXPECTED)
+        wrapped = docx_bytes(
+            '<w:p><w:r><w:t>金额</w:t><w:br w:type="textWrapping"/><w:t>运输</w:t>'
+            '<w:cr/><w:t>120</w:t></w:r></w:p>')
+        self.assertEqual(extract('breaks.docx', wrapped)[0], '金额\n运输\n120')
+        page = docx_bytes(
+            '<w:p><w:r><w:t>项目</w:t><w:br w:type="page"/><w:t>金额</w:t>'
+            '<w:br w:type="column"/><w:t>运输</w:t></w:r></w:p>')
+        self.assertEqual(extract('page.docx', page)[0], '项目金额运输')
+        stops = docx_bytes(
+            '<w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs></w:pPr>'
+            '<w:r><w:t>项目</w:t><w:tab/><w:t>金额</w:t></w:r></w:p>')
+        self.assertEqual(extract('stops.docx', stops)[0], '项目\t金额')
+        spaced = docx_bytes(
+            '<w:p><w:hyperlink><w:r><w:t xml:space="preserve">相邻 </w:t></w:r></w:hyperlink>'
+            '<w:r><w:t>文本</w:t></w:r><w:r><w:instrText> DATE</w:instrText></w:r></w:p>')
+        self.assertEqual(extract('runs.docx', spaced)[0], '相邻 文本 DATE')
+
+    def test_docx_reupload_refreshes_same_source_without_rewriting_history(self):
+        blob = ledger_docx()[0]
+        source = self.projects.add_source(self.project['id'], 'ledger.docx', blob)
+        chat = self.projects.create_chat('Ledger', self.project['id'])
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', (DOCX_STALE, source['id']))
+            self.projects._index_source(db, source['id'], source['name'], DOCX_STALE)
+        self.assertEqual(self.projects.source(self.project['id'], source['id'])['text'], DOCX_STALE)
+        _, stale_body, _ = self.projects.context(chat['id'], '项目金额运输')
+        stale_excerpt = json.loads(stale_body)[0]['excerpt']
+        self.assertEqual(stale_excerpt, DOCX_STALE)
+        self.assertNotIn('\t', stale_excerpt)
+        message, _ = self.store.reserve(chat['id'], '项目金额', None, 512, 512, 25, 'test', 'docx-history', kind='chat')
+        self.store.update(message['id'], status='completed', answer='kept answer', memory_json='{"project":{"source_ids":["kept"]}}')
+        before_messages = self._message_rows()
+        before = self.projects.source(self.project['id'], source['id'], True)
+        project_before = self.projects.get(self.project['id'])
+        again = self.projects.add_source(self.project['id'], 'copy.docx', blob)
+        raw = self.projects.source(self.project['id'], source['id'], True)
+        self.assertEqual(again['id'], source['id'])
+        self.assertEqual(len(self.projects.sources(self.project['id'])), 1)
+        self.assertEqual(raw['text'], DOCX_EXPECTED)
+        self.assertEqual(raw['content'], blob)
+        self.assertEqual(raw['name'], before['name'])
+        self.assertEqual(raw['sha256'], before['sha256'])
+        self.assertEqual(raw['created'], before['created'])
+        self.assertEqual(raw['size'], before['size'])
+        self.assertEqual(self.projects.get(self.project['id'])['version'], project_before['version'])
+        self.assertEqual(self._message_rows(), before_messages)
+        _, body, meta = self.projects.context(chat['id'], '项目金额运输')
+        self.assertIn(source['id'], meta['source_ids'])
+        excerpt = json.loads(body)[0]['excerpt']
+        self.assertIn('项目\t金额\n运输\t120', excerpt)
+        self.assertIn('相邻文本', excerpt)
+        self.assertNotIn('项目金额', excerpt)
+        with self.store.connect() as db:
+            self.assertEqual([row[0] for row in db.execute('SELECT body FROM project_source_chunks WHERE source_id=?', (source['id'],))], [DOCX_EXPECTED])
+        unchanged = self.projects.add_source(self.project['id'], 'ledger.docx', blob)
+        self.assertEqual(unchanged['id'], source['id'])
+        self.assertEqual(self.projects.source(self.project['id'], source['id'], True)['content'], blob)
+        self.assertEqual(self._message_rows(), before_messages)
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', (DOCX_STALE, source['id']))
+            self.projects._index_source(db, source['id'], source['name'], DOCX_STALE)
+        cased = self.projects.add_source(self.project['id'], 'Ledger.DOCX', blob)
+        self.assertEqual(cased['id'], source['id'])
+        self.assertEqual(cased['name'], 'ledger.docx')
+        self.assertEqual(cased['text'], DOCX_EXPECTED)
+        self.assertEqual(self.projects.source(self.project['id'], source['id'], True)['content'], blob)
+
+    def test_cross_format_reupload_keeps_saved_text_and_retrieval(self):
+        blob = ascii_report_pdf()
+        pdf_text, pdf_mime = extract('report.pdf', blob)
+        raw_text, _ = extract('report.txt', blob)
+        self.assertTrue(blob.isascii())
+        self.assertEqual(pdf_text, 'Project budget is 452 DKK.')
+        self.assertEqual(len(pdf_text), 26)
+        self.assertEqual(pdf_mime, 'application/pdf')
+        self.assertEqual(len(raw_text), 645)
+        self.assertTrue(raw_text.startswith('%PDF-1.3'))
+        source = self.projects.add_source(self.project['id'], 'report.pdf', blob)
+        chat = self.projects.create_chat('Report', self.project['id'])
+        message, _ = self.store.reserve(chat['id'], 'budget', None, 512, 512, 25, 'test', 'pdf-history', kind='chat')
+        self.store.update(message['id'], status='completed', answer='kept answer')
+        before_messages = self._message_rows()
+        before = self.projects.source(self.project['id'], source['id'], True)
+        project_before = self.projects.get(self.project['id'])
+        with self.store.connect() as db:
+            chunks = [row[0] for row in db.execute('SELECT body FROM project_source_chunks WHERE source_id=? ORDER BY offset', (source['id'],))]
+        again = self.projects.add_source(self.project['id'], 'report.txt', blob)
+        raw = self.projects.source(self.project['id'], source['id'], True)
+        self.assertEqual(again['id'], source['id'])
+        self.assertEqual(again['name'], 'report.pdf')
+        self.assertEqual(again['mime'], 'application/pdf')
+        self.assertEqual(len(self.projects.sources(self.project['id'])), 1)
+        self.assertEqual(raw['text'], pdf_text)
+        self.assertEqual(len(raw['text']), 26)
+        self.assertNotIn('%PDF', raw['text'])
+        self.assertEqual(raw['content'], blob)
+        self.assertEqual(raw['sha256'], before['sha256'])
+        self.assertEqual(raw['created'], before['created'])
+        self.assertEqual(self.projects.get(self.project['id'])['version'], project_before['version'])
+        self.assertEqual(self._message_rows(), before_messages)
+        with self.store.connect() as db:
+            self.assertEqual([row[0] for row in db.execute('SELECT body FROM project_source_chunks WHERE source_id=? ORDER BY offset', (source['id'],))], chunks)
+        _, body, meta = self.projects.context(chat['id'], 'budget')
+        self.assertEqual(meta['source_ids'], [source['id']])
+        excerpt = json.loads(body)[0]['excerpt']
+        self.assertEqual(excerpt, pdf_text)
+        self.assertNotIn('%PDF', excerpt)
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', ('kept pdf text', source['id']))
+            self.projects._index_source(db, source['id'], source['name'], 'kept pdf text')
+        same = self.projects.add_source(self.project['id'], 'report.pdf', blob)
+        self.assertEqual(same['id'], source['id'])
+        self.assertEqual(same['text'], 'kept pdf text')
+        _, body, _ = self.projects.context(chat['id'], 'budget')
+        self.assertEqual(json.loads(body)[0]['excerpt'], 'kept pdf text')
+        docx = ledger_docx()[0]
+        word = self.projects.add_source(self.project['id'], 'ledger.docx', docx)
+        with self.assertRaises(ValueError):
+            self.projects.add_source(self.project['id'], 'ledger.txt', docx)
+        kept = self.projects.source(self.project['id'], word['id'], True)
+        self.assertEqual(kept['text'], DOCX_EXPECTED)
+        self.assertEqual(kept['content'], docx)
+        self.assertEqual(kept['name'], 'ledger.docx')
+
+    def test_docx_reupload_index_failure_keeps_saved_text_and_bytes(self):
+        blob = ledger_docx()[0]
+        source = self.projects.add_source(self.project['id'], 'ledger.docx', blob)
+        with self.store.connect() as db:
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', (DOCX_STALE, source['id']))
+        def broken(db, source_id, name, text):
+            raise RuntimeError('synthetic index write failure')
+        with patch.object(self.projects, '_index_source', side_effect=broken):
+            with self.assertRaises(RuntimeError):
+                self.projects.add_source(self.project['id'], 'ledger.docx', blob)
+        raw = self.projects.source(self.project['id'], source['id'], True)
+        self.assertEqual(raw['text'], DOCX_STALE)
+        self.assertEqual(raw['content'], blob)
+        self.assertEqual(len(self.projects.sources(self.project['id'])), 1)
+
+    def _message_rows(self):
+        with self.store.connect() as db:
+            return [tuple(row) for row in db.execute('SELECT * FROM messages ORDER BY id')]
 
     def test_retrieval_is_scoped_and_budgeted(self):
         one = self.projects.create_chat('Alpha history', self.project['id'])
@@ -266,6 +472,64 @@ class ProjectRuntimeTests(unittest.IsolatedAsyncioTestCase):
         restore_chat=await self.client.post('/qwen-cn/chats/'+chat['id']+'/restore',json={});self.assertEqual(restore_chat.status,409)
         restored=await self.client.post('/qwen-cn/projects/'+p['id']+'/restore',json={'version':2});self.assertEqual(restored.status,200)
         self.assertEqual(len((await restored.json())['chats']),1)
+
+    async def test_docx_multipart_preview_download_retrieval_and_reupload(self):
+        blob = ledger_docx()[0]
+        project = await (await self.client.post('/qwen-cn/projects', json={'name': 'Ledger'})).json()
+        source = await self._upload_docx(project['id'], blob)
+        preview = await (await self.client.get(f"/qwen-cn/projects/{project['id']}/sources/{source['id']}")).json()
+        self.assertEqual(preview['text'], DOCX_EXPECTED)
+        download = await self.client.get(f"/qwen-cn/projects/{project['id']}/sources/{source['id']}/download")
+        self.assertEqual(await download.read(), blob)
+        chat = await (await self.client.post('/qwen-cn/chats', json={'project_id': project['id']})).json()
+        await self.send(chat, '项目和金额分别是什么', 'docx-fresh')
+        self.assertEqual(self._project_excerpt(), DOCX_EXPECTED)
+        self._plant_stale_docx(source['id'])
+        stale = await (await self.client.get(f"/qwen-cn/projects/{project['id']}/sources/{source['id']}")).json()
+        self.assertEqual(stale['text'], DOCX_STALE)
+        await self.send(chat, '运输费用是多少', 'docx-stale')
+        self.assertEqual(self._project_excerpt(), DOCX_STALE)
+        history = await (await self.client.get('/qwen-cn/chats/' + chat['id'])).json()
+        again = await self._upload_docx(project['id'], blob, 'copy.docx')
+        self.assertEqual(again['id'], source['id'])
+        listed = await (await self.client.get(f"/qwen-cn/projects/{project['id']}/sources")).json()
+        self.assertEqual([item['id'] for item in listed], [source['id']])
+        repaired = await (await self.client.get(f"/qwen-cn/projects/{project['id']}/sources/{source['id']}")).json()
+        self.assertEqual(repaired['text'], DOCX_EXPECTED)
+        self.assertEqual(repaired['name'], 'ledger.docx')
+        repaired_download = await self.client.get(f"/qwen-cn/projects/{project['id']}/sources/{source['id']}/download")
+        self.assertEqual(await repaired_download.read(), blob)
+        current = await (await self.client.get('/qwen-cn/chats/' + chat['id'])).json()
+        self.assertEqual(current['messages'], history['messages'])
+        await self.send(chat, '请读出来源里的项目金额和运输', 'docx-repaired')
+        self.assertEqual(self._project_excerpt(), DOCX_EXPECTED)
+        final = await (await self.client.get('/qwen-cn/chats/' + chat['id'])).json()
+        self.assertEqual(final['messages'][:len(history['messages'])], history['messages'])
+
+    async def _upload_docx(self, project_id, blob, filename='ledger.docx'):
+        data = FormData()
+        data.add_field('file', blob, filename=filename,
+                       content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response = await self.client.post('/qwen-cn/projects/' + project_id + '/sources', data=data)
+        self.assertEqual(response.status, 201, await response.text())
+        return await response.json()
+
+    def _project_excerpt(self):
+        for message in self.payloads[-1]['messages']:
+            content = message.get('content')
+            if isinstance(content, str) and 'untrusted reference data' in content:
+                entries = json.loads(content.split('\n', 1)[1])
+                return next(item['excerpt'] for item in entries if item['kind'] == 'source')
+        self.fail('project retrieval was not included in the model request')
+
+    def _plant_stale_docx(self, source_id):
+        db = sqlite3.connect(self.root / 'db.sqlite3')
+        db.execute('PRAGMA busy_timeout=5000')
+        db.execute('UPDATE project_sources SET text=? WHERE id=?', (DOCX_STALE, source_id))
+        updated = db.execute('UPDATE project_source_chunks SET body=? WHERE source_id=?', (DOCX_STALE, source_id)).rowcount
+        db.commit()
+        db.close()
+        self.assertEqual(updated, 1)
 
     async def test_manual_memory_membership_guard_and_pause_excludes_related_chats(self):
         p = await (await self.client.post('/qwen-cn/projects', json={'name':'Private', 'memory_mode':'project-only'})).json()

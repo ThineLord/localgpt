@@ -60,6 +60,16 @@ an explicit message. OCR, image understanding of project sources, spreadsheets,
 remote URL fetches, connected cloud drives and collaborative sharing are not
 implemented. Existing chat image attachments and ComfyUI remain separate flows.
 
+DOCX text comes only from `word/document.xml`. A normal tab inside a run is kept
+as a tab character. A soft line break is kept as a newline: `w:br` with no type
+or type `textWrapping`, and a run `w:cr`. Page and column breaks are not line
+breaks. Paragraphs are separated by a newline, and adjacent text runs stay
+adjacent, including a space that is already inside a run. Tab stops in paragraph
+properties are not characters. Headers, footers, footnotes and endnotes live in
+other package parts and are still not read. Word tables are still the paragraphs
+inside them, with no extra cell separator. The size limits above are unchanged;
+separators count toward the extracted-character limit.
+
 Retrieval uses a cached SQLite lexical index (including Chinese bigrams), with bounded chunks
 and at most eight excerpts within a roughly 2,200-token reference budget. Related
 chats consider the latest 150 completed text turns. This is not an embedding index
@@ -69,7 +79,20 @@ the app's 8,192-token budget. Overlong inputs/instructions receive a clear error
 Model citation quality and resistance to instructions inside sources are not
 guaranteed; the UI badge records the actual injected references independently.
 
-Source chunks and distinct terms are indexed when imported. Existing sources are indexed lazily on their first retrieval, without changing their bytes or text. Soft removal and project scope are checked on every query; restoring a source reuses its index. Retrieval and legacy indexing run in a worker thread so the application event loop remains responsive. The additive `project_source_chunks`, `project_source_terms` and `project_source_index` tables contain rebuildable derived data; they require no external indexing service.
+Source chunks and distinct terms are indexed when imported. Existing sources are indexed lazily on their first retrieval, without changing their bytes or text. That lazy index rebuilds from the stored text; it does not extract the file again. Soft removal and project scope are checked on every query; restoring a source reuses its index. Retrieval and legacy indexing run in a worker thread so the application event loop remains responsive. The additive `project_source_chunks`, `project_source_terms` and `project_source_index` tables contain rebuildable derived data; they require no external indexing service.
+
+A DOCX saved before tabs and soft line breaks were kept still has that older
+preview and index. Opening the preview or running retrieval does not rewrite
+it, and nothing walks every saved source to re-extract. Uploading those same
+bytes again replaces the extracted text and rebuilds only that source's index
+when the saved source and this upload both use Word DOCX extraction and the
+extracted text differs. The same source id is kept, without adding a second
+source. Original bytes, the stored filename and existing chat messages stay
+as they were. The same bytes uploaded under another suffix, including a PDF
+uploaded again as plain text, stay on the original source and do not replace
+its text or index. A PDF or text source is not rewritten on re-upload. If the
+new DOCX extraction exceeds the character limit, the upload is rejected and
+the saved source stays unchanged.
 
 Project context currently applies to text-model responses. Image prompts continue
 through the existing ComfyUI pipeline without silently changing workflow settings.
@@ -129,9 +152,11 @@ finished upload to the original draft and does not upload the file again.
 
 `test_projects.py` covers additive schema backup/reopen, stale edits, immutable
 memory scope, message/draft-preserving moves, active-generation guards, search,
-source extraction/deduplication/restore, scoped retrieval, manual-memory origin
-checks, pause behavior, same-origin enforcement, attachment downloads and project
-trash/restore. `projects_live_acceptance.py` verifies real local inference with a
+source extraction/deduplication/restore, DOCX tabs, soft line breaks, paragraphs,
+adjacent runs, same-file DOCX re-upload and cross-format same-byte deduplication,
+scoped retrieval, manual-memory origin checks, pause behavior, same-origin
+enforcement, attachment downloads and project trash/restore.
+`projects_live_acceptance.py` verifies real local inference with a
 random source fact and project-specific instruction on a disposable database.
 
 Browser acceptance uses `projects_demo.py`, with explicitly synthetic responses:
