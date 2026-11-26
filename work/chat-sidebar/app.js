@@ -7,14 +7,37 @@ let navigationVersion = 0,
   navigationFlight = 0,
   onNavigationIdle = null,
   creatingChat = false,
-  galleryPending = false;
+  galleryPending = false,
+  composerEpoch = 0;
+const navigationIdleWaiters = [];
 function beginNavigation() {
   navigationFlight++;
   return ++navigationVersion;
 }
 function endNavigation() {
   if (navigationFlight > 0) navigationFlight--;
-  if (navigationFlight === 0 && onNavigationIdle) onNavigationIdle();
+  if (navigationFlight !== 0) return;
+  const waiting = navigationIdleWaiters.splice(0);
+  try {
+    if (onNavigationIdle) onNavigationIdle();
+  } finally {
+    for (const resolve of waiting) resolve();
+  }
+}
+// Upload completion that would create or patch a chat must not run until the
+// open already in flight lands or fails. The failure status is recorded after
+// this flight reaches zero, so wait one turn before deciding.
+function whenForegroundNavigationSettles() {
+  if (navigationFlight === 0) return Promise.resolve();
+  return (async () => {
+    while (navigationFlight > 0) {
+      await new Promise((resolve) => navigationIdleWaiters.push(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  })();
+}
+function noteComposerLanded() {
+  composerEpoch++;
 }
 let preferences = {};
 try {
@@ -129,6 +152,8 @@ const EN = {
   读取参考图片: "Reading reference image",
   上传的参考图片: "Uploaded reference image",
   "参考图已就绪，请输入修改要求。": "Image ready. Describe your changes.",
+  "已离开选择图片时的对话，参考图没有加入当前草稿。":
+    "You left the chat where this image was selected. It was not added to the current draft.",
   正在绘制: "Generating",
   正在生成: "Generating",
   加载文本编码器: "Loading text encoder",
@@ -1233,6 +1258,7 @@ async function selectChat(id) {
     view = "chat";
     showView();
     history.replaceState(null, "", "#chat=" + encodeURIComponent(id));
+    noteComposerLanded();
     setChatTitle();
     renderSidebar(true);
     updateActivity();
@@ -1275,6 +1301,7 @@ async function newChat(projectId = null) {
     showView();
     history.replaceState(null, "", location.pathname + location.search);
     if (projectId) history.replaceState(null, '', '#project=' + encodeURIComponent(projectId) + '&new=1');
+    noteComposerLanded();
     setChatTitle();
     renderSidebar(true);
     updateActivity();
@@ -1519,6 +1546,31 @@ $("size").onchange = scheduleSave;
 $("quality").onchange = scheduleSave;
 $("removeRef").onclick = () => setReference(null);
 $("upload").onclick = () => $("file").click();
+function uploadOrigin() {
+  return {
+    navigation: navigationVersion,
+    projectId: activeProjectId || null,
+    chatId: current?.id || null,
+    hash: location.hash,
+    composerEpoch,
+  };
+}
+// Opening another chat bumps navigationVersion before the read returns.
+// A failed read leaves the same id, address, and draft on screen, so the
+// finished upload still belongs there. composerEpoch changes only when a
+// navigation lands, including a leave and a later return to the same chat.
+// Two projects with no chat id are not the same composer. A new chat can
+// gain an id from the 450ms autosave without landing elsewhere. A read that
+// has not landed is not a leave and not a failure yet.
+function uploadStillOnOrigin(origin) {
+  if (!origin || origin.composerEpoch !== composerEpoch) return false;
+  if ((origin.projectId || null) !== (activeProjectId || null)) return false;
+  const chatId = current?.id || null;
+  const started = origin.chatId || null;
+  if (started)
+    return started === chatId && (origin.hash || "") === location.hash;
+  return true;
+}
 $("file").onchange = async () => {
   const f = $("file").files[0];
   if (!f || busy) return;
@@ -1532,6 +1584,7 @@ $("file").onchange = async () => {
     setStatus("请选择 PNG、JPEG 或 WebP 图片。", true);
     return;
   }
+  const origin = uploadOrigin();
   uploading = true;
   runStart = Date.now();
   setBusy(true);
@@ -1550,6 +1603,16 @@ $("file").onchange = async () => {
       method: "POST",
       body: form,
     });
+    // Creating the no-id draft from this result can resolve after the open
+    // lands and replace that chat while the editor still shows its text.
+    await whenForegroundNavigationSettles();
+    if (!uploadStillOnOrigin(origin)) {
+      setStatus("已离开选择图片时的对话，参考图没有加入当前草稿。", true);
+      return;
+    }
+    // The failed open already explained itself. Keep that message, and use
+    // the registered file on the composer that is still on screen.
+    const keepOpenFailure = origin.navigation !== navigationVersion && lastError;
     setReference(
       {
         filename: result.name,
@@ -1559,9 +1622,10 @@ $("file").onchange = async () => {
       "上传的参考图片",
     );
     await saveDraft();
-    setStatus("参考图已就绪，请输入修改要求。");
+    if (uploadStillOnOrigin(origin) && !keepOpenFailure)
+      setStatus("参考图已就绪，请输入修改要求。");
   } catch (e) {
-    setStatus(e.message, true);
+    if (uploadStillOnOrigin(origin)) setStatus(e.message, true);
   } finally {
     uploading = false;
     setBusy(false);
@@ -1681,6 +1745,7 @@ async function setView(next) {
         ? "#chat=" + encodeURIComponent(current?.id || "")
         : "#" + next,
     );
+    noteComposerLanded();
     renderSidebar(true);
     if (next === "gallery") await loadGallery();
     else if (next === "trash") await loadTrash();
