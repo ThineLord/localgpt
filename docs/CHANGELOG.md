@@ -6,6 +6,8 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ### Fixed
 
+- When another window removes the open chat, the app opens a remaining chat or the empty composer. Unsent text and available reference images stay accessible in a separate recovery notice in the same tab.
+
 - A failed save of an existing chat keeps a recovery copy in the same tab, including when the final write on leaving also fails. Reopening the chat retries unchanged drafts and asks before replacing a newer version.
 
 - DOCX preview and project retrieval keep a normal tab, a soft line break, the break between paragraphs, and adjacent text runs. A DOCX already saved with the older extraction keeps that text and index until the same DOCX is uploaded again. That upload refreshes the same source only when the extracted text differs, and does not change original bytes or existing messages. The same bytes uploaded under another suffix, including a PDF uploaded again as plain text, keep the saved text and index.
