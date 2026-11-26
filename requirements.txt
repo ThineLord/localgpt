@@ -1,3 +1,4 @@
 aiohttp>=3.10,<4
-Pillow>=11,<13
-pypdf>=5,<6
+Pillow>=13,<14; python_version >= "3.11"
+Pillow==12.3.0; python_version < "3.11"
+pypdf>=6.21.4,<7

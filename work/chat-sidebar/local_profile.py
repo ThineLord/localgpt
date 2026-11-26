@@ -24,13 +24,11 @@ def normalize_avatar(raw, content_type):
     try:
         with warnings.catch_warnings():
             warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(raw)) as probe:
-                if probe.format != TYPES[content_type]:
-                    raise ValueError('图片内容与文件类型不一致。')
+            with Image.open(io.BytesIO(raw), formats=[TYPES[content_type]]) as probe:
                 if probe.width * probe.height > MAX_PIXELS or max(probe.size) > 8192:
                     raise ValueError('图片尺寸过大，请使用不超过 1600 万像素的图片。')
                 probe.verify()
-            with Image.open(io.BytesIO(raw)) as source:
+            with Image.open(io.BytesIO(raw), formats=[TYPES[content_type]]) as source:
                 source.seek(0)
                 source.load()
                 image = ImageOps.fit(ImageOps.exif_transpose(source).convert('RGBA'), (256, 256), method=Image.Resampling.LANCZOS)

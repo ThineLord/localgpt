@@ -5,14 +5,25 @@ from pathlib import Path
 import subprocess
 import sys
 
+try:
+    from packaging.requirements import Requirement
+except ImportError:
+    raise SystemExit('Install tools/requirements-test.txt to check the pinned environment.')
+
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
 for line in (ROOT/'tools/requirements-test.txt').read_text().splitlines():
     if not line or line.startswith('#'): continue
-    name, expected = line.split('==')
-    try: actual = importlib.metadata.version(name)
-    except importlib.metadata.PackageNotFoundError: actual = 'missing'
-    if actual != expected: errors.append(f'{name}: expected {expected}, found {actual}')
+    requirement = Requirement(line)
+    if requirement.marker and not requirement.marker.evaluate():
+        continue
+    try:
+        actual = importlib.metadata.version(requirement.name)
+    except importlib.metadata.PackageNotFoundError:
+        errors.append(f'{requirement.name}: missing')
+        continue
+    if actual not in requirement.specifier:
+        errors.append(f'{requirement.name}: expected {requirement.specifier}, found {actual}')
 try:
     browser = subprocess.check_output(['node','-e',"const p=require('./tools/browser/node_modules/playwright/package.json');const {chromium}=require('./tools/browser/node_modules/playwright');if(!require('fs').existsSync(chromium.executablePath()))throw Error('Managed Chromium missing');console.log(JSON.stringify({playwright:p.version,node:process.version,chromium:chromium.executablePath()}));"],cwd=ROOT,text=True,stderr=subprocess.STDOUT)
     identity = json.loads(browser)
