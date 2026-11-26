@@ -608,6 +608,7 @@
       showView();
       updateActivity();
       history.replaceState(null, "", "#project=" + encodeURIComponent(id));
+      noteComposerLanded();
       expanded.add(id);
       renderSidebar(true);
       refreshView(true);
@@ -629,6 +630,7 @@
       showView();
       $("projectStatus").hidden = true;
       history.replaceState(null, "", "#projects");
+      noteComposerLanded();
       renderSidebar(true);
       refreshView(true);
       if (innerWidth <= 760) setSidebar(false);

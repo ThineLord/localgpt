@@ -7,7 +7,8 @@ let navigationVersion = 0,
   navigationFlight = 0,
   onNavigationIdle = null,
   creatingChat = false,
-  galleryPending = false;
+  galleryPending = false,
+  composerEpoch = 0;
 function beginNavigation() {
   navigationFlight++;
   return ++navigationVersion;
@@ -15,6 +16,9 @@ function beginNavigation() {
 function endNavigation() {
   if (navigationFlight > 0) navigationFlight--;
   if (navigationFlight === 0 && onNavigationIdle) onNavigationIdle();
+}
+function noteComposerLanded() {
+  composerEpoch++;
 }
 let preferences = {};
 try {
@@ -1235,6 +1239,7 @@ async function selectChat(id) {
     view = "chat";
     showView();
     history.replaceState(null, "", "#chat=" + encodeURIComponent(id));
+    noteComposerLanded();
     setChatTitle();
     renderSidebar(true);
     updateActivity();
@@ -1277,6 +1282,7 @@ async function newChat(projectId = null) {
     showView();
     history.replaceState(null, "", location.pathname + location.search);
     if (projectId) history.replaceState(null, '', '#project=' + encodeURIComponent(projectId) + '&new=1');
+    noteComposerLanded();
     setChatTitle();
     renderSidebar(true);
     updateActivity();
@@ -1526,18 +1532,24 @@ function uploadOrigin() {
     navigation: navigationVersion,
     projectId: activeProjectId || null,
     chatId: current?.id || null,
+    hash: location.hash,
+    composerEpoch,
   };
 }
-// Equal chat ids are not enough: two projects can both have no current id.
-// Leaving bumps navigation. The same new chat can gain an id from the 450ms
-// autosave without a navigation, and that upload still belongs on this composer.
+// Opening another chat bumps navigationVersion before the read returns.
+// A failed read leaves the same id, address, and draft on screen, so the
+// finished upload still belongs there. composerEpoch changes only when a
+// navigation lands, including a leave and a later return to the same chat.
+// Two projects with no chat id are not the same composer. A new chat can
+// gain an id from the 450ms autosave without landing elsewhere.
 function uploadStillOnOrigin(origin) {
-  if (!origin || origin.navigation !== navigationVersion) return false;
+  if (!origin || origin.composerEpoch !== composerEpoch) return false;
   if ((origin.projectId || null) !== (activeProjectId || null)) return false;
   const chatId = current?.id || null;
   const started = origin.chatId || null;
-  if (started === chatId) return true;
-  return started === null && chatId !== null;
+  if (started)
+    return started === chatId && (origin.hash || "") === location.hash;
+  return true;
 }
 $("file").onchange = async () => {
   const f = $("file").files[0];
@@ -1575,6 +1587,9 @@ $("file").onchange = async () => {
       setStatus("已离开选择图片时的对话，参考图没有加入当前草稿。", true);
       return;
     }
+    // The failed open already explained itself. Keep that message, and use
+    // the registered file on the composer that is still on screen.
+    const keepOpenFailure = origin.navigation !== navigationVersion && lastError;
     setReference(
       {
         filename: result.name,
@@ -1584,7 +1599,7 @@ $("file").onchange = async () => {
       "上传的参考图片",
     );
     await saveDraft();
-    if (uploadStillOnOrigin(origin))
+    if (uploadStillOnOrigin(origin) && !keepOpenFailure)
       setStatus("参考图已就绪，请输入修改要求。");
   } catch (e) {
     if (uploadStillOnOrigin(origin)) setStatus(e.message, true);
@@ -1707,6 +1722,7 @@ async function setView(next) {
         ? "#chat=" + encodeURIComponent(current?.id || "")
         : "#" + next,
     );
+    noteComposerLanded();
     renderSidebar(true);
     if (next === "gallery") await loadGallery();
     else if (next === "trash") await loadTrash();

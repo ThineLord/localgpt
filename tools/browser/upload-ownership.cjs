@@ -2,7 +2,10 @@
 // has no id, must not be written into another project. Equal empty chat ids are
 // not the same composer. A new chat that gains an id from the 450ms autosave
 // before the upload finishes, without the user leaving, still keeps the text
-// and receives the image. Run via tools/validate.py --case upload-ownership.
+// and receives the image. A sidebar open that fails and leaves the same chat,
+// address, and draft on screen uses the finished upload there and keeps the
+// open failure. Leaving and returning before the upload finishes does not
+// attach it. Run via tools/validate.py --case upload-ownership.
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -52,6 +55,26 @@ module.exports = async (page) => {
       body: JSON.stringify({ name: imageName, subfolder: "", type: "input" }),
     });
   });
+  let blockedRead = null;
+  await page.route("**/qwen-cn/chats/*", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (
+      request.method() === "GET" &&
+      blockedRead &&
+      url.pathname === "/qwen-cn/chats/" + blockedRead.id
+    ) {
+      const message = blockedRead.message;
+      blockedRead = null;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: message, code: "unavailable" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
   function holdUpload() {
     let release;
     let arrived;
@@ -93,6 +116,14 @@ module.exports = async (page) => {
     const response = await page.request.get(base + "/qwen-cn/chats");
     if (!response.ok()) throw Error("list chats failed " + (await response.text()));
     return response.json();
+  }
+  async function clickChat(title) {
+    await page.locator(`#chatList button.chat-item[title="${title}"]`).click();
+  }
+  async function showChats(titles) {
+    await page.evaluate(() => refresh());
+    for (const title of titles)
+      await page.locator(`#chatList button.chat-item[title="${title}"]`).waitFor();
   }
   async function prepare() {
     await page.evaluate(() => {
@@ -262,9 +293,175 @@ module.exports = async (page) => {
   check(born.draft.reference?.filename === imageName, "image was not saved on the autosaved chat: " + JSON.stringify(born.draft.reference));
   check((await listChats()).length === bornBefore + 1, "autosave path created an extra chat");
 
+  const stay = await (await page.request.post(base + "/qwen-cn/chats", {
+    data: { title: "Stay Source" },
+  })).json();
+  const stayDraft = await page.request.patch(base + "/qwen-cn/chats/" + stay.id, {
+    data: {
+      version: stay.draft_version,
+      draft: { prompt: "Stay on A", mode: "chat", reference: null },
+    },
+  });
+  check(stayDraft.ok(), "stay source setup failed " + (await stayDraft.text()));
+  const blocked = await (await page.request.post(base + "/qwen-cn/chats", {
+    data: { title: "Stay Other" },
+  })).json();
+  const blockedDraft = await page.request.patch(base + "/qwen-cn/chats/" + blocked.id, {
+    data: {
+      version: blocked.draft_version,
+      draft: { prompt: "Other stays unread", mode: "chat", reference: null },
+    },
+  });
+  check(blockedDraft.ok(), "blocked chat setup failed " + (await blockedDraft.text()));
+  const stayBefore = (await listChats()).length;
+  await showChats(["Stay Source", "Stay Other"]);
+  await page.evaluate((id) => {
+    location.hash = "#chat=" + id;
+  }, stay.id);
+  await page.waitForFunction(
+    ({ id, text }) =>
+      current?.id === id &&
+      location.hash === "#chat=" + id &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("mode").value === "chat" &&
+      document.getElementById("reference").hidden &&
+      !saving &&
+      navigationFlight === 0 &&
+      !uploading,
+    { id: stay.id, text: "Stay on A" },
+  );
+  const stayHash = await page.evaluate(() => location.hash);
+  const openFailure = "暂时无法打开这个对话。";
+  const stayHold = holdUpload();
+  const stayChoose = page.locator("#file").setInputFiles(file);
+  await stayHold.ready;
+  blockedRead = { id: blocked.id, message: openFailure };
+  await clickChat("Stay Other");
+  await page.waitForFunction(
+    ({ id, text, hash, failure }) =>
+      current?.id === id &&
+      location.hash === hash &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("mode").value === "chat" &&
+      document.getElementById("reference").hidden &&
+      document.getElementById("status").textContent === failure &&
+      document.getElementById("status").classList.contains("error") &&
+      !saving &&
+      navigationFlight === 0,
+    { id: stay.id, text: "Stay on A", hash: stayHash, failure: openFailure },
+  );
+  check(blockedRead === null, "the sidebar read was not the failed open");
+  stayHold.release();
+  await stayChoose;
+  await page.waitForFunction(
+    ({ name, text, failure }) =>
+      !uploading &&
+      !saving &&
+      !dirty &&
+      reference?.filename === name &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("status").textContent === failure &&
+      document.getElementById("status").classList.contains("error"),
+    { name: imageName, text: "Stay on A", failure: openFailure },
+  );
+  const afterStay = await composer();
+  check(afterStay.chatId === stay.id, "failed open left the source chat " + afterStay.chatId);
+  check(afterStay.prompt === "Stay on A", "failed open replaced the source prompt: " + afterStay.prompt);
+  check(afterStay.mode === "image", "failed open did not keep the uploaded image mode");
+  check(!afterStay.referenceHidden, "failed open did not show the uploaded image");
+  check(afterStay.status === openFailure, "failed open status became " + afterStay.status);
+  check(afterStay.status !== missed, "failed open claimed the user left");
+  check(await page.evaluate(() => location.hash) === stayHash, "failed open changed the address");
+  const stayChat = await readChat(stay.id);
+  check(stayChat.draft.prompt === "Stay on A", "source prompt was not saved: " + JSON.stringify(stayChat.draft));
+  check(stayChat.draft.reference?.filename === imageName, "source did not keep the registered image: " + JSON.stringify(stayChat.draft.reference));
+  check(stayChat.draft.mode === "image", "source draft mode was not saved");
+  const blockedChat = await readChat(blocked.id);
+  check(blockedChat.draft.prompt === "Other stays unread", "blocked chat prompt changed");
+  check(!blockedChat.draft.reference, "blocked chat received the image");
+  check((await listChats()).length === stayBefore, "failed open created a chat");
+
+  const round = await (await page.request.post(base + "/qwen-cn/chats", {
+    data: { title: "Round Source" },
+  })).json();
+  const roundDraft = await page.request.patch(base + "/qwen-cn/chats/" + round.id, {
+    data: {
+      version: round.draft_version,
+      draft: { prompt: "Round text", mode: "chat", reference: null },
+    },
+  });
+  check(roundDraft.ok(), "return source setup failed " + (await roundDraft.text()));
+  const roundOther = await (await page.request.post(base + "/qwen-cn/chats", {
+    data: { title: "Round Other" },
+  })).json();
+  const roundOtherDraft = await page.request.patch(base + "/qwen-cn/chats/" + roundOther.id, {
+    data: {
+      version: roundOther.draft_version,
+      draft: { prompt: "Round other", mode: "chat", reference: null },
+    },
+  });
+  check(roundOtherDraft.ok(), "return other setup failed " + (await roundOtherDraft.text()));
+  await showChats(["Round Source", "Round Other"]);
+  await page.evaluate((id) => {
+    location.hash = "#chat=" + id;
+  }, round.id);
+  await page.waitForFunction(
+    ({ id, text }) =>
+      current?.id === id &&
+      document.getElementById("prompt").value === text &&
+      !saving &&
+      navigationFlight === 0 &&
+      !uploading,
+    { id: round.id, text: "Round text" },
+  );
+  const roundHash = await page.evaluate(() => location.hash);
+  const roundHold = holdUpload();
+  const roundChoose = page.locator("#file").setInputFiles(file);
+  await roundHold.ready;
+  await clickChat("Round Other");
+  await page.waitForFunction(
+    ({ id, text }) =>
+      current?.id === id &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("reference").hidden &&
+      !saving &&
+      navigationFlight === 0,
+    { id: roundOther.id, text: "Round other" },
+  );
+  await clickChat("Round Source");
+  await page.waitForFunction(
+    ({ id, text, hash }) =>
+      current?.id === id &&
+      location.hash === hash &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("mode").value === "chat" &&
+      document.getElementById("reference").hidden &&
+      !saving &&
+      navigationFlight === 0,
+    { id: round.id, text: "Round text", hash: roundHash },
+  );
+  roundHold.release();
+  await roundChoose;
+  await page.waitForFunction(() => !uploading && !saving);
+  const afterRound = await composer();
+  check(afterRound.chatId === round.id, "return path left the source " + afterRound.chatId);
+  check(afterRound.prompt === "Round text", "return path changed the prompt: " + afterRound.prompt);
+  check(afterRound.mode === "chat", "return path changed the mode: " + afterRound.mode);
+  check(afterRound.referenceHidden, "return path showed the image");
+  check(afterRound.status === missed, "return path status was " + afterRound.status);
+  check(await page.evaluate(() => location.hash) === roundHash, "return path changed the address");
+  const roundChat = await readChat(round.id);
+  check(roundChat.draft.prompt === "Round text", "return source lost its text: " + JSON.stringify(roundChat.draft));
+  check(!roundChat.draft.reference, "returning attached the image: " + JSON.stringify(roundChat.draft.reference));
+  const roundOtherChat = await readChat(roundOther.id);
+  check(roundOtherChat.draft.prompt === "Round other", "return destination prompt changed");
+  check(!roundOtherChat.draft.reference, "return destination received the image");
+
   return {
     savedChatStaysOffDestination: true,
     emptyIdsDoNotCreateDestinationChat: true,
     autosaveSameChatKeepsTextAndImage: true,
+    failedOpenKeepsUploadOnSource: true,
+    leaveAndReturnDoesNotAttach: true,
   };
 };

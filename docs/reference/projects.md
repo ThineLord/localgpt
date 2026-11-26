@@ -115,7 +115,11 @@ destination, does not create a chat there, and does not replace that project's
 draft or mode. Text already entered on the source stays with that source. The
 page says the image was not added. If the same new chat gains an id from the
 450ms autosave before the upload finishes, and the user has not left, the image
-is saved on that chat with the text.
+is saved on that chat with the text. If opening another chat fails and the page
+is still showing the original chat id, address, and draft, the finished upload
+is saved on that chat and the open failure stays as the status. A successful
+leave, including returning to the same chat before the upload finishes, still
+does not add the image.
 
 ## Validation and rollback
 
@@ -137,7 +141,9 @@ including when the project still on screen was deleted, and a refresh after
 that open fails. `upload-ownership` covers a reference image selected on a
 saved chat or a no-id project chat that must not land on another project,
 including when both current chats have no id, and a new chat whose autosave
-assigns an id before that upload finishes.
+assigns an id before that upload finishes. It also covers a sidebar open that
+returns an error and leaves the source chat in place, and a leave to another
+chat and back before that upload finishes.
 Production acceptance must separately verify the deployed build,
 service restart, SQLite integrity, preserved original rows and gallery assets.
 
