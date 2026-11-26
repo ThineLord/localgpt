@@ -9,13 +9,32 @@ let navigationVersion = 0,
   creatingChat = false,
   galleryPending = false,
   composerEpoch = 0;
+const navigationIdleWaiters = [];
 function beginNavigation() {
   navigationFlight++;
   return ++navigationVersion;
 }
 function endNavigation() {
   if (navigationFlight > 0) navigationFlight--;
-  if (navigationFlight === 0 && onNavigationIdle) onNavigationIdle();
+  if (navigationFlight !== 0) return;
+  const waiting = navigationIdleWaiters.splice(0);
+  try {
+    if (onNavigationIdle) onNavigationIdle();
+  } finally {
+    for (const resolve of waiting) resolve();
+  }
+}
+// Upload completion that would create or patch a chat must not run until the
+// open already in flight lands or fails. The failure status is recorded after
+// this flight reaches zero, so wait one turn before deciding.
+function whenForegroundNavigationSettles() {
+  if (navigationFlight === 0) return Promise.resolve();
+  return (async () => {
+    while (navigationFlight > 0) {
+      await new Promise((resolve) => navigationIdleWaiters.push(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  })();
 }
 function noteComposerLanded() {
   composerEpoch++;
@@ -1541,7 +1560,8 @@ function uploadOrigin() {
 // finished upload still belongs there. composerEpoch changes only when a
 // navigation lands, including a leave and a later return to the same chat.
 // Two projects with no chat id are not the same composer. A new chat can
-// gain an id from the 450ms autosave without landing elsewhere.
+// gain an id from the 450ms autosave without landing elsewhere. A read that
+// has not landed is not a leave and not a failure yet.
 function uploadStillOnOrigin(origin) {
   if (!origin || origin.composerEpoch !== composerEpoch) return false;
   if ((origin.projectId || null) !== (activeProjectId || null)) return false;
@@ -1583,6 +1603,9 @@ $("file").onchange = async () => {
       method: "POST",
       body: form,
     });
+    // Creating the no-id draft from this result can resolve after the open
+    // lands and replace that chat while the editor still shows its text.
+    await whenForegroundNavigationSettles();
     if (!uploadStillOnOrigin(origin)) {
       setStatus("已离开选择图片时的对话，参考图没有加入当前草稿。", true);
       return;

@@ -5,7 +5,10 @@
 // and receives the image. A sidebar open that fails and leaves the same chat,
 // address, and draft on screen uses the finished upload there and keeps the
 // open failure. Leaving and returning before the upload finishes does not
-// attach it. Run via tools/validate.py --case upload-ownership.
+// attach it. A no-id upload that finishes while another chat's read is still
+// in flight does not create a chat or replace that open when the read
+// succeeds, and still attaches once, without uploading again, when the read
+// fails. Run via tools/validate.py --case upload-ownership.
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -36,6 +39,7 @@ module.exports = async (page) => {
     ),
   };
   let armed = null;
+  let uploadCount = 0;
   await page.route("**/qwen-cn/uploads", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -49,6 +53,7 @@ module.exports = async (page) => {
       hold.arrived();
       await hold.gate;
     }
+    uploadCount += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -56,9 +61,28 @@ module.exports = async (page) => {
     });
   });
   let blockedRead = null;
+  let heldRead = null;
   await page.route("**/qwen-cn/chats/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (
+      request.method() === "GET" &&
+      heldRead &&
+      url.pathname === "/qwen-cn/chats/" + heldRead.id
+    ) {
+      const hold = heldRead;
+      heldRead = null;
+      hold.arrived();
+      await hold.gate;
+      if (hold.failure) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ error: hold.failure, code: "unavailable" }),
+        });
+        return;
+      }
+    }
     if (
       request.method() === "GET" &&
       blockedRead &&
@@ -94,6 +118,43 @@ module.exports = async (page) => {
         ),
       ]),
     };
+  }
+  function holdRead(id, failure = "") {
+    let release;
+    let arrived;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const ready = new Promise((resolve) => {
+      arrived = resolve;
+    });
+    heldRead = { id, failure, gate, arrived: () => arrived() };
+    return {
+      release: () => release(),
+      ready: Promise.race([
+        ready,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(Error("timed out waiting for the chat read")), 8000),
+        ),
+      ]),
+    };
+  }
+  function isCreate(request) {
+    return request.method() === "POST" && new URL(request.url()).pathname === "/qwen-cn/chats";
+  }
+  function armCreateWatch() {
+    let mark;
+    const seen = new Promise((resolve) => {
+      mark = resolve;
+    });
+    page.waitForRequest(isCreate).then(() => mark("created"), () => mark("closed"));
+    return seen;
+  }
+  function quietWindow(seen) {
+    return Promise.race([
+      seen,
+      page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300))).then(() => "quiet"),
+    ]);
   }
   async function createProject(name) {
     const response = await page.request.post(base + "/qwen-cn/projects", {
@@ -457,11 +518,137 @@ module.exports = async (page) => {
   check(roundOtherChat.draft.prompt === "Round other", "return destination prompt changed");
   check(!roundOtherChat.draft.reference, "return destination received the image");
 
+  const flight = await (await page.request.post(base + "/qwen-cn/chats", {
+    data: { title: "Flight Dest" },
+  })).json();
+  const flightDraft = await page.request.patch(base + "/qwen-cn/chats/" + flight.id, {
+    data: {
+      version: flight.draft_version,
+      draft: { prompt: "B original sentence", mode: "chat", reference: null },
+    },
+  });
+  check(flightDraft.ok(), "flight destination setup failed " + (await flightDraft.text()));
+  const flightBefore = (await listChats()).length;
+  await showChats(["Flight Dest"]);
+  await page.evaluate(() => {
+    location.hash = "";
+  });
+  await page.waitForFunction(
+    () => !current && view === "chat" && !activeProjectId && !saving && navigationFlight === 0 && !uploading && !dirty,
+  );
+  const flightHash = "#chat=" + flight.id;
+  const flightUploads = uploadCount;
+  const flightHold = holdUpload();
+  const flightUploaded = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === "POST" && url.pathname === "/qwen-cn/uploads";
+  });
+  const flightChoose = page.locator("#file").setInputFiles(file);
+  await flightHold.ready;
+  const flightRead = holdRead(flight.id);
+  await clickChat("Flight Dest");
+  await flightRead.ready;
+  check(await page.evaluate(() => !current && navigationFlight > 0), "the saved chat read was not still in flight");
+  const flightCreate = armCreateWatch();
+  flightHold.release();
+  await flightUploaded;
+  check((await quietWindow(flightCreate)) === "quiet", "upload created a chat while the saved chat was still opening");
+  check(await page.evaluate(() => uploading && navigationFlight > 0 && !saving && !current), "upload completion changed the page before the open landed");
+  flightRead.release();
+  await flightChoose;
+  await page.waitForFunction(
+    ({ id, text, hash }) =>
+      !uploading &&
+      !saving &&
+      !dirty &&
+      current?.id === id &&
+      location.hash === hash &&
+      document.getElementById("prompt").value === text &&
+      document.getElementById("reference").hidden &&
+      document.getElementById("status").textContent === "已离开选择图片时的对话，参考图没有加入当前草稿。",
+    { id: flight.id, text: "B original sentence", hash: flightHash },
+  );
+  const afterFlight = await composer();
+  check(afterFlight.chatId === flight.id, "settled open was replaced by " + afterFlight.chatId);
+  check(afterFlight.prompt === "B original sentence", "settled open lost its text: " + afterFlight.prompt);
+  check(afterFlight.referenceHidden, "settled open showed the image");
+  check(await page.evaluate(() => location.hash) === flightHash, "settled open changed the address");
+  check((await listChats()).length === flightBefore, "in-flight upload created a chat");
+  check(uploadCount === flightUploads + 1, "in-flight success uploaded more than once");
+  const continued = "B original sentence kept";
+  await page.locator("#prompt").fill(continued);
+  await page.waitForFunction(
+    ({ id, text }) => !saving && !dirty && current?.id === id && document.getElementById("prompt").value === text,
+    { id: flight.id, text: continued },
+  );
+  const flightChat = await readChat(flight.id);
+  check(flightChat.draft.prompt === continued, "later edit missed the opened chat: " + JSON.stringify(flightChat.draft));
+  check(!flightChat.draft.reference, "opened chat received the image");
+  for (const chat of await listChats()) {
+    if (chat.id === flight.id) continue;
+    const full = await readChat(chat.id);
+    check(full.draft?.prompt !== continued, "later edit was stored on " + chat.id);
+  }
+  check((await listChats()).length === flightBefore, "later edit created a chat");
+
+  await page.evaluate(() => {
+    location.hash = "";
+  });
+  await page.waitForFunction(
+    () => !current && view === "chat" && !activeProjectId && !saving && navigationFlight === 0 && !uploading && !dirty,
+  );
+  const failUploads = uploadCount;
+  const failBefore = (await listChats()).length;
+  const failHold = holdUpload();
+  const failUploaded = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === "POST" && url.pathname === "/qwen-cn/uploads";
+  });
+  const failChoose = page.locator("#file").setInputFiles(file);
+  await failHold.ready;
+  const failRead = holdRead(flight.id, openFailure);
+  await clickChat("Flight Dest");
+  await failRead.ready;
+  const failCreate = armCreateWatch();
+  failHold.release();
+  await failUploaded;
+  check((await quietWindow(failCreate)) === "quiet", "failed open created a chat before the read settled");
+  check(await page.evaluate(() => uploading && navigationFlight > 0 && !saving && !current), "failed open changed the draft before the read settled");
+  failRead.release();
+  check(await failCreate === "created", "failed open did not save the original draft");
+  await failChoose;
+  await page.waitForFunction(
+    ({ name, failure }) =>
+      !uploading &&
+      !saving &&
+      !dirty &&
+      !!current?.id &&
+      reference?.filename === name &&
+      document.getElementById("prompt").value === "" &&
+      document.getElementById("reference").hidden === false &&
+      document.getElementById("status").textContent === failure &&
+      document.getElementById("status").classList.contains("error"),
+    { name: imageName, failure: openFailure },
+  );
+  const attachedId = await page.evaluate(() => current.id);
+  check(attachedId !== flight.id, "failed in-flight open attached onto the saved chat");
+  check(await page.evaluate(() => location.hash) === "#chat=" + attachedId, "failed in-flight open left the original draft");
+  const attached = await readChat(attachedId);
+  check(attached.draft.prompt === "", "failed in-flight open replaced the original prompt: " + JSON.stringify(attached.draft));
+  check(attached.draft.reference?.filename === imageName, "failed in-flight open did not save the image");
+  const flightAfterFail = await readChat(flight.id);
+  check(flightAfterFail.draft.prompt === continued, "failed in-flight open changed the saved chat");
+  check(!flightAfterFail.draft.reference, "failed in-flight open wrote the image onto the saved chat");
+  check((await listChats()).length === failBefore + 1, "failed in-flight open created the wrong number of chats");
+  check(uploadCount === failUploads + 1, "failed in-flight open uploaded again");
+
   return {
     savedChatStaysOffDestination: true,
     emptyIdsDoNotCreateDestinationChat: true,
     autosaveSameChatKeepsTextAndImage: true,
     failedOpenKeepsUploadOnSource: true,
     leaveAndReturnDoesNotAttach: true,
+    inFlightOpenKeepsDestination: true,
+    failedInFlightOpenAttachesOnce: true,
   };
 };

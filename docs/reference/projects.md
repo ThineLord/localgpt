@@ -119,7 +119,11 @@ is saved on that chat with the text. If opening another chat fails and the page
 is still showing the original chat id, address, and draft, the finished upload
 is saved on that chat and the open failure stays as the status. A successful
 leave, including returning to the same chat before the upload finishes, still
-does not add the image.
+does not add the image. If the upload finishes while that open's read is still
+in flight, completion does not create or patch a chat until the open settles.
+A successful open stays on the chat it landed, including the text already in
+the editor, and the next edit is saved there. A failed open still attaches the
+finished upload to the original draft and does not upload the file again.
 
 ## Validation and rollback
 
@@ -143,7 +147,10 @@ saved chat or a no-id project chat that must not land on another project,
 including when both current chats have no id, and a new chat whose autosave
 assigns an id before that upload finishes. It also covers a sidebar open that
 returns an error and leaves the source chat in place, and a leave to another
-chat and back before that upload finishes.
+chat and back before that upload finishes. It also covers an upload that
+finishes while a saved chat's read is still in flight: a successful read stays
+on that chat and keeps a later edit there, and a failed read still attaches
+the finished upload to the no-id draft without a second upload.
 Production acceptance must separately verify the deployed build,
 service restart, SQLite integrity, preserved original rows and gallery assets.
 
