@@ -107,6 +107,16 @@ chat that already has an id does not claim the same-project record that still
 has no chat id. That claim happens only in the successful POST that creates
 the new chat. An explicit save or an explicit choice removes only that scope.
 
+A reference image selected on a saved chat, or on a new chat that still has no
+id, is applied only while that same composer is still current. Navigation and
+project ownership are both checked, so two projects that each have no current
+id cannot receive each other's image. Leaving does not write the image into the
+destination, does not create a chat there, and does not replace that project's
+draft or mode. Text already entered on the source stays with that source. The
+page says the image was not added. If the same new chat gains an id from the
+450ms autosave before the upload finishes, and the user has not left, the image
+is saved on that chat with the text.
+
 ## Validation and rollback
 
 `test_projects.py` covers additive schema backup/reopen, stale edits, immutable
@@ -124,7 +134,10 @@ must not replace a completed navigation or a newer read, a delayed failure for a
 request that is no longer current, and deletion of the project still on screen.
 It also covers a list that returns while a project open is already in flight,
 including when the project still on screen was deleted, and a refresh after
-that open fails.
+that open fails. `upload-ownership` covers a reference image selected on a
+saved chat or a no-id project chat that must not land on another project,
+including when both current chats have no id, and a new chat whose autosave
+assigns an id before that upload finishes.
 Production acceptance must separately verify the deployed build,
 service restart, SQLite integrity, preserved original rows and gallery assets.
 

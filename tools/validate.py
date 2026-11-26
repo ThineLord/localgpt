@@ -25,7 +25,7 @@ CASES = {
     'avatar': 'gallery', 'navigation': 'gallery', 'media': 'demo',
     'gallery': 'gallery', 'memory-api': 'demo', 'memory-ui': 'demo',
     'sidebar': 'gallery', 'release-flows': 'demo', 'projects': 'projects',
-    'project-refresh': 'projects', 'wallpaper': 'demo', 'inline-code': 'demo',
+    'project-refresh': 'projects', 'upload-ownership': 'projects', 'wallpaper': 'demo', 'inline-code': 'demo',
 }
 STANDALONE = {'memory-api', 'memory-ui', 'sidebar'}
 

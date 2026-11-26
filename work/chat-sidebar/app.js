@@ -129,6 +129,8 @@ const EN = {
   读取参考图片: "Reading reference image",
   上传的参考图片: "Uploaded reference image",
   "参考图已就绪，请输入修改要求。": "Image ready. Describe your changes.",
+  "已离开选择图片时的对话，参考图没有加入当前草稿。":
+    "You left the chat where this image was selected. It was not added to the current draft.",
   正在绘制: "Generating",
   正在生成: "Generating",
   加载文本编码器: "Loading text encoder",
@@ -1519,6 +1521,24 @@ $("size").onchange = scheduleSave;
 $("quality").onchange = scheduleSave;
 $("removeRef").onclick = () => setReference(null);
 $("upload").onclick = () => $("file").click();
+function uploadOrigin() {
+  return {
+    navigation: navigationVersion,
+    projectId: activeProjectId || null,
+    chatId: current?.id || null,
+  };
+}
+// Equal chat ids are not enough: two projects can both have no current id.
+// Leaving bumps navigation. The same new chat can gain an id from the 450ms
+// autosave without a navigation, and that upload still belongs on this composer.
+function uploadStillOnOrigin(origin) {
+  if (!origin || origin.navigation !== navigationVersion) return false;
+  if ((origin.projectId || null) !== (activeProjectId || null)) return false;
+  const chatId = current?.id || null;
+  const started = origin.chatId || null;
+  if (started === chatId) return true;
+  return started === null && chatId !== null;
+}
 $("file").onchange = async () => {
   const f = $("file").files[0];
   if (!f || busy) return;
@@ -1532,6 +1552,7 @@ $("file").onchange = async () => {
     setStatus("请选择 PNG、JPEG 或 WebP 图片。", true);
     return;
   }
+  const origin = uploadOrigin();
   uploading = true;
   runStart = Date.now();
   setBusy(true);
@@ -1550,6 +1571,10 @@ $("file").onchange = async () => {
       method: "POST",
       body: form,
     });
+    if (!uploadStillOnOrigin(origin)) {
+      setStatus("已离开选择图片时的对话，参考图没有加入当前草稿。", true);
+      return;
+    }
     setReference(
       {
         filename: result.name,
@@ -1559,9 +1584,10 @@ $("file").onchange = async () => {
       "上传的参考图片",
     );
     await saveDraft();
-    setStatus("参考图已就绪，请输入修改要求。");
+    if (uploadStillOnOrigin(origin))
+      setStatus("参考图已就绪，请输入修改要求。");
   } catch (e) {
-    setStatus(e.message, true);
+    if (uploadStillOnOrigin(origin)) setStatus(e.message, true);
   } finally {
     uploading = false;
     setBusy(false);
