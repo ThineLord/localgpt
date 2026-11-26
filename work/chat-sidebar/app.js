@@ -1661,7 +1661,7 @@ $("cancel").onclick = async () => {
   }
 };
 window.addEventListener("pagehide", () => {
-  if (dirty) stashTransientDraft(baseDraft, true);
+  if (dirty) stashTransientDraft(baseDraft, !conflict);
   if (dirty && current && !conflict) {
     const body = JSON.stringify({
       version: current.draft_version,
