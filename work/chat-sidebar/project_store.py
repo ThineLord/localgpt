@@ -47,6 +47,67 @@ def terms(text):
     return words
 
 
+_WML = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
+
+def _local_name(tag):
+    return tag.rsplit('}', 1)[-1] if isinstance(tag, str) else ''
+
+
+def _docx_separator(parent, child):
+    """A run-level tab or soft break. None means this element is not one of those."""
+    if _local_name(parent.tag) != 'r':
+        return None
+    local = _local_name(child.tag)
+    if local == 'tab':
+        return '\t'
+    if local == 'cr':
+        return '\n'
+    if local != 'br':
+        return None
+    kind = child.get(_WML + 'type')
+    if kind is None:
+        kind = child.get('type')
+    # An omitted type is the WordprocessingML soft line break (textWrapping).
+    if kind in (None, 'textWrapping'):
+        return '\n'
+    return ''
+
+
+def _docx_paragraph(paragraph):
+    parts = []
+
+    def walk(node):
+        # Match ElementTree.itertext: comments and processing instructions are not text.
+        if not isinstance(node.tag, str) and node.tag is not None:
+            return
+        if node.text:
+            parts.append(node.text)
+        for child in node:
+            separator = _docx_separator(node, child)
+            if separator is None:
+                walk(child)
+            elif separator:
+                parts.append(separator)
+            if child.tail:
+                parts.append(child.tail)
+
+    walk(paragraph)
+    return ''.join(parts)
+
+
+def _docx_text(root):
+    """Plain text for WordprocessingML paragraphs in document order.
+
+    A normal tab inside a run becomes a tab character. A soft line break
+    (`w:br` with no type or `textWrapping`, and `w:cr`) becomes a newline.
+    Page and column breaks do not. Paragraphs are separated by one newline,
+    and adjacent text runs are concatenated. Tab stops stored in paragraph
+    properties are not characters.
+    """
+    return '\n'.join(_docx_paragraph(paragraph) for paragraph in root.iter(_WML + 'p'))
+
+
 def extract(name, content):
     """Never execute source documents. Reject unsupported/empty extraction explicitly."""
     suffix = Path(name).suffix.lower()
@@ -85,8 +146,7 @@ def extract(name, content):
                 if b'<!DOCTYPE' in xml or b'<!ENTITY' in xml:
                     raise ValueError('不支持此 Word 文档。 / Unsupported Word document.')
                 root = ElementTree.fromstring(xml)
-                ns = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
-                text = '\n'.join(''.join(p.itertext()) for p in root.iter(ns + 'p'))
+                text = _docx_text(root)
         except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as error:
             raise ValueError('无法读取此 Word 文档。 / Cannot read this Word document.') from error
         mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -308,14 +368,20 @@ class ProjectStore:
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             self._get(db, project_id)
-            existing = db.execute('SELECT id FROM project_sources WHERE project_id=? AND sha256=? AND deleted_at IS NULL', (project_id, digest)).fetchone()
+            existing = db.execute('SELECT id, name, text FROM project_sources WHERE project_id=? AND sha256=? AND deleted_at IS NULL', (project_id, digest)).fetchone()
             if existing:
-                return self.source(project_id, existing['id'])
-            if db.execute('SELECT count(*) FROM project_sources WHERE project_id=? AND deleted_at IS NULL', (project_id,)).fetchone()[0] >= 100:
-                raise ValueError('每个项目最多 100 个来源。 / Maximum 100 sources per project.')
-            db.execute('INSERT INTO project_sources(id,project_id,name,kind,mime,size,sha256,content,text,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (source_id, project_id, name, kind, mime, len(content), digest, content, text, time.time()))
-            self._index_source(db, source_id, name, text)
-            db.execute('UPDATE projects SET updated=? WHERE id=?', (time.time(), project_id))
+                source_id = existing['id']
+                # Same bytes stay one source. Refresh text only when extraction changed,
+                # so an explicit re-upload repairs a source saved before this DOCX fix.
+                if existing['text'] != text:
+                    db.execute('UPDATE project_sources SET text=? WHERE id=?', (text, source_id))
+                    self._index_source(db, source_id, existing['name'], text)
+            else:
+                if db.execute('SELECT count(*) FROM project_sources WHERE project_id=? AND deleted_at IS NULL', (project_id,)).fetchone()[0] >= 100:
+                    raise ValueError('每个项目最多 100 个来源。 / Maximum 100 sources per project.')
+                db.execute('INSERT INTO project_sources(id,project_id,name,kind,mime,size,sha256,content,text,created) VALUES(?,?,?,?,?,?,?,?,?,?)', (source_id, project_id, name, kind, mime, len(content), digest, content, text, time.time()))
+                self._index_source(db, source_id, name, text)
+                db.execute('UPDATE projects SET updated=? WHERE id=?', (time.time(), project_id))
         return self.source(project_id, source_id)
 
     def source(self, project_id, source_id, raw=False):
@@ -367,7 +433,8 @@ class ProjectStore:
         return self._memories[project_id]
 
     def _index_source(self, db, source_id, name, text):
-        # Derived data only. Source bytes/text remain authoritative and immutable.
+        # Derived data only. Original bytes stay immutable. Stored text changes
+        # only when those same bytes are explicitly re-uploaded and extraction differs.
         db.execute('DELETE FROM project_source_chunks WHERE source_id=?', (source_id,))
         for offset in range(0, len(text), 1000):
             body = text[offset:offset + 1200]
