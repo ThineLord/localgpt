@@ -83,12 +83,16 @@ Source chunks and distinct terms are indexed when imported. Existing sources are
 
 A DOCX saved before tabs and soft line breaks were kept still has that older
 preview and index. Opening the preview or running retrieval does not rewrite
-it, and nothing walks every saved source to re-extract. Uploading the same
-file bytes again replaces the extracted text and rebuilds only that source's
-index, on the same source id, without adding a second source. Original bytes,
-the stored filename and existing chat messages stay as they were. If the new
-extraction exceeds the character limit, the upload is rejected and the saved
-source stays unchanged.
+it, and nothing walks every saved source to re-extract. Uploading those same
+bytes again replaces the extracted text and rebuilds only that source's index
+when the saved source and this upload both use Word DOCX extraction and the
+extracted text differs. The same source id is kept, without adding a second
+source. Original bytes, the stored filename and existing chat messages stay
+as they were. The same bytes uploaded under another suffix, including a PDF
+uploaded again as plain text, stay on the original source and do not replace
+its text or index. A PDF or text source is not rewritten on re-upload. If the
+new DOCX extraction exceeds the character limit, the upload is rejected and
+the saved source stays unchanged.
 
 Project context currently applies to text-model responses. Image prompts continue
 through the existing ComfyUI pipeline without silently changing workflow settings.
@@ -149,9 +153,10 @@ finished upload to the original draft and does not upload the file again.
 `test_projects.py` covers additive schema backup/reopen, stale edits, immutable
 memory scope, message/draft-preserving moves, active-generation guards, search,
 source extraction/deduplication/restore, DOCX tabs, soft line breaks, paragraphs,
-adjacent runs and same-file re-upload, scoped retrieval, manual-memory origin
-checks, pause behavior, same-origin enforcement, attachment downloads and project
-trash/restore. `projects_live_acceptance.py` verifies real local inference with a
+adjacent runs, same-file DOCX re-upload and cross-format same-byte deduplication,
+scoped retrieval, manual-memory origin checks, pause behavior, same-origin
+enforcement, attachment downloads and project trash/restore.
+`projects_live_acceptance.py` verifies real local inference with a
 random source fact and project-specific instruction on a disposable database.
 
 Browser acceptance uses `projects_demo.py`, with explicitly synthetic responses:

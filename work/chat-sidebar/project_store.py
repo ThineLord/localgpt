@@ -24,6 +24,7 @@ TEXT_EXTENSIONS = {'.txt', '.md', '.csv', '.tsv', '.json', '.py', '.js', '.ts', 
 MAX_FILE_BYTES = 10 * 1024**2
 MAX_TEXT = 200_000
 SOURCE_COLUMNS = 'id,project_id,name,kind,mime,size,sha256,created,deleted_at'
+DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 
 def cost(text):
@@ -108,6 +109,24 @@ def _docx_text(root):
     return '\n'.join(_docx_paragraph(paragraph) for paragraph in root.iter(_WML + 'p'))
 
 
+def _word_docx(name, mime):
+    """True when this filename and stored type select Word DOCX extraction."""
+    return Path(str(name or '')).suffix.lower() == '.docx' and mime == DOCX_MIME
+
+
+def _docx_extraction_changed(saved_name, saved_mime, upload_name, upload_mime, saved_text, extracted_text):
+    """Whether an explicit re-upload of the same bytes may replace stored text.
+
+    Safe compatibility comparison: both the saved source and this upload must
+    use Word DOCX extraction, and the extracted text must differ. The same
+    bytes under another suffix, and every non-DOCX source, keep the text and
+    index already saved.
+    """
+    if not _word_docx(saved_name, saved_mime) or not _word_docx(upload_name, upload_mime):
+        return False
+    return saved_text != extracted_text
+
+
 def extract(name, content):
     """Never execute source documents. Reject unsupported/empty extraction explicitly."""
     suffix = Path(name).suffix.lower()
@@ -149,7 +168,7 @@ def extract(name, content):
                 text = _docx_text(root)
         except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as error:
             raise ValueError('无法读取此 Word 文档。 / Cannot read this Word document.') from error
-        mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        mime = DOCX_MIME
     else:
         raise ValueError('支持 PDF、DOCX、UTF-8 文本和代码文件。 / Use PDF, DOCX, UTF-8 text or code files.')
     if len(text) > MAX_TEXT:
@@ -368,12 +387,12 @@ class ProjectStore:
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             self._get(db, project_id)
-            existing = db.execute('SELECT id, name, text FROM project_sources WHERE project_id=? AND sha256=? AND deleted_at IS NULL', (project_id, digest)).fetchone()
+            existing = db.execute('SELECT id, name, mime, text FROM project_sources WHERE project_id=? AND sha256=? AND deleted_at IS NULL', (project_id, digest)).fetchone()
             if existing:
                 source_id = existing['id']
-                # Same bytes stay one source. Refresh text only when extraction changed,
-                # so an explicit re-upload repairs a source saved before this DOCX fix.
-                if existing['text'] != text:
+                # Same bytes stay one source. Re-extract into the saved row only when
+                # both sides are Word DOCX and the extracted text actually differs.
+                if _docx_extraction_changed(existing['name'], existing['mime'], name, mime, existing['text'], text):
                     db.execute('UPDATE project_sources SET text=? WHERE id=?', (text, source_id))
                     self._index_source(db, source_id, existing['name'], text)
             else:
@@ -434,7 +453,7 @@ class ProjectStore:
 
     def _index_source(self, db, source_id, name, text):
         # Derived data only. Original bytes stay immutable. Stored text changes
-        # only when those same bytes are explicitly re-uploaded and extraction differs.
+        # only when the same Word DOCX bytes are re-uploaded and extraction differs.
         db.execute('DELETE FROM project_source_chunks WHERE source_id=?', (source_id,))
         for offset in range(0, len(text), 1000):
             body = text[offset:offset + 1200]

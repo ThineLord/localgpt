@@ -31,6 +31,31 @@ def docx_bytes(body):
     return document.getvalue()
 
 
+def ascii_report_pdf():
+    """Plain-ASCII PDF. Page text is 26 characters; the file itself is 645 bytes."""
+    text = 'Project budget is 452 DKK.'
+    stream = f'BT /F1 12 Tf 20 250 Td ({text}) Tj ET'
+    objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+        f'<< /Length {len(stream)} >>\nstream\n{stream}\nendstream',
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ]
+    parts = ['%PDF-1.3\n', '%' + (' ' * 42) + '\n']
+    offsets = [0]
+    for number, body in enumerate(objects, 1):
+        offsets.append(sum(map(len, parts)))
+        parts.append(f'{number} 0 obj\n{body}\nendobj\n')
+    xref_at = sum(map(len, parts))
+    parts.append(f'xref\n0 {len(objects) + 1}\n')
+    parts.append('0000000000 65535 f \n')
+    for offset in offsets[1:]:
+        parts.append(f'{offset:010d} 00000 n \n')
+    parts.append(f'trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n')
+    return ''.join(parts).encode('ascii')
+
+
 def ledger_docx():
     # Separate runs, as python-docx writes add_run / add_tab / add_break.
     separate = (
@@ -219,6 +244,73 @@ class ProjectStoreTests(unittest.TestCase):
         self.assertEqual(unchanged['id'], source['id'])
         self.assertEqual(self.projects.source(self.project['id'], source['id'], True)['content'], blob)
         self.assertEqual(self._message_rows(), before_messages)
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', (DOCX_STALE, source['id']))
+            self.projects._index_source(db, source['id'], source['name'], DOCX_STALE)
+        cased = self.projects.add_source(self.project['id'], 'Ledger.DOCX', blob)
+        self.assertEqual(cased['id'], source['id'])
+        self.assertEqual(cased['name'], 'ledger.docx')
+        self.assertEqual(cased['text'], DOCX_EXPECTED)
+        self.assertEqual(self.projects.source(self.project['id'], source['id'], True)['content'], blob)
+
+    def test_cross_format_reupload_keeps_saved_text_and_retrieval(self):
+        blob = ascii_report_pdf()
+        pdf_text, pdf_mime = extract('report.pdf', blob)
+        raw_text, _ = extract('report.txt', blob)
+        self.assertTrue(blob.isascii())
+        self.assertEqual(pdf_text, 'Project budget is 452 DKK.')
+        self.assertEqual(len(pdf_text), 26)
+        self.assertEqual(pdf_mime, 'application/pdf')
+        self.assertEqual(len(raw_text), 645)
+        self.assertTrue(raw_text.startswith('%PDF-1.3'))
+        source = self.projects.add_source(self.project['id'], 'report.pdf', blob)
+        chat = self.projects.create_chat('Report', self.project['id'])
+        message, _ = self.store.reserve(chat['id'], 'budget', None, 512, 512, 25, 'test', 'pdf-history', kind='chat')
+        self.store.update(message['id'], status='completed', answer='kept answer')
+        before_messages = self._message_rows()
+        before = self.projects.source(self.project['id'], source['id'], True)
+        project_before = self.projects.get(self.project['id'])
+        with self.store.connect() as db:
+            chunks = [row[0] for row in db.execute('SELECT body FROM project_source_chunks WHERE source_id=? ORDER BY offset', (source['id'],))]
+        again = self.projects.add_source(self.project['id'], 'report.txt', blob)
+        raw = self.projects.source(self.project['id'], source['id'], True)
+        self.assertEqual(again['id'], source['id'])
+        self.assertEqual(again['name'], 'report.pdf')
+        self.assertEqual(again['mime'], 'application/pdf')
+        self.assertEqual(len(self.projects.sources(self.project['id'])), 1)
+        self.assertEqual(raw['text'], pdf_text)
+        self.assertEqual(len(raw['text']), 26)
+        self.assertNotIn('%PDF', raw['text'])
+        self.assertEqual(raw['content'], blob)
+        self.assertEqual(raw['sha256'], before['sha256'])
+        self.assertEqual(raw['created'], before['created'])
+        self.assertEqual(self.projects.get(self.project['id'])['version'], project_before['version'])
+        self.assertEqual(self._message_rows(), before_messages)
+        with self.store.connect() as db:
+            self.assertEqual([row[0] for row in db.execute('SELECT body FROM project_source_chunks WHERE source_id=? ORDER BY offset', (source['id'],))], chunks)
+        _, body, meta = self.projects.context(chat['id'], 'budget')
+        self.assertEqual(meta['source_ids'], [source['id']])
+        excerpt = json.loads(body)[0]['excerpt']
+        self.assertEqual(excerpt, pdf_text)
+        self.assertNotIn('%PDF', excerpt)
+        with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('UPDATE project_sources SET text=? WHERE id=?', ('kept pdf text', source['id']))
+            self.projects._index_source(db, source['id'], source['name'], 'kept pdf text')
+        same = self.projects.add_source(self.project['id'], 'report.pdf', blob)
+        self.assertEqual(same['id'], source['id'])
+        self.assertEqual(same['text'], 'kept pdf text')
+        _, body, _ = self.projects.context(chat['id'], 'budget')
+        self.assertEqual(json.loads(body)[0]['excerpt'], 'kept pdf text')
+        docx = ledger_docx()[0]
+        word = self.projects.add_source(self.project['id'], 'ledger.docx', docx)
+        with self.assertRaises(ValueError):
+            self.projects.add_source(self.project['id'], 'ledger.txt', docx)
+        kept = self.projects.source(self.project['id'], word['id'], True)
+        self.assertEqual(kept['text'], DOCX_EXPECTED)
+        self.assertEqual(kept['content'], docx)
+        self.assertEqual(kept['name'], 'ledger.docx')
 
     def test_docx_reupload_index_failure_keeps_saved_text_and_bytes(self):
         blob = ledger_docx()[0]
