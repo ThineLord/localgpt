@@ -20,7 +20,7 @@ import traceback
 ROOT = Path(__file__).resolve().parents[1]
 BROWSER = ROOT / 'tools' / 'browser'
 CASES = {
-    'draft-conflicts': 'demo', 'language': 'demo', 'empty-layout': 'gallery',
+    'draft-conflicts': 'demo', 'draft-write-failures': 'demo', 'language': 'demo', 'empty-layout': 'gallery',
     'chat-actions': 'gallery', 'scroll': 'gallery', 'shell': 'gallery',
     'avatar': 'gallery', 'navigation': 'gallery', 'media': 'demo',
     'gallery': 'gallery', 'memory-api': 'demo', 'memory-ui': 'demo',

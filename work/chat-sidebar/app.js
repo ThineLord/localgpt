@@ -688,9 +688,9 @@ function stashTransientDraft(base = baseDraft, create = false, createdChatId = n
     if (index < 0 && createdChatId && chatId === createdChatId && !conflict)
       index = records.findIndex((record) => sameTransientScope(record, null, project) && !record.awaitingChoice);
     const pending = index >= 0 ? records[index] : null;
-    // A saved chat is stored only when its draft first conflicts. Later edits
-    // update that scope and must not copy it onto a different chat or project.
-    if (!pending && current && !(conflict && create)) return;
+    // Keep a saved chat on demand after a failed write or before unloading.
+    // Later edits update only the recovery copy for that chat and project.
+    if (!pending && current && !create) return;
     const awaitingChoice = !!(conflict || pending?.awaitingChoice);
     const baseToStore = pending && awaitingChoice && pending.baseDraft ? pending.baseDraft : base;
     const next = {
@@ -823,6 +823,7 @@ async function saveDraft() {
       }
       return true;
     } catch (e) {
+      if (current?.id === id && dirty) stashTransientDraft(oldBase, true);
       setSave("");
       setStatus("无法保存草稿，请稍后重试。", true);
       throw e;
@@ -1660,7 +1661,7 @@ $("cancel").onclick = async () => {
   }
 };
 window.addEventListener("pagehide", () => {
-  if (dirty) stashTransientDraft();
+  if (dirty) stashTransientDraft(baseDraft, !conflict);
   if (dirty && current && !conflict) {
     const body = JSON.stringify({
       version: current.draft_version,

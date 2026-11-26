@@ -6,6 +6,8 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ### Fixed
 
+- A failed save of an existing chat keeps a recovery copy in the same tab, including when the final write on leaving also fails. Reopening the chat retries unchanged drafts and asks before replacing a newer version.
+
 - DOCX preview and project retrieval keep a normal tab, a soft line break, the break between paragraphs, and adjacent text runs. A DOCX already saved with the older extraction keeps that text and index until the same DOCX is uploaded again. That upload refreshes the same source only when the extracted text differs, and does not change original bytes or existing messages. The same bytes uploaded under another suffix, including a PDF uploaded again as plain text, keep the saved text and index.
 - Finishing a reference-image upload on a new chat that has no id yet waits while another chat is still opening. If that open succeeds, the page stays on the opened chat, the editor keeps that chat's text, and the next edit is saved there. If the open fails, the finished upload is saved on the original draft and the image is not uploaded again.
 - Opening another chat while a reference image is still uploading does not drop that image when the open fails and this page is still the chat that selected it. The finished upload is saved on that chat, and the message that the other chat failed to open stays. Leaving that chat, including leaving and returning before the upload finishes, still does not add the image.
