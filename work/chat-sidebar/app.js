@@ -1441,6 +1441,24 @@ function mergeTranscript(local, fresh) {
     return { ...message, answer, reasoning };
   });
 }
+async function openRemainingChat() {
+  // The list can predate another deletion. Try the next listed chat if needed.
+  for (const chat of chats) {
+    const previousNavigation = navigationVersion;
+    try {
+      await selectChat(chat.id);
+      return;
+    } catch (error) {
+      if (navigationVersion !== previousNavigation + 1) return;
+      if (error.status !== 404) {
+        await newChat();
+        throw error;
+      }
+      chats = chats.filter(candidate => candidate.id !== chat.id);
+    }
+  }
+  await newChat();
+}
 async function refresh() {
   if (refreshing) return;
   refreshing = true;
@@ -1477,10 +1495,7 @@ async function refresh() {
         noteComposerLanded();
         showDraft({});
         setSave("");
-        if (view === "chat") {
-          if (chats.length) await selectChat(chats[0].id);
-          else await newChat();
-        }
+        if (view === "chat") await openRemainingChat();
       } else if (Number(fresh.version) < Number(current.version)) {
         // This response was read before the turn now on screen. Keep that turn.
       } else {

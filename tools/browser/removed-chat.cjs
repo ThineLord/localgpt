@@ -45,5 +45,20 @@ module.exports = async page => {
       await remove(other);
     }
   }
+  const fallback = await create('Also being deleted');
+  const opened = await create('Open chat');
+  await page.goto(base + '#chat=' + opened);
+  await page.waitForFunction(id => appReady && current?.id === id, opened);
+  await page.evaluate(() => clearInterval(refreshTimer));
+  await remove(opened);
+  // The fallback was still active when the list was read, then disappeared.
+  await page.route(base + 'chats/' + opened, async route => {
+    await remove(fallback);
+    await route.continue();
+  }, {times: 1});
+  await page.evaluate(() => refresh());
+  assert.equal(await page.locator('#connection').getAttribute('data-state'), 'online');
+  assert.equal(await page.evaluate(() => current?.id ?? null), null);
+  assert.equal(new URL(page.url()).hash, '');
   return {survivor: true, empty: true, recoverAfterReload: true, dismiss: true};
 };
