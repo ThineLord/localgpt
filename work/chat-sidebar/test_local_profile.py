@@ -2,6 +2,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 from PIL import Image
@@ -48,6 +49,13 @@ class AvatarTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.put(picture())).status,400);self.assertEqual(target.read_bytes(),b'original')
     async def test_missing_version_cannot_overwrite(self):
         r=await self.client.delete('/qwen-cn/profile/avatar');self.assertEqual(r.status,409)
+    def test_avatar_only_opens_the_declared_decoder(self):
+        raw = picture('PNG')
+        with patch.object(Image, 'open', wraps=Image.open) as opened:
+            normalize_avatar(raw, 'image/png')
+        self.assertEqual([call.kwargs.get('formats') for call in opened.call_args_list],
+                         [['PNG'], ['PNG']])
+
     def test_supported_formats_normalized(self):
         for fmt,mime in [('PNG','image/png'),('JPEG','image/jpeg'),('WEBP','image/webp')]:
             im=Image.open(io.BytesIO(normalize_avatar(picture(fmt),mime)));self.assertEqual(im.format,'PNG');self.assertEqual(im.size,(256,256))

@@ -4,23 +4,19 @@ Released versions follow [the version policy](versioning.md). `VERSION.txt` is t
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-26
+
 ### Fixed
 
-- When another window removes the open chat, the app opens a remaining chat or the empty composer. Unsent text and available reference images stay accessible in a separate recovery notice in the same tab.
+- Confirming an IME candidate leaves the project name editor open. Late project refreshes preserve the navigation and edit target the user selected.
+- Unsent drafts survive conflicting edits and failed writes in the same tab. When another window deletes the open chat, the app shows a surviving chat or an empty composer and keeps a separate copy of unsent input.
+- A reference image stays with the composer that selected it. A failed navigation can still finish the attachment in the original chat.
+- Inline code preserves literal asterisks inside paragraphs, lists and headings, including when emphasis surrounds the code span.
+- Word source previews and retrieval preserve tabs and soft line breaks. Re-uploading an identical DOCX repairs its derived text and index while preserving its source ID and original bytes.
 
-- A failed save of an existing chat keeps a recovery copy in the same tab, including when the final write on leaving also fails. Reopening the chat retries unchanged drafts and asks before replacing a newer version.
+### Security
 
-- DOCX preview and project retrieval keep a normal tab, a soft line break, the break between paragraphs, and adjacent text runs. A DOCX already saved with the older extraction keeps that text and index until the same DOCX is uploaded again. That upload refreshes the same source only when the extracted text differs, and does not change original bytes or existing messages. The same bytes uploaded under another suffix, including a PDF uploaded again as plain text, keep the saved text and index.
-- Finishing a reference-image upload on a new chat that has no id yet waits while another chat is still opening. If that open succeeds, the page stays on the opened chat, the editor keeps that chat's text, and the next edit is saved there. If the open fails, the finished upload is saved on the original draft and the image is not uploaded again.
-- Opening another chat while a reference image is still uploading does not drop that image when the open fails and this page is still the chat that selected it. The finished upload is saved on that chat, and the message that the other chat failed to open stays. Leaving that chat, including leaving and returning before the upload finishes, still does not add the image.
-- Choosing a reference image on a saved chat, or on a new chat that has no id yet, does not write that image into another project opened before the upload finishes. The other project keeps its draft and mode. Text already typed on the first chat stays there, and the page says the image was not added. Typing in a new chat and choosing an image without leaving still attaches the image to that chat when autosave gives it an id during the upload, and the text stays.
-- Inline code keeps the characters inside it. Asterisks in fragments such as `a * b * c`, `**literal**`, and `*.py and *.js` stay visible in paragraphs, lists, and headings. Bold and italic outside that code still apply, including emphasis around one or more code spans, and fenced blocks still copy their original text.
-- A slow project list or project detail refresh no longer replaces the project already open, and an older successful snapshot no longer replaces a newer title for that same project. A delayed failure is shown only for the refresh that is still current: it does not appear on another project or on an ordinary chat. Deleting the project that is still open still leaves the page and reports that it was moved to trash.
-- A project list refresh that starts after another project has already begun to open does not treat the project still on screen as the one to leave, so it does not cancel that open. If the open fails and the deleted project is still on screen, the page then leaves it and reports that it was moved to trash.
-- Confirming an input-method candidate in the project name field no longer creates or renames the project. Enter with `isComposing` set, or with key code 229, does not call `preventDefault` and does not save, for both create and edit. An ordinary Enter or the save button still saves once.
-- Reloading a chat that already has a saved draft keeps an unresolved conflict in the existing `hanz-transient-draft` sessionStorage record: the local text and the original base stay until an explicit save or an explicit choice. Refreshing again does not overwrite the server, and another chat or project does not apply or delete that record.
-- A draft conflict that is still waiting for a choice is not auto-saved when the saved text returns to the original base. Reopening that chat from the sidebar, its project, or a fresh load restores its local text and the choice. Pending drafts for different chats, projects, and a new chat that has not been saved stay under the same key; an explicit save or choice clears only the resolved scope.
-- An ordinary edit or save of a chat that already has an id does not claim the same-project `hanz-transient-draft` record that still has no chat id. That claim happens only in the successful POST that creates the new chat. Typing a new chat, opening an existing chat in the same tab before the 450ms autosave, and then saving that existing chat still restores the unsaved text.
+- Update the PDF reader to pypdf 6.21.4 or later in the 6.x series. Use Pillow 13 on Python 3.11+ and restrict both avatar decoder passes to the declared PNG, JPEG or WebP format. Python 3.10 retains Pillow 12.3.0 for compatibility and lacks Pillow 13's upstream security fixes.
 
 ## [0.3.0] - 2026-11-19
 

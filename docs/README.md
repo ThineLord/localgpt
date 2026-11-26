@@ -7,7 +7,7 @@
 | Use LocalGPT / 使用 | [User guide](user-guide.md) | [用户指南](user-guide.zh-CN.md) |
 | Contribute / 协作 | [Agent guide](agent-guide.md) | [Agent 指南](agent-guide.zh-CN.md) |
 | Validate / 验证 | [Testing](testing.md) | [测试方法](testing.zh-CN.md) |
-| Version 0.3.0 / 当前版本 | [Release notes](releases/0.3.0.md) | [版本说明](releases/0.3.0.zh-CN.md) |
+| Version 0.3.1 / 当前版本 | [Release notes](releases/0.3.1.md) | [版本说明](releases/0.3.1.zh-CN.md) |
 
 ## Reference / 技术参考
 

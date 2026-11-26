@@ -5,7 +5,9 @@ attrs==26.1.0
 frozenlist==1.8.0
 idna==3.20
 multidict==7.2.1
-pillow==12.3.0
+packaging==26.4
+pillow==13.0.0; python_version >= "3.11"
+pillow==12.3.0; python_version < "3.11"
 propcache==0.5.4
-pypdf==5.9.0
+pypdf==6.21.4
 yarl==1.25.1

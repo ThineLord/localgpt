@@ -5,7 +5,7 @@
 **在本机管理对话、图像和项目的工作台。**
 通过 LM Studio 对话、使用 ComfyUI 创作图像，把聊天、文件和记忆保存在自己的电脑上。
 
-[用户指南](docs/user-guide.zh-CN.md) · [最新版本 · 0.3.0](https://github.com/ThineLord/localgpt/releases/tag/v0.3.0) · [Agent 指南](AGENTS.md)
+[用户指南](docs/user-guide.zh-CN.md) · [最新版本 · 0.3.1](https://github.com/ThineLord/localgpt/releases/tag/v0.3.1) · [Agent 指南](AGENTS.md)
 
 ![LocalGPT 对话工作区，侧栏展示项目和聊天历史](docs/images/workspace.png)
 *真实应用界面，内容来自隔离的合成演示；不包含个人数据或真实模型输出。截图使用英文界面，可切换为中文。*
@@ -28,12 +28,12 @@
 
 ## 本地体验
 
-macOS 或 Linux · Python 3.10+ · 演示无需模型
+macOS 或 Linux · 推荐 Python 3.11+（兼容 3.10）· 演示无需模型
 
 ```sh
 git clone https://github.com/ThineLord/localgpt.git
 cd localgpt
-git checkout v0.3.0
+git checkout v0.3.1
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python work/chat-sidebar/build.py
@@ -52,7 +52,7 @@ python3 -m venv .venv
 | [tools/](tools/) | 验证、审计和隔离演示工具 |
 | [docs/](docs/README.md) | 用户／Agent 指南、技术参考与版本说明 |
 
-当前应用版本：**0.3.0**。[版本说明](docs/releases/0.3.0.zh-CN.md) · [更新记录](docs/CHANGELOG.md) · [测试方法](docs/testing.zh-CN.md)
+当前应用版本：**0.3.1**。[版本说明](docs/releases/0.3.1.zh-CN.md) · [更新记录](docs/CHANGELOG.md) · [测试方法](docs/testing.zh-CN.md)
 
 个人数据、模型和本地配置不进入仓库，详见[隐私说明](docs/reference/privacy.md)。这是一个独立应用，使用 Python/aiohttp、SQLite 和原生 JavaScript 构建。
 
