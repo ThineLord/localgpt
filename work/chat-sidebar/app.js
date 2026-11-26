@@ -150,6 +150,9 @@ const EN = {
   "参考图片最大为 20 MB。": "Reference images must be under 20 MB.",
   "请选择 PNG、JPEG 或 WebP 图片。": "Choose a PNG, JPEG or WebP image.",
   读取参考图片: "Reading reference image",
+  "已删除对话的未发送草稿": "Unsent draft from a deleted chat",
+  "查看草稿参考图": "View draft reference image",
+  "清除此草稿副本": "Dismiss this draft copy",
   上传的参考图片: "Uploaded reference image",
   "参考图已就绪，请输入修改要求。": "Image ready. Describe your changes.",
   "已离开选择图片时的对话，参考图没有加入当前草稿。":
@@ -668,6 +671,7 @@ function writeTransientRecords(records) {
       baseDraft: record.baseDraft,
       draft: record.draft,
     };
+    if (record.title) stored.title = record.title;
     if (record.awaitingChoice) stored.awaitingChoice = true;
     return stored;
   };
@@ -696,6 +700,7 @@ function stashTransientDraft(base = baseDraft, create = false, createdChatId = n
     const next = {
       chatId,
       projectId: project,
+      title: current?.title,
       baseDraft: normalized(baseToStore),
       draft: draft(),
       awaitingChoice,
@@ -703,16 +708,69 @@ function stashTransientDraft(base = baseDraft, create = false, createdChatId = n
     if (index >= 0) records[index] = next;
     else records.push(next);
     writeTransientRecords(records);
-  } catch {}
+    return true;
+  } catch { return false; }
 }
-function clearTransientDraft(chatId = current?.id || null) {
+function clearTransientDraft(chatId = current?.id || null, projectId = activeProjectId) {
   try {
     const records = readTransientRecords();
-    const next = records.filter((record) => !sameTransientScope(record, chatId, activeProjectId));
+    const next = records.filter((record) => !sameTransientScope(record, chatId, projectId));
     if (next.length === records.length) return;
     writeTransientRecords(next);
   } catch {}
 }
+// Keep an in-memory copy if browser storage is unavailable when a chat vanishes.
+const volatileRemovedDrafts = new Map();
+let removedDraftSignature = "";
+function renderRemovedDrafts() {
+  const list = $("removedDrafts");
+  let pending = [];
+  try { pending = readTransientRecords(); } catch {}
+  const active = new Set(chats.map(chat => chat.id));
+  const persisted = pending.filter(record => !volatileRemovedDrafts.has(record.chatId));
+  const copies = [...persisted, ...volatileRemovedDrafts.values()].filter(
+    record => record.chatId && record.chatId !== current?.id && record.draft && !active.has(record.chatId)
+  );
+  const signature = JSON.stringify([language, copies]);
+  if (signature === removedDraftSignature) return;
+  removedDraftSignature = signature;
+  list.replaceChildren();
+  list.hidden = !copies.length;
+  for (const copy of copies) {
+    const item = document.createElement("section");
+    const title = document.createElement("strong");
+    title.textContent = [t("已删除对话的未发送草稿"), copy.title].filter(Boolean).join(" · ");
+    item.append(title);
+    if (copy.draft.prompt) {
+      const text = document.createElement("pre");
+      text.textContent = copy.draft.prompt;
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.textContent = t("复制");
+      copyButton.onclick = () => copyText(copy.draft.prompt, copyButton);
+      item.append(text, copyButton);
+    }
+    if (copy.draft.reference) {
+      const link = document.createElement("a");
+      link.href = imageURL(copy.draft.reference);
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = t("查看草稿参考图");
+      item.append(link);
+    }
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.textContent = t("清除此草稿副本");
+    dismiss.onclick = () => {
+      clearTransientDraft(copy.chatId, copy.projectId);
+      volatileRemovedDrafts.delete(copy.chatId);
+      renderRemovedDrafts();
+    };
+    item.append(dismiss);
+    list.append(item);
+  }
+}
+window.addEventListener("hanzlanguage", () => { if (appReady) renderRemovedDrafts(); });
 function restoreTransientDraft() {
   if (!["chat", "project"].includes(view)) return;
   let pending = null;
@@ -1392,14 +1450,33 @@ async function refresh() {
     connectionRecovered();
     if (current) {
       const refreshId = current.id;
-      const fresh = await request(`/qwen-cn/chats/${refreshId}`);
-      if (current?.id !== refreshId) return;
-      if (fresh.deleted_at) {
-        if (dirty) await saveDraft();
+      const nav = navigationVersion;
+      let fresh;
+      try {
+        fresh = await request(`/qwen-cn/chats/${refreshId}`);
+      } catch (error) {
+        if (current?.id !== refreshId || nav !== navigationVersion) return;
+        if (error.status !== 404) throw error;
+      }
+      if (current?.id !== refreshId || nav !== navigationVersion) return;
+      if (!fresh || fresh.deleted_at) {
+        // A foreground navigation or save still owns the composer until it settles.
+        if (navigationFlight || saving) return;
+        if (dirty && !stashTransientDraft(baseDraft, true)) {
+          volatileRemovedDrafts.set(refreshId, {
+            chatId: refreshId, projectId: activeProjectId, title: current.title, draft: draft(),
+          });
+        }
+        clearTimeout(saveTimer);
+        chats = chats.filter(chat => chat.id !== refreshId);
         current = null;
         dirty = false;
         conflict = null;
+        $("draftConflict").hidden = true;
+        baseDraft = normalized({});
+        noteComposerLanded();
         showDraft({});
+        setSave("");
         if (view === "chat") {
           if (chats.length) await selectChat(chats[0].id);
           else await newChat();
@@ -1433,6 +1510,7 @@ async function refresh() {
       await loadGallery();
     else if (view === "trash") await loadTrash();
     renderSidebar();
+    renderRemovedDrafts();
     window.ProjectWorkspace?.refreshView();
   } catch (e) {
     connectionError(e);
@@ -2042,6 +2120,7 @@ async function init() {
     }
     connectionRecovered();
     appReady = true;
+    renderRemovedDrafts();
     loadModels();
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => {

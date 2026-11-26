@@ -261,7 +261,7 @@
     if (!projectReadCurrent(epoch, nav)) return;
     const viewedId = view === "project" ? detail?.id : null;
     projects = listed;
-    if (current && view === "chat")
+    if (current && view === "chat" && chats.some(chat => chat.id === current.id))
       activeProjectId = projectForChat(current.id)?.id || null;
     if (!viewedId || detail?.id !== viewedId || view !== "project") return;
     if (listed.some((project) => project.id === viewedId)) {
